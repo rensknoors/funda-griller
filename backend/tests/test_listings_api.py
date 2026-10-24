@@ -1,4 +1,4 @@
-from app.ports import ListingRemoved, ProviderBlocked
+from app.ports import ListingError, ListingRemoved, ProviderBlocked
 from tests.listing_fixtures import LIVE_URL, SOLD_URL, live_listing, sold_listing
 
 
@@ -139,3 +139,25 @@ def test_refetch_failure_keeps_existing_snapshots(client, listing_provider):
 
     assert response.status_code == 502
     assert len(client.get("/api/listings").json()[0]["snapshots"]) == 1
+
+
+def test_unexpected_listing_error_is_reported_as_provider_error(client, listing_provider):
+    listing_provider.listings[LIVE_URL] = ListingError()
+
+    response = client.post("/api/listings", json={"url": LIVE_URL})
+
+    assert response.status_code == 502
+    assert response.json()["code"] == "provider_error"
+
+
+def test_listing_without_media_or_description_is_captured(client, listing_provider):
+    listing_provider.listings[LIVE_URL] = live_listing(
+        photo_urls=(), brochure_url=None, description=None, price_history=()
+    )
+
+    response = client.post("/api/listings", json={"url": LIVE_URL})
+
+    assert response.status_code == 201
+    snapshot = response.json()["snapshots"][0]
+    assert snapshot["photo_urls"] == []
+    assert snapshot["description"] is None

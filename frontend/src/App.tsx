@@ -13,9 +13,11 @@ import "./styles.css";
 type ApiState = "checking" | "reachable" | "unreachable";
 type ListState = "laden" | "klaar" | "fout";
 
-const ERROR_COPY: Record<Exclude<CaptureError["kind"], "already_captured">, string> = {
+type FetchFailure = Exclude<CaptureError, { kind: "already_captured" }>;
+
+const ERROR_COPY: Record<FetchFailure["kind"], string> = {
   bad_url: "Ophalen mislukt: ongeldige URL. Plak een funda-link van een koopwoning.",
-  listing_removed: "Ophalen mislukt: woning verwijderd. Funda toont deze advertentie niet meer.",
+  listing_removed: "Ophalen mislukt: woning verwijderd. Funda toont deze woning niet meer.",
   provider_blocked: "Ophalen mislukt: aanbieder geblokkeerd. Probeer het later opnieuw.",
   unknown: "Ophalen mislukt. Probeer het opnieuw.",
 };
@@ -33,9 +35,8 @@ export function App() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<Exclude<CaptureError, { kind: "already_captured" }> | null>(
-    null,
-  );
+  const [error, setError] = useState<FetchFailure | null>(null);
+  const [rowErrors, setRowErrors] = useState<Record<string, FetchFailure>>({});
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,13 +60,18 @@ export function App() {
     );
   }
 
-  async function handleCapture(event: React.FormEvent) {
-    event.preventDefault();
+  async function run(request: () => Promise<Listing | CaptureError>) {
     setBusy(true);
     setError(null);
     setDuplicateId(null);
-    const result = await captureListing(url);
+    const result = await request();
     setBusy(false);
+    return result;
+  }
+
+  async function handleCapture(event: React.FormEvent) {
+    event.preventDefault();
+    const result = await run(() => captureListing(url));
     if (!isCaptureError(result)) {
       upsert(result);
       setUrl("");
@@ -77,15 +83,12 @@ export function App() {
   }
 
   async function handleRefetch(fundaId: string) {
-    setBusy(true);
-    setError(null);
-    const result = await refetchListing(fundaId);
-    setBusy(false);
+    const result = await run(() => refetchListing(fundaId));
+    setRowErrors(({ [fundaId]: _cleared, ...rest }) => rest);
     if (!isCaptureError(result)) {
       upsert(result);
-      setDuplicateId(null);
     } else if (result.kind !== "already_captured") {
-      setError(result);
+      setRowErrors((current) => ({ ...current, [fundaId]: result }));
     }
   }
 
@@ -127,7 +130,11 @@ export function App() {
 
       <h2>Woningen</h2>
       {listState === "laden" && (
-        <div className="skeleton" aria-busy="true" aria-label="Woningen laden" />
+        <div className="skeleton" role="status" aria-label="Woningen laden">
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+        </div>
       )}
       {listState === "fout" && (
         <p role="alert" className="notice error">
@@ -161,6 +168,7 @@ export function App() {
                 key={listing.funda_id}
                 listing={listing}
                 busy={busy}
+                failure={rowErrors[listing.funda_id]}
                 onRefetch={handleRefetch}
               />
             ))}
@@ -177,10 +185,12 @@ export function App() {
 function ListingRow({
   listing,
   busy,
+  failure,
   onRefetch,
 }: {
   listing: Listing;
   busy: boolean;
+  failure: FetchFailure | undefined;
   onRefetch: (fundaId: string) => void;
 }) {
   const latest = listing.snapshots[0];
@@ -191,6 +201,12 @@ function ListingRow({
         <span className={sold ? "struck" : undefined}>{latest.address ?? listing.url}</span>
         {latest.city && <span className="muted"> {latest.city}</span>}{" "}
         <span className="chip">{statusLabel(latest.status, latest.raw_status)}</span>
+        {failure && (
+          <span role="alert" className="row-error">
+            <span aria-hidden="true">! </span>
+            {ERROR_COPY[failure.kind]}
+          </span>
+        )}
       </th>
       <td className="num">{latest.asking_price != null ? euro.format(latest.asking_price) : "–"}</td>
       <td className="num">

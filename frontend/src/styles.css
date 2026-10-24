@@ -39,9 +39,11 @@ tbody th { font-weight: 600; }
 .muted { color: var(--ink-muted); font-weight: 400; }
 .chip { border: 1px solid var(--ink-muted); border-radius: 2px; padding: 0 4px; font-size: 12px; font-weight: 400; }
 .sold { color: var(--ink-muted); }
+.row-error { display: block; color: var(--vermilion); font-size: 12px; font-weight: 600; }
 .struck { text-decoration: line-through; }
 .empty { max-width: 68ch; }
-.skeleton { height: 96px; background: repeating-linear-gradient(0deg, #eef0f4 0 32px, var(--ground) 32px 36px); }
+.skeleton { border: 1px solid var(--rule); background: var(--surface); }
+.skeleton-row { height: 32px; border-bottom: 1px solid var(--rule); background: #eef0f4; }
 .api-state { color: var(--ink-muted); font-size: 12px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 

@@ -9,6 +9,8 @@ from funda.exceptions import (
     PriceHistoryError,
 )
 
+from funda.listing import Media
+
 from app.ports import InvalidListingUrl, ListingRemoved, ProviderBlocked
 from app.pyfunda_provider import PyfundaListingProvider
 from tests import pyfunda_fixtures as fx
@@ -91,3 +93,17 @@ def test_rejected_requests_mean_provider_blocked(error):
 
     with pytest.raises(ProviderBlocked):
         PyfundaListingProvider(client).fetch(fx.LIVE_URL)
+
+
+def test_listing_with_empty_floorplans_videos_and_360_photos_parses():
+    bare = dataclasses.replace(
+        fx.live_listing(),
+        media=Media(floorplans=(), videos=(), photos_360=(), virtual_tours=()),
+    )
+    client = fx.FakePyfundaClient(bare, fx.live_price_history())
+
+    listing = PyfundaListingProvider(client).fetch(fx.LIVE_URL)
+
+    assert listing.photo_urls == ()
+    assert listing.brochure_url is None
+    assert listing.asking_price == 595000
