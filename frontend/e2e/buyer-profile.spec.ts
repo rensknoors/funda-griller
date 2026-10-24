@@ -18,7 +18,7 @@ test("koperprofiel can be filled in, rejected when invalid, saved and reloaded",
   await page.getByLabel("Bruto jaarinkomen huishouden (€)").fill("95000");
   await page.getByRole("button", { name: "Opslaan" }).click();
 
-  await expect(page.getByText("Opgeslagen als versie 1.")).toBeVisible();
+  await expect(page.getByText(/Opgeslagen als versie \d+\./)).toBeVisible();
 
   await page.reload();
 

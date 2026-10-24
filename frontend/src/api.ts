@@ -58,3 +58,33 @@ export const refetchListing = (fundaId: string) => post(`/api/listings/${fundaId
 export function isCaptureError(result: Listing | CaptureError): result is CaptureError {
   return "kind" in result;
 }
+
+export type CaseFact = {
+  key: string;
+  value: string | number;
+  provenance: "listing";
+  fetched_at: string;
+};
+
+export type Affordability = {
+  max_mortgage: number;
+  energy_label_bonus: number;
+  equity: number;
+  kosten_koper: { transfer_tax: number; fixed_costs: number; total: number } | null;
+  monthly_cost: number | null;
+  headroom: number | null;
+};
+
+export type Case = {
+  funda_id: string;
+  built_from: { snapshot_id: number; profile_version: number | null };
+  facts: CaseFact[];
+  affordability: Affordability | null;
+  rules: { year: number; is_current_year: boolean };
+};
+
+export async function fetchCase(fundaId: string): Promise<Case> {
+  const response = await fetch(`/api/listings/${fundaId}/case`);
+  if (!response.ok) throw new Error("case unavailable");
+  return response.json();
+}

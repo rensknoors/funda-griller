@@ -29,3 +29,17 @@ name = "Ports are pure types: no adapters, storage, settings or app wiring"
 type = "forbidden"
 source_modules = ["app.ports"]
 forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main"]
+
+[[tool.importlinter.contracts]]
+name = "Case builder is pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
+type = "forbidden"
+source_modules = ["app.case", "app.affordability"]
+forbidden_modules = [
+  "app.ports",
+  "app.production_ports",
+  "app.pyfunda_provider",
+  "app.store",
+  "app.settings",
+  "app.rules_loader",
+  "app.main",
+]

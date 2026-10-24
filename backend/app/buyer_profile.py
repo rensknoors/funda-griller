@@ -80,16 +80,20 @@ class BuyerProfile(BaseModel):
         return value
 
 
+def home_equity(profile: BuyerProfile) -> int:
+    home = profile.current_home
+    return home.value - home.outstanding_mortgage - home.selling_costs if home else 0
+
+
 def reduce_profile(version: int, profile: BuyerProfile) -> dict:
     """The only form of the Buyer Profile allowed to reach the LLM: derived figures and preferences."""
-    home = profile.current_home
     return {
         "profile_version": version,
         "household": {
             "adults": sum(member.role == "adult" for member in profile.household),
             "children": sum(member.role == "child" for member in profile.household),
         },
-        "home_equity": home.value - home.outstanding_mortgage - home.selling_costs if home else 0,
+        "home_equity": home_equity(profile),
         "renovation_tolerance": profile.renovation_tolerance,
         "must_haves": profile.must_haves,
         "nice_to_haves": profile.nice_to_haves,

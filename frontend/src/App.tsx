@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { BuyerProfileForm } from "./BuyerProfileForm";
+import { CaseView } from "./CaseView";
 import {
   captureListing,
   fetchListings,
@@ -38,6 +39,7 @@ export function App() {
   const [error, setError] = useState<FetchFailure | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, FetchFailure>>({});
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
+  const [openCaseId, setOpenCaseId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/health")
@@ -90,6 +92,16 @@ export function App() {
     } else if (result.kind !== "already_captured") {
       setRowErrors((current) => ({ ...current, [fundaId]: result }));
     }
+  }
+
+  const openCase = listings.find((l) => l.funda_id === openCaseId);
+  if (openCase) {
+    return (
+      <main>
+        <h1>Funda Griller</h1>
+        <CaseView listing={openCase} onClose={() => setOpenCaseId(null)} />
+      </main>
+    );
   }
 
   return (
@@ -171,6 +183,7 @@ export function App() {
                 busy={busy}
                 failure={rowErrors[listing.funda_id]}
                 onRefetch={handleRefetch}
+                onOpen={setOpenCaseId}
               />
             ))}
           </tbody>
@@ -191,18 +204,22 @@ function ListingRow({
   busy,
   failure,
   onRefetch,
+  onOpen,
 }: {
   listing: Listing;
   busy: boolean;
   failure: FetchFailure | undefined;
   onRefetch: (fundaId: string) => void;
+  onOpen: (fundaId: string) => void;
 }) {
   const latest = listing.snapshots[0];
   const sold = latest.status === "sold";
   return (
     <tr className={sold ? "sold" : undefined}>
       <th scope="row">
-        <span className={sold ? "struck" : undefined}>{latest.address ?? listing.url}</span>
+        <button type="button" className="link" onClick={() => onOpen(listing.funda_id)}>
+          <span className={sold ? "struck" : undefined}>{latest.address ?? listing.url}</span>
+        </button>
         {latest.city && <span className="muted"> {latest.city}</span>}{" "}
         <span className="chip">{statusLabel(latest.status, latest.raw_status)}</span>
         {failure && (
