@@ -27,7 +27,13 @@ def live_listing() -> Listing:
         global_id=80907644,
         tiny_id="17270371",
         price=Price(amount=595000),
-        address=Address(title="Buchterweg 15", city="Holtum"),
+        address=Address(
+            title="Buchterweg 15",
+            city="Holtum",
+            house_number="15",
+            house_number_suffix="a",
+            postcode="6118 AB",
+        ),
         areas=Areas(living=152, plot=410),
         rooms=Rooms(total=6, bedrooms=4),
         property_details=PropertyDetails(

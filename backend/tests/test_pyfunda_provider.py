@@ -25,6 +25,7 @@ def test_live_listing_is_normalised():
     assert listing.provider_id == "17270371"
     assert listing.raw_status == "Beschikbaar"
     assert (listing.address, listing.city) == ("Buchterweg 15", "Holtum")
+    assert (listing.postcode, listing.house_number, listing.house_number_suffix) == ("6118 AB", "15", "a")
     assert listing.asking_price == 595000
     assert (listing.living_area, listing.plot_area) == (152, 410)
     assert (listing.rooms, listing.bedrooms) == (6, 4)

@@ -1,6 +1,21 @@
 import { useEffect, useState } from "react";
 
-import { type Affordability, type Case, type CaseFact, type Listing, fetchCase } from "./api";
+import {
+  type Affordability,
+  type Case,
+  type CaseFact,
+  type Evidence,
+  type Flag,
+  type FlagClass,
+  type HardNo,
+  type Listing,
+  type ListingFact,
+  type Metrics,
+  type SourceFact,
+  type SourceStatus,
+  fetchCase,
+  refetchSource,
+} from "./api";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
 
@@ -11,6 +26,7 @@ const euro = new Intl.NumberFormat("nl-NL", {
 });
 const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
 const shortDate = (iso: string) => dayMonth.format(new Date(iso));
+const percent = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 1, signDisplay: "exceptZero" });
 
 const FACT_LABELS: Record<string, string> = {
   address: "Adres",
@@ -25,11 +41,63 @@ const FACT_LABELS: Record<string, string> = {
   energy_label: "Energielabel",
   heating: "Verwarming",
 };
-const MONEY_FACTS = new Set(["asking_price"]);
+const MONEY_FACTS = new Set(["asking_price", "headroom", "woz_value"]);
 
-function formatFact(fact: CaseFact): string {
+const EVIDENCE_LABELS: Record<string, string> = {
+  ...FACT_LABELS,
+  woz_value: "WOZ-waarde",
+  asking_vs_woz: "Vraagprijs gedeeld door WOZ",
+  headroom: "Ruimte boven vraag",
+  renovation_tolerance: "Verbouwtolerantie",
+  worst_acceptable_energy_label: "Slechtst passende energielabel",
+  threshold: "Drempel",
+  must_have: "Must-have",
+  deal_breaker: "Deal-breaker",
+};
+
+const PROVENANCE_LABELS: Record<string, string> = {
+  listing: "Advertentie",
+  source: "Bron",
+  computed: "Berekend",
+  buyer_profile: "Koperprofiel",
+  rule: "Regel",
+};
+
+const FLAG_BANDS: { flagClass: FlagClass; glyph: string; label: string }[] = [
+  { flagClass: "pro", glyph: "+", label: "Pluspunt" },
+  { flagClass: "con", glyph: "−", label: "Minpunt" },
+  { flagClass: "risk", glyph: "!", label: "Risico" },
+];
+
+const SOURCE_LABELS: Record<string, string> = {
+  energielabel: "Energielabelregister",
+  woz: "WOZ (prijshistorie)",
+  flood_soil: "Overstroming en bodem",
+  noise: "Geluid",
+  comparables: "Vergelijkbare verkopen",
+};
+const sourceLabel = (source: string) => SOURCE_LABELS[source] ?? source;
+
+const STATUS_COPY: Record<SourceStatus["status"], { glyph: string; word: string }> = {
+  succeeded: { glyph: "✓", word: "gelukt" },
+  failed: { glyph: "✕", word: "mislukt" },
+  skipped: { glyph: "–", word: "overgeslagen" },
+};
+const REASON_COPY: Record<string, string> = {
+  no_api_key: "geen API-sleutel ingesteld",
+  no_address: "adres onvolledig",
+  not_fetched: "nog niet opgehaald",
+};
+
+function formatValue(fact: CaseFact): string {
   if (MONEY_FACTS.has(fact.key) && typeof fact.value === "number") return euro.format(fact.value);
   return String(fact.value);
+}
+
+function sourceFactLabel(fact: SourceFact): string {
+  if (fact.key === "woz_value") return `WOZ-waarde ${fact.as_of?.slice(0, 4) ?? ""}`.trim();
+  if (fact.key === "energy_label") return "Energielabel (register)";
+  return FACT_LABELS[fact.key] ?? fact.key;
 }
 
 export function CaseView(props: {
@@ -40,6 +108,8 @@ export function CaseView(props: {
 }) {
   const { listing, onClose } = props;
   const [state, setState] = useState<LoadState>({ kind: "laden" });
+  const [refetching, setRefetching] = useState<string | null>(null);
+  const [refetchFailed, setRefetchFailed] = useState(false);
   const latest = listing.snapshots[0];
 
   useEffect(() => {
@@ -53,6 +123,24 @@ export function CaseView(props: {
     };
   }, [listing.funda_id, latest.id]);
 
+  async function handleSourceRefetch(source: string) {
+    setRefetching(source);
+    setRefetchFailed(false);
+    try {
+      setState({ kind: "klaar", data: await refetchSource(listing.funda_id, source) });
+    } catch {
+      setRefetchFailed(true);
+    } finally {
+      setRefetching(null);
+    }
+  }
+
+  const sourceFacts =
+    state.kind === "klaar"
+      ? state.data.facts.filter((f): f is SourceFact => f.provenance === "source")
+      : [];
+  const staleCount = sourceFacts.filter((f) => f.stale).length;
+
   return (
     <section aria-labelledby="case-title" className="dossier">
       <header className="dossier-head">
@@ -60,8 +148,15 @@ export function CaseView(props: {
           <h2 id="case-title">Dossier: {latest.address ?? listing.url}</h2>
           <p className="muted">
             Advertentie van {shortDate(latest.fetched_at)}
+            {latest.entry === "manual" && <> · Handmatig ingevoerd</>}
             {state.kind === "klaar" && state.data.built_from.profile_version !== null && (
               <> · Koperprofiel versie {state.data.built_from.profile_version}</>
+            )}
+            {staleCount > 0 && (
+              <>
+                {" "}
+                · <span className="chip stale-chip">⏲ {staleCount} verouderd</span>
+              </>
             )}
           </p>
         </div>
@@ -74,7 +169,16 @@ export function CaseView(props: {
           </button>
         </div>
       </header>
-      {state.kind === "klaar" && <KeyFigures askingPrice={latest.asking_price} affordability={state.data.affordability} />}
+      {state.kind === "klaar" && state.data.hard_no && (
+        <HardNoBanner hardNo={state.data.hard_no} flags={state.data.flags} />
+      )}
+      {state.kind === "klaar" && (
+        <KeyFigures
+          askingPrice={latest.asking_price}
+          affordability={state.data.affordability}
+          metrics={state.data.metrics}
+        />
+      )}
 
       {state.kind === "laden" && (
         <div className="skeleton" aria-busy="true">
@@ -92,9 +196,105 @@ export function CaseView(props: {
       )}
       {state.kind === "klaar" && (
         <>
+          <Brondekking
+            sources={state.data.sources}
+            refetching={refetching}
+            failed={refetchFailed}
+            onRefetch={handleSourceRefetch}
+          />
+          <Signalen flags={state.data.flags} facts={state.data.facts} rulesVersion={state.data.built_from.flag_rules_version} />
           <Betaalruimte affordability={state.data.affordability} rules={state.data.rules} />
-          <FactGroup facts={state.data.facts} />
+          <FactGroup
+            title="Kenmerken"
+            id="kenmerken"
+            facts={state.data.facts.filter((f): f is ListingFact => f.provenance === "listing")}
+          />
+          <SourceGroup
+            title="Prijs en waarde"
+            id="prijs-en-waarde"
+            source="woz"
+            facts={sourceFacts.filter((f) => f.source === "woz")}
+            sources={state.data.sources}
+          >
+            {state.data.metrics.asking_vs_woz && (
+              <ComputedRow
+                label="Vraagprijs t.o.v. WOZ"
+                value={`${percent.format(state.data.metrics.asking_vs_woz.percent)}% (${signedEuro(state.data.metrics.asking_vs_woz.difference)})`}
+                note={`WOZ ${state.data.metrics.asking_vs_woz.woz_as_of.slice(0, 4)}`}
+              />
+            )}
+          </SourceGroup>
+          <SourceGroup
+            title="Energie"
+            id="energie"
+            source="energielabel"
+            facts={sourceFacts.filter((f) => f.source === "energielabel")}
+            sources={state.data.sources}
+          >
+            {state.data.metrics.energy_label_check && (
+              <ComputedRow
+                label="Label advertentie gelijk aan register"
+                value={
+                  state.data.metrics.energy_label_check.matches
+                    ? "Ja"
+                    : `Nee: advertentie ${state.data.metrics.energy_label_check.listing}, register ${state.data.metrics.energy_label_check.register}`
+                }
+                note="vergelijking"
+              />
+            )}
+          </SourceGroup>
         </>
+      )}
+    </section>
+  );
+}
+
+function Brondekking(props: {
+  sources: SourceStatus[];
+  refetching: string | null;
+  failed: boolean;
+  onRefetch: (source: string) => void;
+}) {
+  const count = (status: SourceStatus["status"]) =>
+    props.sources.filter((s) => s.status === status).length;
+  return (
+    <section aria-labelledby="brondekking-title" className="brondekking">
+      <h3 id="brondekking-title">
+        Brondekking: {props.sources.length} bronnen: {count("succeeded")} gelukt, {count("failed")}{" "}
+        mislukt, {count("skipped")} overgeslagen
+      </h3>
+      <ul className="source-list">
+        {props.sources.map((source) => {
+          const copy = STATUS_COPY[source.status];
+          return (
+            <li key={source.source} className={`source-status ${source.status}`}>
+              <span>
+                <span aria-hidden="true">{copy.glyph} </span>
+                {sourceLabel(source.source)}: {copy.word}
+                {source.status !== "succeeded" && source.reason && REASON_COPY[source.reason] && (
+                  <span className="muted"> ({REASON_COPY[source.reason]})</span>
+                )}
+                {source.attempted_at && (
+                  <span className="muted"> · {shortDate(source.attempted_at)}</span>
+                )}
+              </span>
+              <button
+                type="button"
+                className="small"
+                disabled={props.refetching !== null}
+                aria-label={`${sourceLabel(source.source)} opnieuw ophalen`}
+                onClick={() => props.onRefetch(source.source)}
+              >
+                {props.refetching === source.source ? "Bezig…" : "Opnieuw ophalen"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {props.failed && (
+        <p role="alert" className="notice error">
+          <span aria-hidden="true">! </span>Opnieuw ophalen mislukt. Probeer het later opnieuw.
+        </p>
       )}
     </section>
   );
@@ -103,13 +303,21 @@ export function CaseView(props: {
 function KeyFigures({
   askingPrice,
   affordability,
+  metrics,
 }: {
   askingPrice: number | null;
   affordability: Affordability | null;
+  metrics: Metrics;
 }) {
   return (
     <dl className="figures key-figures" aria-label="Kerncijfers">
       <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
+      <Figure
+        label="t.o.v. WOZ"
+        value={metrics.asking_vs_woz ? `${percent.format(metrics.asking_vs_woz.percent)}%` : "–"}
+      >
+        {metrics.asking_vs_woz && "~ WOZ onofficieel"}
+      </Figure>
       <Figure
         label="Ruimte boven vraag"
         value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
@@ -193,19 +401,19 @@ function Figure(props: { label: string; value: string; children?: React.ReactNod
   );
 }
 
-function FactGroup({ facts }: { facts: CaseFact[] }) {
+function FactGroup({ title, id, facts }: { title: string; id: string; facts: ListingFact[] }) {
   return (
     <details open className="fact-group">
       <summary>
-        <h3 id="feiten-title">Kenmerken</h3>
+        <h3 id={`${id}-title`}>{title}</h3>
         <span className="muted">{facts.length} feiten</span>
       </summary>
       <ol className="facts">
         {facts.map((fact, index) => (
-          <li key={fact.key} className="fact">
+          <li key={fact.key} id={`vak-${index + 1}`} className="fact">
             <span className="vak-number">{index + 1}</span>
             <span className="fact-label">{FACT_LABELS[fact.key] ?? fact.key}</span>
-            <span className="fact-value">{formatFact(fact)}</span>
+            <span className="fact-value">{formatValue(fact)}</span>
             <span className="stamp" aria-label={`Bron: advertentie, opgehaald ${shortDate(fact.fetched_at)}`}>
               <span aria-hidden="true">■ ADV</span> Advertentie · {shortDate(fact.fetched_at)}
             </span>
@@ -214,4 +422,168 @@ function FactGroup({ facts }: { facts: CaseFact[] }) {
       </ol>
     </details>
   );
+}
+
+function SourceGroup(props: {
+  title: string;
+  id: string;
+  source: string;
+  facts: SourceFact[];
+  sources: SourceStatus[];
+  children?: React.ReactNode;
+}) {
+  const status = props.sources.find((s) => s.source === props.source);
+  const stale = props.facts.filter((f) => f.stale).length;
+  return (
+    <details open className="fact-group">
+      <summary>
+        <h3 id={`${props.id}-title`}>{props.title}</h3>
+        <span className="muted">
+          {props.facts.length} feiten{stale > 0 && ` · ${stale} verouderd`}
+        </span>
+      </summary>
+      {props.facts.length === 0 && status && status.status !== "succeeded" && (
+        <p className="empty">
+          <span aria-hidden="true">{STATUS_COPY[status.status].glyph} </span>
+          Bron {STATUS_COPY[status.status].word}, geen gegevens van {sourceLabel(props.source)}.
+        </p>
+      )}
+      <ol className="facts">
+        {props.facts.map((fact, index) => (
+          <SourceFactRow key={`${fact.key}-${fact.as_of ?? index}`} fact={fact} number={index + 1} />
+        ))}
+        {props.children}
+      </ol>
+    </details>
+  );
+}
+
+function SourceFactRow({ fact, number }: { fact: SourceFact; number: number }) {
+  const official = fact.trust === "official";
+  const fetched = shortDate(fact.fetched_at);
+  const label = `Bron: ${sourceLabel(fact.source)}${official ? "" : ", onofficieel"}, opgehaald ${fetched}${fact.stale ? ", verouderd" : ""}`;
+  return (
+    <li className={`fact${fact.stale ? " stale" : ""}`}>
+      <span className="vak-number">{number}</span>
+      <span className="fact-label">{sourceFactLabel(fact)}</span>
+      <span className="fact-value">
+        {official ? "" : "~ "}
+        {formatValue(fact)}
+      </span>
+      <span
+        className={`stamp ${official ? "stamp-official" : "stamp-third-party"}`}
+        aria-label={label}
+        title={fact.ttl_days !== null ? `Verouderd na ${fact.ttl_days} dagen` : undefined}
+      >
+        <span aria-hidden="true">{official ? "◆ BRN" : "◇ 3DE"}</span> {sourceLabel(fact.source)}
+        {!official && " · onofficieel"} ·{" "}
+        {fact.stale ? (
+          <>
+            <s>{fetched}</s> <span aria-hidden="true">⏲</span> Verouderd
+          </>
+        ) : (
+          fetched
+        )}
+      </span>
+    </li>
+  );
+}
+
+function HardNoBanner({ hardNo, flags }: { hardNo: HardNo; flags: Flag[] }) {
+  const cause = flags.find((flag) => flag.id === hardNo.flag_id);
+  return (
+    <div role="status" className="hard-no">
+      <span className="hard-no-mark" aria-hidden="true">✕</span>
+      <div>
+        <p className="hard-no-tier">Harde afwijzing</p>
+        <p>
+          Deal-breaker: <strong>{hardNo.deal_breaker}</strong>
+          {cause && <> · {cause.title}</>}
+        </p>
+        <p className="muted">Deterministisch toegepast, geen model gebruikt.</p>
+      </div>
+    </div>
+  );
+}
+
+function Signalen({ flags, facts, rulesVersion }: { flags: Flag[]; facts: CaseFact[]; rulesVersion: number }) {
+  return (
+    <section aria-labelledby="signalen-title">
+      <h3 id="signalen-title">Signalen</h3>
+      {flags.length === 0 && <p className="empty">Geen signalen bij deze woning volgens regelset {rulesVersion}.</p>}
+      {FLAG_BANDS.map((band) => {
+        const inBand = flags.filter((flag) => flag.class === band.flagClass);
+        if (inBand.length === 0) return null;
+        return (
+          <div key={band.flagClass} className={`flag-band flag-${band.flagClass}`}>
+            <h4>
+              <span className="flag-glyph" aria-hidden="true">{band.glyph}</span> {band.label} ({inBand.length})
+            </h4>
+            <ul className="flags">
+              {inBand.map((flag) => (
+                <li key={flag.id}>
+                  <details>
+                    <summary>{flag.title}</summary>
+                    <p className="muted">
+                      Regel {flag.rule_id} · versie {flag.rule_version}
+                    </p>
+                    <ul className="evidence">
+                      {flag.evidence.map((item) => (
+                        <EvidenceRow key={item.key} item={item} facts={facts} />
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
+  // Only Kenmerken rows carry a vak anchor; Source facts are shown in their own groups.
+  const vak =
+    item.provenance === "listing"
+      ? facts.findIndex((fact) => fact.key === item.key && fact.provenance === "listing") + 1
+      : 0;
+  return (
+    <li>
+      {evidenceLabel(item.key)}: <strong>{evidenceValue(item)}</strong>{" "}
+      <span className="muted">({PROVENANCE_LABELS[item.provenance] ?? item.provenance})</span>
+      {vak > 0 && (
+        <>
+          {" "}
+          <a href={`#vak-${vak}`}>Zie vak {vak}</a>
+        </>
+      )}
+    </li>
+  );
+}
+
+function ComputedRow(props: { label: string; value: string; note: string }) {
+  return (
+    <li className="fact">
+      <span className="vak-number">=</span>
+      <span className="fact-label">{props.label}</span>
+      <span className="fact-value">{props.value}</span>
+      <span className="stamp stamp-computed" aria-label={`Berekend: ${props.note}`}>
+        <span aria-hidden="true">= BER</span> Berekend · {props.note}
+      </span>
+    </li>
+  );
+}
+
+function evidenceLabel(key: string): string {
+  if (key.endsWith("_mentioned")) return `‘${key.slice(0, -"_mentioned".length)}’ genoemd in advertentie`;
+  return EVIDENCE_LABELS[key] ?? key;
+}
+
+function evidenceValue(item: Evidence): string {
+  if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
+  if (item.value === null) return "–";
+  if (MONEY_FACTS.has(item.key) && typeof item.value === "number") return euro.format(item.value);
+  return String(item.value);
 }

@@ -1,4 +1,5 @@
 import socket
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.ports import Ports
 from app.settings import Settings
-from tests.fakes import FakeListingProvider, FakeLlmClient, FakeSourceClient
+from tests.fakes import FakeClock, FakeListingProvider, FakeLlmClient, FakeSourceClient
 
 SOURCES = ("energielabel", "woz", "flood_soil", "noise", "comparables")
 
@@ -36,13 +37,18 @@ def llm_client():
 
 
 @pytest.fixture
-def client(settings, listing_provider, source_clients, llm_client):
+def clock():
+    return FakeClock(datetime(2026, 10, 24, 12, 0, tzinfo=UTC))
+
+
+@pytest.fixture
+def client(settings, listing_provider, source_clients, llm_client, clock):
     ports = Ports(
         listing_provider=listing_provider,
         source_clients=source_clients,
         llm_client=llm_client,
     )
-    with TestClient(create_app(settings, ports)) as test_client:
+    with TestClient(create_app(settings, ports, clock)) as test_client:
         yield test_client
 
 
