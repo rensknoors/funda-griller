@@ -5,6 +5,8 @@ const webPort = 5174;
 
 export default defineConfig({
   testDir: "e2e",
+  // Specs share one backend and database.
+  workers: 1,
   use: { baseURL: `http://127.0.0.1:${webPort}` },
   webServer: [
     {
