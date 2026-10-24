@@ -1,7 +1,25 @@
+# Python
 .venv/
 __pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# Local data
+*.sqlite
+*.sqlite-journal
+*.db
+backend/data/
+
+# Downloaded media (photos, brochures, Documents)
+media/
+data/
+
+# Frontend
+node_modules/
+dist/
+test-results/
+playwright-report/
+
 PROTOTYPE_out/
 PROTOTYPE_out_live/
-.env
-*.sqlite
-*.db
