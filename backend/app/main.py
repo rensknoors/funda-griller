@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
@@ -24,6 +25,7 @@ from app.ports import (
 from app.rules_loader import load_flag_rules, load_rules
 from app.production_ports import build_production_ports
 from app.settings import Settings
+from app.source_runner import run_sources
 
 _ERROR_RESPONSES = {
     InvalidListingUrl: (400, "bad_url"),
@@ -32,7 +34,15 @@ _ERROR_RESPONSES = {
 }
 
 
-def create_app(settings: Settings | None = None, ports: Ports | None = None) -> FastAPI:
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def create_app(
+    settings: Settings | None = None,
+    ports: Ports | None = None,
+    clock: Callable[[], datetime] = _utc_now,
+) -> FastAPI:
     settings = settings or Settings()
     ports = ports or build_production_ports(settings)
 
@@ -76,15 +86,11 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
         provider: ListingProvider = ports.listing_provider,
         entry: str = "fetched",
     ) -> dict:
-        listing = provider.fetch(url)
+        listing = replace(provider.fetch(url), funda_id=funda_id, url=url)
         status = settings.listing_status_map.get(listing.raw_status.casefold(), "unknown")
-        store.add_snapshot(
-            settings.database_path,
-            replace(listing, funda_id=funda_id, url=url),
-            datetime.now(UTC).isoformat(),
-            status,
-            entry,
-        )
+        fetched_at = clock().isoformat()
+        store.add_snapshot(settings.database_path, listing, fetched_at, status, entry)
+        run_sources(settings.database_path, ports.source_clients, listing, fetched_at)
         return store.get_listing(settings.database_path, funda_id)
 
     def already_captured(funda_id: str) -> JSONResponse | None:
@@ -136,21 +142,41 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
             return JSONResponse({"code": "not_found"}, status_code=404)
         return capture(funda_id, existing["url"])
 
+    @app.post("/api/listings/{funda_id}/sources/{source}/refetch", response_model=None)
+    def refetch_source(funda_id: str, source: str) -> dict | JSONResponse:
+        listing = store.get_listing(settings.database_path, funda_id)
+        if listing is None or source not in ports.source_clients:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        run_sources(
+            settings.database_path,
+            {source: ports.source_clients[source]},
+            store.listing_from_snapshot(funda_id, listing["url"], listing["snapshots"][0]),
+            clock().isoformat(),
+        )
+        return current_case(listing)
+
     @app.get("/api/listings/{funda_id}/case", response_model=None)
     def read_case(funda_id: str) -> dict | JSONResponse:
         listing = store.get_listing(settings.database_path, funda_id)
         if listing is None:
             return JSONResponse({"code": "not_found"}, status_code=404)
+        return current_case(listing)
+
+    def current_case(listing: dict) -> dict:
+        funda_id = listing["funda_id"]
         latest = store.latest_buyer_profile(settings.database_path)
-        today = date.today()
+        now = clock()
         return build_case(
             funda_id,
             listing["snapshots"][0],
             latest["version"] if latest else None,
             BuyerProfile.model_validate(latest["profile"]) if latest else None,
-            load_rules(settings.affordability_rules_path, today.year),
+            load_rules(settings.affordability_rules_path, now.year),
             load_flag_rules(settings.flag_rules_path),
-            today,
+            now,
+            list(ports.source_clients),
+            store.source_runs(settings.database_path, funda_id),
+            settings.source_ttl_days,
         )
 
     @app.get("/api/listings")

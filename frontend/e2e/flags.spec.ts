@@ -24,7 +24,9 @@ test("dossier groups signalen and shows the deal-breaker behind a harde afwijzin
   await expect(page.getByText("Harde afwijzing")).toBeVisible();
   await expect(page.getByRole("status")).toContainText("Deal-breaker: Boven budget");
   const signalen = page.getByRole("region", { name: "Signalen" });
-  await expect(signalen.getByRole("heading", { name: /Minpunt \(2\)/ })).toBeVisible();
+  // Headroom, missing tuin, and the asking price far above the fixture WOZ.
+  await expect(signalen.getByRole("heading", { name: /Minpunt \(3\)/ })).toBeVisible();
+  await expect(signalen.getByText("Vraagprijs ver boven de WOZ-waarde")).toBeVisible();
 
   await signalen.getByText("Vraagprijs boven je betaalruimte").click();
   await expect(signalen.getByText("Regel ask_beyond_headroom · versie 1")).toBeVisible();

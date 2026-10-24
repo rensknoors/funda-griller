@@ -3,7 +3,8 @@
 # changes, and the set `version` on any change to this file: the Case records both.
 #
 # Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
-# facts, `headroom` (computed affordability) and `renovation_tolerance` (Buyer Profile). A list of
+# facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
+# affordability) and `renovation_tolerance` (Buyer Profile). A list of
 # keys means "first one present", so an official register value wins over the Listing's claim.
 # A rule whose facts are absent raises nothing.
 #
@@ -18,7 +19,7 @@ version = 1
 class = "con"
 title = "Energielabel slechter dan je verbouwtolerantie toelaat"
 kind = "label_worse_than"
-fact = ["official_energy_label", "energy_label"]
+fact = ["energielabel.energy_label", "energy_label"]
 threshold = { name = "worst_acceptable_energy_label", from_profile = "renovation_tolerance", table = { 1 = "C", 2 = "D", 3 = "E", 4 = "F", 5 = "G" } }
 deal_breaker_aliases = ["energielabel"]
 
@@ -28,7 +29,7 @@ version = 1
 class = "pro"
 title = "Energiezuinig: energielabel A of beter"
 kind = "label_at_least"
-fact = ["official_energy_label", "energy_label"]
+fact = ["energielabel.energy_label", "energy_label"]
 threshold = "A"
 
 [[rules]]
@@ -49,7 +50,7 @@ class = "con"
 title = "Vraagprijs ver boven de WOZ-waarde"
 kind = "ratio_above"
 fact = "asking_price"
-of = "woz_value"
+of = "woz.woz_value"
 ratio_name = "asking_vs_woz"
 threshold = 1.15
 

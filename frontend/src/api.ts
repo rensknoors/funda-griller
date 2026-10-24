@@ -90,11 +90,52 @@ export function isCaptureError(result: Listing | CaptureError): result is Captur
   return "kind" in result;
 }
 
-export type CaseFact = {
+export type ListingFact = {
   key: string;
   value: string | number;
   provenance: "listing";
   fetched_at: string;
+};
+
+export type SourceTrust = "official" | "third_party";
+
+export type SourceFact = {
+  key: string;
+  value: string | number;
+  as_of: string | null;
+  provenance: "source";
+  source: string;
+  trust: SourceTrust;
+  fetched_at: string;
+  ttl_days: number | null;
+  stale: boolean;
+};
+
+export type CaseFact = ListingFact | SourceFact;
+
+export type SourceStatus = {
+  source: string;
+  status: "succeeded" | "failed" | "skipped";
+  reason: string | null;
+  attempted_at: string | null;
+  trust: SourceTrust;
+};
+
+export type Metrics = {
+  energy_label_check: {
+    listing: string;
+    register: string;
+    matches: boolean;
+    provenance: "computed";
+  } | null;
+  asking_vs_woz: {
+    asking_price: number;
+    woz_value: number;
+    woz_as_of: string;
+    difference: number;
+    percent: number;
+    provenance: "computed";
+  } | null;
 };
 
 export type Affordability = {
@@ -133,6 +174,8 @@ export type Case = {
   funda_id: string;
   built_from: { snapshot_id: number; profile_version: number | null; flag_rules_version: number };
   facts: CaseFact[];
+  sources: SourceStatus[];
+  metrics: Metrics;
   affordability: Affordability | null;
   flags: Flag[];
   hard_no: HardNo | null;
@@ -142,5 +185,14 @@ export type Case = {
 export async function fetchCase(fundaId: string): Promise<Case> {
   const response = await fetch(`/api/listings/${fundaId}/case`);
   if (!response.ok) throw new Error("case unavailable");
+  return response.json();
+}
+
+/** Manually refetch one Source; returns the rebuilt Case. Nothing refetches by itself. */
+export async function refetchSource(fundaId: string, source: string): Promise<Case> {
+  const response = await fetch(`/api/listings/${fundaId}/sources/${source}/refetch`, {
+    method: "POST",
+  });
+  if (!response.ok) throw new Error("source refetch unavailable");
   return response.json();
 }
