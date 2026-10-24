@@ -1,66 +1,149 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 
-import { Vak } from "./Vak";
-import { type FieldErrors, type FormState, emptyForm, fromStored, toPayload } from "./profile";
+import {
+  type Consequences,
+  type FieldErrors,
+  type FormState,
+  type SectionId,
+  SECTIONS,
+  emptyForm,
+  fieldId,
+  fromStored,
+  sectionOf,
+  toFinanceDraft,
+  toPayload,
+  vakOrder,
+} from "./profile";
 
-type SaveState =
-  | { kind: "idle" }
-  | { kind: "saving" }
-  | { kind: "saved"; version: number }
-  | { kind: "failed" };
+type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; form: FormState; firstRun: boolean };
+
+type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved"; version: number } | { kind: "failed" };
+
+type GevolgenState = { kind: "pending" } | { kind: "figures"; data: Consequences } | { kind: "incomplete" };
 
 const TOLERANCE_LABELS = ["Instap-klaar", "Kleine klussen", "Gemiddeld", "Flinke klus", "Project"];
+const SHARED_TEXT_NOTE = "Deze tekst gaat mee naar het taalmodel; vul geen adres of postcode in.";
+const CHECK_DELAY_MS = 150;
 
-function RowList(props: {
-  legend: string;
-  addLabel: string;
-  rows: string[];
-  errors: FieldErrors;
-  errorPrefix: string;
-  onChange: (rows: string[]) => void;
-}) {
+const euro = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
+const toFieldErrors = (errors: { field: string; message: string }[]): FieldErrors =>
+  Object.fromEntries(errors.map((error) => [error.field, error.message]));
+
+/** Loads the latest Koperprofiel, then hands it to the form; skeleton while loading, banner on failure. */
+export function BuyerProfileForm() {
+  const [load, setLoad] = useState<LoadState>({ kind: "laden" });
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch("/api/buyer-profile")
+      .then(async (response) => {
+        if (response.status === 404) return { kind: "klaar", form: emptyForm, firstRun: true } as const;
+        if (!response.ok) throw new Error("load failed");
+        return { kind: "klaar", form: fromStored((await response.json()).profile), firstRun: false } as const;
+      })
+      .catch(() => ({ kind: "fout" }) as const)
+      .then((next) => !ignore && setLoad(next));
+    return () => {
+      ignore = true;
+    };
+  }, [attempt]);
+
+  function retry() {
+    setLoad({ kind: "laden" });
+    setAttempt((n) => n + 1);
+  }
+
   return (
-    <fieldset>
-      <legend>{props.legend}</legend>
-      {props.rows.map((row, index) => (
-        <div className="row" key={index}>
-          <input
-            aria-label={`${props.legend} ${index + 1}`}
-            aria-invalid={Boolean(props.errors[`${props.errorPrefix}.${index}`])}
-            value={row}
-            onChange={(event) => props.onChange(props.rows.map((r, i) => (i === index ? event.target.value : r)))}
-          />
-          <button type="button" onClick={() => props.onChange(props.rows.filter((_, i) => i !== index))}>
-            Verwijder {props.legend.toLowerCase()} {index + 1}
-          </button>
-          {props.errors[`${props.errorPrefix}.${index}`] && (
-            <p className="vak-error">! {props.errors[`${props.errorPrefix}.${index}`]}</p>
-          )}
+    <div className="koperprofiel">
+      <h2 id="koperprofiel-title">Koperprofiel</h2>
+      {load.kind === "laden" && (
+        <div className="skeleton" aria-busy="true">
+          <span className="visually-hidden">Koperprofiel laden</span>
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
+          <div className="skeleton-row" />
         </div>
-      ))}
-      <button type="button" onClick={() => props.onChange([...props.rows, ""])}>
-        {props.addLabel}
-      </button>
-    </fieldset>
+      )}
+      {load.kind === "fout" && (
+        <div role="alert" className="banner">
+          <span aria-hidden="true">! </span>Koperprofiel laden mislukt.{" "}
+          <button type="button" onClick={retry}>
+            Opnieuw proberen
+          </button>
+        </div>
+      )}
+      {load.kind === "klaar" && <ProfileForm initial={load.form} firstRun={load.firstRun} />}
+    </div>
   );
 }
 
-export function BuyerProfileForm() {
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [errors, setErrors] = useState<FieldErrors>({});
+function ProfileForm({ initial, firstRun }: { initial: FormState; firstRun: boolean }) {
+  const [form, setForm] = useState<FormState>(initial);
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+  const [problems, setProblems] = useState<FieldErrors>({});
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
+  const [open, setOpen] = useState<ReadonlySet<SectionId>>(
+    new Set(firstRun ? ["huishouden"] : SECTIONS.map((section) => section.id)),
+  );
+  const gevolgen = useGevolgen(form);
 
+  // Re-check the whole draft whenever a touched vak exists and the input changes.
   useEffect(() => {
-    fetch("/api/buyer-profile")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((stored) => stored && setForm(fromStored(stored.profile)))
-      .catch(() => undefined);
-  }, []);
+    if (touched.size === 0) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch("/api/buyer-profile/validation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(toPayload(form)),
+        signal: controller.signal,
+      })
+        .then((response) => response.json())
+        .then((body) => setProblems(toFieldErrors(body.errors)))
+        .catch(() => undefined);
+    }, CHECK_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [form, touched]);
+
+  const order = vakOrder(form);
+  const numberOf = (field: string) => order.indexOf(field) + 1;
+  const position = (field: string) => {
+    const exact = order.indexOf(field);
+    return exact >= 0 ? exact : order.findIndex((vak) => vak.startsWith(`${field}.`));
+  };
+  const isTouched = (field: string) => [...touched].some((t) => t === field || t.startsWith(`${field}.`));
+  const visible = Object.keys(problems)
+    .filter(isTouched)
+    .sort((a, b) => position(a) - position(b));
+  const errorOf = (field: string) => (isTouched(field) ? problems[field] : undefined);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((current) => ({ ...current, [key]: value }));
+  const touch = (fields: string[]) => setTouched((current) => new Set([...current, ...fields]));
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  function openSection(id: SectionId) {
+    flushSync(() => setOpen((current) => new Set([...current, id])));
+  }
+
+  function goToSection(id: SectionId) {
+    openSection(id);
+    document.getElementById(id)?.querySelector<HTMLElement>("input, select, .section-body button")?.focus();
+  }
+
+  function goToField(field: string) {
+    const id = sectionOf(field);
+    openSection(id);
+    const target = document.getElementById(fieldId(field)) ?? document.getElementById(id)?.querySelector<HTMLElement>("input, select");
+    target?.focus();
+  }
+
+  async function submit() {
     setSave({ kind: "saving" });
     try {
       const response = await fetch("/api/buyer-profile", {
@@ -69,11 +152,14 @@ export function BuyerProfileForm() {
         body: JSON.stringify(toPayload(form)),
       });
       if (response.status === 422) {
-        const body: { errors: { field: string; message: string }[] } = await response.json();
-        setErrors(Object.fromEntries(body.errors.map((error) => [error.field, error.message])));
+        const errors = toFieldErrors((await response.json()).errors);
+        setProblems(errors);
+        touch(Object.keys(errors));
+        setOpen((current) => new Set([...current, ...Object.keys(errors).map(sectionOf)]));
         setSave({ kind: "idle" });
       } else if (response.ok) {
-        setErrors({});
+        setProblems({});
+        setTouched(new Set());
         setSave({ kind: "saved", version: (await response.json()).version });
       } else {
         setSave({ kind: "failed" });
@@ -83,123 +169,98 @@ export function BuyerProfileForm() {
     }
   }
 
-  const problemCount = Object.keys(errors).length;
+  // Inputs carry their field path, so one handler marks any vak as touched on blur.
+  const onBlur = (event: React.FocusEvent<HTMLFormElement>) => {
+    const field = (event.target as HTMLElement).dataset.field;
+    if (field) touch([field]);
+  };
 
-  return (
-    <form onSubmit={submit} noValidate aria-labelledby="koperprofiel-title">
-      <h2 id="koperprofiel-title">Koperprofiel</h2>
+  const vak = (field: string, label: string) => ({ field, label, number: numberOf(field), error: errorOf(field) });
+  const amountInput = (key: "gross_annual_income" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs") =>
+    (props: InputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
 
-      <section aria-labelledby="huishouden">
-        <h3 id="huishouden">Huishouden</h3>
-        {errors.household && <p className="vak-error">! {errors.household}</p>}
-        {form.household.map((member, index) => (
-          <div className="row" key={index}>
-            <Vak number={1} label={`Rol lid ${index + 1}`}>
-              {({ id }) => (
-                <select
-                  id={id}
-                  value={member.role}
-                  onChange={(event) =>
-                    set("household", form.household.map((m, i) => (i === index ? { ...m, role: event.target.value as "adult" | "child" } : m)))
-                  }
-                >
-                  <option value="adult">Volwassene</option>
-                  <option value="child">Kind</option>
-                </select>
-              )}
-            </Vak>
-            <Vak number={2} label={`Geboortedatum lid ${index + 1}`} error={errors[`household.${index}.birth_date`]}>
-              {({ id, describedBy, invalid }) => (
-                <input
-                  id={id}
-                  type="date"
-                  aria-describedby={describedBy}
-                  aria-invalid={invalid}
-                  value={member.birth_date}
-                  onChange={(event) => set("household", form.household.map((m, i) => (i === index ? { ...m, birth_date: event.target.value } : m)))}
-                />
-              )}
-            </Vak>
-            <button type="button" onClick={() => set("household", form.household.filter((_, i) => i !== index))}>
-              Verwijder lid {index + 1}
-            </button>
-          </div>
-        ))}
+  const sectionBody: Record<SectionId, ReactNode> = {
+    huishouden: (
+      <>
+        {errorOf("household") && <ErrorText>{errorOf("household")}</ErrorText>}
+        {form.household.map((member, index) => {
+          const update = (patch: Partial<typeof member>) =>
+            set("household", form.household.map((m, i) => (i === index ? { ...m, ...patch } : m)));
+          return (
+            <div className="row" key={index}>
+              <Vak {...vak(`household.${index}.role`, `Rol lid ${index + 1}`)}>
+                {(props) => (
+                  <select {...props} value={member.role} onChange={(event) => update({ role: event.target.value as "adult" | "child" })}>
+                    <option value="adult">Volwassene</option>
+                    <option value="child">Kind</option>
+                  </select>
+                )}
+              </Vak>
+              <Vak {...vak(`household.${index}.birth_date`, `Geboortedatum lid ${index + 1}`)}>
+                {(props) => <input {...props} type="date" value={member.birth_date} onChange={(event) => update({ birth_date: event.target.value })} />}
+              </Vak>
+              <button type="button" onClick={() => set("household", form.household.filter((_, i) => i !== index))}>
+                Verwijder lid {index + 1}
+              </button>
+            </div>
+          );
+        })}
         <button type="button" onClick={() => set("household", [...form.household, { role: "adult", birth_date: "" }])}>
           Lid toevoegen
         </button>
-      </section>
-
-      <section aria-labelledby="inkomen">
-        <h3 id="inkomen">Inkomen</h3>
-        <Vak number={3} label="Bruto jaarinkomen huishouden (€)" error={errors.gross_annual_income}>
-          {({ id, describedBy, invalid }) => (
-            <input id={id} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} value={form.gross_annual_income} onChange={(event) => set("gross_annual_income", event.target.value)} />
-          )}
-        </Vak>
-      </section>
-
-      <section aria-labelledby="vermogen">
-        <h3 id="vermogen">Vermogen en eigen woning</h3>
-        <Vak number={4} label="Spaargeld (€)" error={errors["assets.savings"]}>
-          {({ id, describedBy, invalid }) => (
-            <input id={id} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} value={form.savings} onChange={(event) => set("savings", event.target.value)} />
-          )}
-        </Vak>
-        <Vak number={5} label="Beleggingen (€)" error={errors["assets.investments"]}>
-          {({ id, describedBy, invalid }) => (
-            <input id={id} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} value={form.investments} onChange={(event) => set("investments", event.target.value)} />
-          )}
-        </Vak>
-        <label>
+      </>
+    ),
+    inkomen: <Vak {...vak("gross_annual_income", "Bruto jaarinkomen huishouden (€)")}>{amountInput("gross_annual_income")}</Vak>,
+    vermogen: (
+      <>
+        <Vak {...vak("assets.savings", "Spaargeld (€)")}>{amountInput("savings")}</Vak>
+        <Vak {...vak("assets.investments", "Beleggingen (€)")}>{amountInput("investments")}</Vak>
+        <label className="check">
           <input type="checkbox" checked={form.has_home} onChange={(event) => set("has_home", event.target.checked)} /> Ik heb een eigen woning
         </label>
         {form.has_home && (
           <>
-            <Vak number={6} label="Woningwaarde (€)" error={errors["current_home.value"]}>
-              {({ id, describedBy, invalid }) => (
-                <input id={id} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} value={form.home_value} onChange={(event) => set("home_value", event.target.value)} />
-              )}
+            <Vak {...vak("current_home.value", "Woningwaarde (€)")}>{amountInput("home_value")}</Vak>
+            <Vak {...vak("current_home.outstanding_mortgage", "Openstaande hypotheek (€)")}>
+              {amountInput("outstanding_mortgage")}
             </Vak>
-            <Vak number={7} label="Openstaande hypotheek (€)" error={errors["current_home.outstanding_mortgage"]}>
-              {({ id, describedBy, invalid }) => (
-                <input id={id} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} value={form.outstanding_mortgage} onChange={(event) => set("outstanding_mortgage", event.target.value)} />
-              )}
-            </Vak>
-            <Vak number={8} label="Verkoopkosten (€)" error={errors["current_home.selling_costs"]}>
-              {({ id, describedBy, invalid }) => (
-                <input id={id} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} value={form.selling_costs} onChange={(event) => set("selling_costs", event.target.value)} />
-              )}
-            </Vak>
-            <Vak number={9} label="Adres eigen woning (blijft op dit apparaat)">
-              {({ id }) => <input id={id} value={form.home_address} onChange={(event) => set("home_address", event.target.value)} />}
+            <Vak {...vak("current_home.selling_costs", "Verkoopkosten (€)")}>{amountInput("selling_costs")}</Vak>
+            <Vak {...vak("current_home.address", "Adres eigen woning (blijft op dit apparaat)")}>
+              {(props) => <input {...props} value={form.home_address} onChange={(event) => set("home_address", event.target.value)} />}
             </Vak>
           </>
         )}
-      </section>
-
-      <section aria-labelledby="wensen">
-        <h3 id="wensen">Wensen</h3>
-        <RowList legend="Must-have" addLabel="Must-have toevoegen" rows={form.must_haves} errors={errors} errorPrefix="must_haves" onChange={(rows) => set("must_haves", rows)} />
-        <RowList legend="Nice-to-have" addLabel="Nice-to-have toevoegen" rows={form.nice_to_haves} errors={errors} errorPrefix="nice_to_haves" onChange={(rows) => set("nice_to_haves", rows)} />
-        <RowList legend="Deal-breaker" addLabel="Deal-breaker toevoegen" rows={form.deal_breakers} errors={errors} errorPrefix="deal_breakers" onChange={(rows) => set("deal_breakers", rows)} />
-      </section>
-
-      <section aria-labelledby="reizen">
-        <h3 id="reizen">Reizen en verbouwen</h3>
+      </>
+    ),
+    wensen: (
+      <>
+        <p className="hint">{SHARED_TEXT_NOTE}</p>
+        {(
+          [
+            ["must_haves", "Must-have"],
+            ["nice_to_haves", "Nice-to-have"],
+            ["deal_breakers", "Deal-breaker"],
+          ] as const
+        ).map(([key, legend]) => (
+          <WensList key={key} field={key} legend={legend} rows={form[key]} vak={vak} onChange={(rows) => set(key, rows)} />
+        ))}
+      </>
+    ),
+    reizen: (
+      <>
         {form.commute_destinations.map((destination, index) => {
           const update = (patch: Partial<typeof destination>) =>
             set("commute_destinations", form.commute_destinations.map((d, i) => (i === index ? { ...d, ...patch } : d)));
           return (
             <div className="row" key={index}>
-              <Vak number={10} label={`Pendelbestemming ${index + 1}: naam`} error={errors[`commute_destinations.${index}.label`]}>
-                {({ id, describedBy, invalid }) => <input id={id} aria-describedby={describedBy} aria-invalid={invalid} value={destination.label} onChange={(event) => update({ label: event.target.value })} />}
+              <Vak {...vak(`commute_destinations.${index}.label`, `Pendelbestemming ${index + 1}: naam`)} hint={SHARED_TEXT_NOTE}>
+                {(props) => <input {...props} value={destination.label} onChange={(event) => update({ label: event.target.value })} />}
               </Vak>
-              <Vak number={11} label={`Pendelbestemming ${index + 1}: adres`} error={errors[`commute_destinations.${index}.address`]}>
-                {({ id, describedBy, invalid }) => <input id={id} aria-describedby={describedBy} aria-invalid={invalid} value={destination.address} onChange={(event) => update({ address: event.target.value })} />}
+              <Vak {...vak(`commute_destinations.${index}.address`, `Pendelbestemming ${index + 1}: adres`)}>
+                {(props) => <input {...props} value={destination.address} onChange={(event) => update({ address: event.target.value })} />}
               </Vak>
-              <Vak number={12} label={`Pendelbestemming ${index + 1}: maximaal aantal minuten`} error={errors[`commute_destinations.${index}.max_minutes`]}>
-                {({ id, describedBy, invalid }) => <input id={id} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} value={destination.max_minutes} onChange={(event) => update({ max_minutes: event.target.value })} />}
+              <Vak {...vak(`commute_destinations.${index}.max_minutes`, `Pendelbestemming ${index + 1}: maximaal aantal minuten`)}>
+                {(props) => <input {...props} inputMode="numeric" value={destination.max_minutes} onChange={(event) => update({ max_minutes: event.target.value })} />}
               </Vak>
               <button type="button" onClick={() => set("commute_destinations", form.commute_destinations.filter((_, i) => i !== index))}>
                 Verwijder pendelbestemming {index + 1}
@@ -211,26 +272,301 @@ export function BuyerProfileForm() {
           Pendelbestemming toevoegen
         </button>
 
-        <fieldset>
+        <fieldset className="vak" aria-invalid={Boolean(errorOf("renovation_tolerance"))}>
           <legend>
-            <span className="vak-number">13</span> Verbouwtolerantie
+            <span className="vak-number" aria-hidden="true">
+              {numberOf("renovation_tolerance")}
+            </span>{" "}
+            Verbouwtolerantie
           </legend>
           {TOLERANCE_LABELS.map((label, index) => (
-            <label key={label}>
-              <input type="radio" name="renovation_tolerance" value={index + 1} checked={form.renovation_tolerance === String(index + 1)} onChange={() => set("renovation_tolerance", String(index + 1))} /> {index + 1}. {label}
+            <label key={label} className="check">
+              <input
+                type="radio"
+                id={index === 0 ? fieldId("renovation_tolerance") : undefined}
+                data-field="renovation_tolerance"
+                name="renovation_tolerance"
+                value={index + 1}
+                checked={form.renovation_tolerance === String(index + 1)}
+                onChange={() => set("renovation_tolerance", String(index + 1))}
+              />{" "}
+              {index + 1}. {label}
             </label>
           ))}
-          {errors.renovation_tolerance && <p className="vak-error">! {errors.renovation_tolerance}</p>}
+          {errorOf("renovation_tolerance") && <ErrorText>{errorOf("renovation_tolerance")}</ErrorText>}
         </fieldset>
-      </section>
+      </>
+    ),
+  };
 
-      <footer>
-        {problemCount > 0 && <p role="alert">{problemCount} {problemCount === 1 ? "vak is" : "vakken zijn"} niet correct ingevuld.</p>}
+  const problemCount = visible.length;
+
+  return (
+    <form
+      className="profile-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+      onBlur={onBlur}
+      noValidate
+      aria-labelledby="koperprofiel-title"
+    >
+      <nav className="section-index" aria-label="Onderdelen">
+        <ol>
+          {SECTIONS.map((section) => (
+            <li key={section.id}>
+              <a
+                href={`#${section.id}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  goToSection(section.id);
+                }}
+              >
+                {section.title}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+      <label className="section-select">
+        Ga naar onderdeel
+        <select value="" onChange={(event) => goToSection(event.target.value as SectionId)}>
+          <option value="" disabled>
+            Kies een onderdeel
+          </option>
+          {SECTIONS.map((section) => (
+            <option key={section.id} value={section.id}>
+              {section.title}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {SECTIONS.map((section) => (
+        <section key={section.id} id={section.id} aria-labelledby={`${section.id}-title`} className="form-section">
+          <details
+            open={open.has(section.id)}
+            onToggle={(event) => {
+              const isOpen = event.currentTarget.open;
+              setOpen((current) => {
+                if (current.has(section.id) === isOpen) return current;
+                const next = new Set(current);
+                if (isOpen) next.add(section.id);
+                else next.delete(section.id);
+                return next;
+              });
+            }}
+          >
+            <summary>
+              <h3 id={`${section.id}-title`}>{section.title}</h3>
+              <span className="section-hint">{section.hint}</span>
+            </summary>
+            <div className="section-body">{sectionBody[section.id]}</div>
+          </details>
+        </section>
+      ))}
+
+      <Gevolgen state={gevolgen} />
+
+      <footer className="profile-footer">
+        {problemCount > 0 && (
+          <p role="status" className="problems">
+            <span aria-hidden="true">! </span>
+            {problemCount} {problemCount === 1 ? "vak is" : "vakken zijn"} niet correct ingevuld.{" "}
+            <a
+              href={`#${fieldId(visible[0])}`}
+              onClick={(event) => {
+                event.preventDefault();
+                goToField(visible[0]);
+              }}
+            >
+              Naar het eerste probleem
+            </a>
+          </p>
+        )}
         {save.kind === "saved" && <p role="status">Opgeslagen als versie {save.version}.</p>}
-        {save.kind === "failed" && <p role="alert">Opslaan mislukt. Je invoer is bewaard; probeer het opnieuw.</p>}
-        <button type="submit" disabled={save.kind === "saving"}>Opslaan</button>
-        <p>Opgeslagen op dit apparaat, nooit geüpload.</p>
+        {save.kind === "failed" && (
+          <div role="alert" className="banner">
+            <span aria-hidden="true">! </span>Opslaan mislukt. Je invoer is bewaard.{" "}
+            <button type="button" onClick={() => void submit()}>
+              Opnieuw proberen
+            </button>
+          </div>
+        )}
+        <button type="submit" disabled={save.kind === "saving" || problemCount > 0}>
+          Opslaan
+        </button>
+        <p className="muted">Opgeslagen op dit apparaat, nooit geüpload.</p>
       </footer>
     </form>
+  );
+}
+
+/** Live derived figures for the finance vakken, worked out by the API as the user types. */
+function useGevolgen(form: FormState): GevolgenState | null {
+  const draft = toFinanceDraft(form);
+  const draftKey = JSON.stringify(draft);
+  const [state, setState] = useState<GevolgenState>({ kind: "pending" });
+
+  useEffect(() => {
+    if (draftKey === "null") return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch("/api/buyer-profile/consequences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: draftKey,
+        signal: controller.signal,
+      })
+        .then(async (response) => setState(response.ok ? { kind: "figures", data: await response.json() } : { kind: "incomplete" }))
+        .catch(() => undefined);
+    }, CHECK_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [draftKey]);
+
+  return draft === null ? null : state;
+}
+
+function Gevolgen({ state }: { state: GevolgenState | null }) {
+  return (
+    <aside className="gevolgen" aria-labelledby="gevolgen-title">
+      <details open>
+        <summary>
+          <h3 id="gevolgen-title">Gevolgen</h3>
+        </summary>
+        {state === null && <p className="muted">Vul inkomen in om je budget te zien</p>}
+        {state?.kind === "pending" && <p className="muted">Gevolgen berekenen…</p>}
+        {state?.kind === "incomplete" && <p className="muted">Gevolgen verschijnen zodra de bedragen kloppen.</p>}
+        {state?.kind === "figures" && (
+          <>
+            <dl className="gevolgen-figures">
+              <div>
+                <dt>Maximale hypotheek</dt>
+                <dd className="num">{euro.format(state.data.max_mortgage)}</dd>
+              </div>
+              <div>
+                <dt>Overwaarde</dt>
+                <dd className="num">{euro.format(state.data.equity)}</dd>
+              </div>
+              <div>
+                <dt>Budget</dt>
+                <dd className="num">{euro.format(state.data.budget)}</dd>
+                <dd className="muted note">hoogste koopsom na kosten koper</dd>
+              </div>
+            </dl>
+            <p className="muted rules-year">
+              Regels {state.data.rules.year}
+              {!state.data.rules.is_current_year && (
+                <>
+                  {" "}
+                  <span className="chip">Achterhaald</span> regels zijn niet van dit jaar
+                </>
+              )}
+            </p>
+          </>
+        )}
+      </details>
+    </aside>
+  );
+}
+
+type InputProps = {
+  id: string;
+  "data-field": string;
+  "aria-describedby"?: string;
+  "aria-invalid": boolean;
+};
+
+function Vak(props: { field: string; number: number; label: string; error?: string; hint?: string; children: (input: InputProps) => ReactNode }) {
+  const id = fieldId(props.field);
+  const describedBy = [props.error && `${id}-error`, props.hint && `${id}-hint`].filter(Boolean).join(" ") || undefined;
+  return (
+    <div className="vak" data-invalid={props.error ? "" : undefined}>
+      <div className="vak-head">
+        <span className="vak-number" aria-hidden="true">
+          {props.number}
+        </span>
+        <label htmlFor={id}>{props.label}</label>
+      </div>
+      {props.children({ id, "data-field": props.field, "aria-describedby": describedBy, "aria-invalid": Boolean(props.error) })}
+      {props.hint && (
+        <p className="hint" id={`${id}-hint`}>
+          {props.hint}
+        </p>
+      )}
+      {props.error && <ErrorText id={`${id}-error`}>{props.error}</ErrorText>}
+    </div>
+  );
+}
+
+function ErrorText({ id, children }: { id?: string; children: ReactNode }) {
+  return (
+    <p className="vak-error" id={id}>
+      <span aria-hidden="true">! </span>
+      {children}
+    </p>
+  );
+}
+
+/** A repeatable Wensen list: add, remove, and reorder with Alt+↑/↓ or the move buttons. */
+function WensList(props: {
+  field: "must_haves" | "nice_to_haves" | "deal_breakers";
+  legend: string;
+  rows: string[];
+  vak: (field: string, label: string) => { field: string; label: string; number: number; error?: string };
+  onChange: (rows: string[]) => void;
+}) {
+  const { rows, onChange } = props;
+
+  function move(from: number, to: number) {
+    if (to < 0 || to >= rows.length) return;
+    const next = [...rows];
+    [next[from], next[to]] = [next[to], next[from]];
+    flushSync(() => onChange(next));
+    document.getElementById(fieldId(`${props.field}.${to}`))?.focus();
+  }
+
+  return (
+    <fieldset>
+      <legend>{props.legend}</legend>
+      {rows.map((row, index) => {
+        const name = `${props.legend} ${index + 1}`;
+        return (
+          <div className="row" key={index}>
+            <Vak {...props.vak(`${props.field}.${index}`, name)}>
+              {(input) => (
+                <input
+                  {...input}
+                  aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                  value={row}
+                  onChange={(event) => onChange(rows.map((r, i) => (i === index ? event.target.value : r)))}
+                  onKeyDown={(event) => {
+                    if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+                    event.preventDefault();
+                    move(index, event.key === "ArrowUp" ? index - 1 : index + 1);
+                  }}
+                />
+              )}
+            </Vak>
+            <button type="button" aria-label={`${name} omhoog`} disabled={index === 0} onClick={() => move(index, index - 1)}>
+              ↑
+            </button>
+            <button type="button" aria-label={`${name} omlaag`} disabled={index === rows.length - 1} onClick={() => move(index, index + 1)}>
+              ↓
+            </button>
+            <button type="button" onClick={() => onChange(rows.filter((_, i) => i !== index))}>
+              Verwijder {props.legend.toLowerCase()} {index + 1}
+            </button>
+          </div>
+        );
+      })}
+      <button type="button" onClick={() => onChange([...rows, ""])}>
+        {props.legend} toevoegen
+      </button>
+    </fieldset>
   );
 }
