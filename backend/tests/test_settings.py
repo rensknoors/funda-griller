@@ -25,3 +25,23 @@ def test_source_ttl_defaults_cover_every_source(monkeypatch):
         "noise",
         "comparables",
     }
+
+
+def test_models_and_status_map_default_from_config_file(monkeypatch):
+    monkeypatch.delenv("FG_VISION_MODEL", raising=False)
+    monkeypatch.delenv("FG_VERDICT_MODEL", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.vision_model == "gemini-3.8-flash"
+    assert settings.verdict_model == "gemini-3.8-flash"
+    assert settings.listing_status_map["onder bod"] == "negotiations"
+
+
+def test_environment_overrides_config_file_defaults(monkeypatch):
+    monkeypatch.setenv("FG_VISION_MODEL", "vision-x")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.vision_model == "vision-x"
+    assert settings.verdict_model == "gemini-3.8-flash"
