@@ -8,12 +8,12 @@ __pycache__/
 # Local data
 *.sqlite
 *.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 *.db
-backend/data/
 
 # Downloaded media (photos, brochures, Documents)
-media/
-data/
+backend/data/
 
 # Frontend
 node_modules/
