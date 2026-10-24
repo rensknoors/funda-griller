@@ -26,6 +26,7 @@ const euro = new Intl.NumberFormat("nl-NL", {
 });
 const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
 const shortDate = (iso: string) => dayMonth.format(new Date(iso));
+const decimal = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 2 });
 const percent = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 1, signDisplay: "exceptZero" });
 
 const FACT_LABELS: Record<string, string> = {
@@ -43,6 +44,26 @@ const FACT_LABELS: Record<string, string> = {
 };
 const MONEY_FACTS = new Set(["asking_price", "headroom", "woz_value"]);
 
+// Flood, soil and noise Source facts: label and how to show the number.
+const ENVIRONMENT_FACTS: Record<string, { label: string; format: (value: number) => string }> = {
+  flood_depth_m: {
+    label: "Waterdiepte bij overstroming (kleine kans)",
+    format: (v) => `${decimal.format(v)} m`,
+  },
+  subsidence_mm_per_year: {
+    label: "Bodemdaling",
+    format: (v) => `${decimal.format(v)} mm per jaar`,
+  },
+  pile_rot_risk_pct: {
+    label: "Risico op paalrot in de buurt",
+    format: (v) => `${decimal.format(v)}% van de panden`,
+  },
+  lden_all_sources_db: { label: "Geluid, alle bronnen (Lden)", format: (v) => `${v} dB` },
+  lden_road_db: { label: "Geluid, wegverkeer (Lden)", format: (v) => `${v} dB` },
+  lden_rail_db: { label: "Geluid, treinverkeer (Lden)", format: (v) => `${v} dB` },
+  lden_air_db: { label: "Geluid, vliegverkeer (Lden)", format: (v) => `${v} dB` },
+};
+
 const EVIDENCE_LABELS: Record<string, string> = {
   ...FACT_LABELS,
   woz_value: "WOZ-waarde",
@@ -50,6 +71,7 @@ const EVIDENCE_LABELS: Record<string, string> = {
   headroom: "Ruimte boven vraag",
   renovation_tolerance: "Verbouwtolerantie",
   worst_acceptable_energy_label: "Slechtst passende energielabel",
+  ...Object.fromEntries(Object.entries(ENVIRONMENT_FACTS).map(([key, fact]) => [key, fact.label])),
   threshold: "Drempel",
   must_have: "Must-have",
   deal_breaker: "Deal-breaker",
@@ -86,17 +108,23 @@ const STATUS_COPY: Record<SourceStatus["status"], { glyph: string; word: string 
 const REASON_COPY: Record<string, string> = {
   no_api_key: "geen API-sleutel ingesteld",
   no_address: "adres onvolledig",
+  no_coordinates: "geen coördinaten",
   not_fetched: "nog niet opgehaald",
 };
 
+function formatNumber(key: string, value: number): string {
+  if (MONEY_FACTS.has(key)) return euro.format(value);
+  return ENVIRONMENT_FACTS[key]?.format(value) ?? String(value);
+}
+
 function formatValue(fact: CaseFact): string {
-  if (MONEY_FACTS.has(fact.key) && typeof fact.value === "number") return euro.format(fact.value);
-  return String(fact.value);
+  return typeof fact.value === "number" ? formatNumber(fact.key, fact.value) : String(fact.value);
 }
 
 function sourceFactLabel(fact: SourceFact): string {
   if (fact.key === "woz_value") return `WOZ-waarde ${fact.as_of?.slice(0, 4) ?? ""}`.trim();
   if (fact.key === "energy_label") return "Energielabel (register)";
+  if (ENVIRONMENT_FACTS[fact.key]) return ENVIRONMENT_FACTS[fact.key].label;
   return FACT_LABELS[fact.key] ?? fact.key;
 }
 
@@ -212,7 +240,7 @@ export function CaseView(props: {
           <SourceGroup
             title="Prijs en waarde"
             id="prijs-en-waarde"
-            source="woz"
+            names={["woz"]}
             facts={sourceFacts.filter((f) => f.source === "woz")}
             sources={state.data.sources}
           >
@@ -227,7 +255,7 @@ export function CaseView(props: {
           <SourceGroup
             title="Energie"
             id="energie"
-            source="energielabel"
+            names={["energielabel"]}
             facts={sourceFacts.filter((f) => f.source === "energielabel")}
             sources={state.data.sources}
           >
@@ -243,6 +271,13 @@ export function CaseView(props: {
               />
             )}
           </SourceGroup>
+          <SourceGroup
+            title="Omgeving"
+            id="omgeving"
+            names={["flood_soil", "noise"]}
+            facts={sourceFacts.filter((f) => f.source === "flood_soil" || f.source === "noise")}
+            sources={state.data.sources}
+          />
         </>
       )}
     </section>
@@ -427,12 +462,20 @@ function FactGroup({ title, id, facts }: { title: string; id: string; facts: Lis
 function SourceGroup(props: {
   title: string;
   id: string;
-  source: string;
+  names: string[];
   facts: SourceFact[];
   sources: SourceStatus[];
   children?: React.ReactNode;
 }) {
-  const status = props.sources.find((s) => s.source === props.source);
+  // A Source without facts says so in place, never silently absent.
+  const empty = props.names
+    .map((name) => props.sources.find((s) => s.source === name))
+    .filter(
+      (status): status is SourceStatus =>
+        status !== undefined &&
+        status.status !== "succeeded" &&
+        !props.facts.some((f) => f.source === status.source),
+    );
   const stale = props.facts.filter((f) => f.stale).length;
   return (
     <details open className="fact-group">
@@ -442,12 +485,12 @@ function SourceGroup(props: {
           {props.facts.length} feiten{stale > 0 && ` · ${stale} verouderd`}
         </span>
       </summary>
-      {props.facts.length === 0 && status && status.status !== "succeeded" && (
-        <p className="empty">
+      {empty.map((status) => (
+        <p key={status.source} className="empty">
           <span aria-hidden="true">{STATUS_COPY[status.status].glyph} </span>
-          Bron {STATUS_COPY[status.status].word}, geen gegevens van {sourceLabel(props.source)}.
+          Bron {STATUS_COPY[status.status].word}, geen gegevens van {sourceLabel(status.source)}.
         </p>
-      )}
+      ))}
       <ol className="facts">
         {props.facts.map((fact, index) => (
           <SourceFactRow key={`${fact.key}-${fact.as_of ?? index}`} fact={fact} number={index + 1} />
@@ -584,6 +627,6 @@ function evidenceLabel(key: string): string {
 function evidenceValue(item: Evidence): string {
   if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
   if (item.value === null) return "–";
-  if (MONEY_FACTS.has(item.key) && typeof item.value === "number") return euro.format(item.value);
+  if (typeof item.value === "number") return formatNumber(item.key, item.value);
   return String(item.value);
 }
