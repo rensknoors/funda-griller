@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.ports import Listing, PricePoint
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS source_runs (
     outcome TEXT NOT NULL,
     reason TEXT,
     facts TEXT
+);
+CREATE TABLE IF NOT EXISTS listing_archive_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    funda_id TEXT NOT NULL REFERENCES listings(funda_id),
+    archived INTEGER NOT NULL,
+    at TEXT NOT NULL
 );
 """
 
@@ -207,9 +213,14 @@ def _read_listing(connection: sqlite3.Connection, funda_id: str) -> dict | None:
         "SELECT id, fetched_at, data FROM listing_snapshots WHERE funda_id = ? ORDER BY id DESC",
         (funda_id,),
     ).fetchall()
+    archive = connection.execute(
+        "SELECT archived FROM listing_archive_events WHERE funda_id = ? ORDER BY id DESC LIMIT 1",
+        (funda_id,),
+    ).fetchone()
     return {
         "funda_id": row["funda_id"],
         "url": row["url"],
+        "archived": bool(archive["archived"]) if archive else False,
         "snapshots": [
             {"id": s["id"], "fetched_at": s["fetched_at"], **json.loads(s["data"])}
             for s in snapshots
@@ -225,6 +236,19 @@ def list_listings(database_path: Path) -> list[dict]:
             for row in connection.execute("SELECT funda_id FROM listings ORDER BY rowid DESC")
         ]
         return [_read_listing(connection, funda_id) for funda_id in ids]
+    finally:
+        connection.close()
+
+
+def set_archived(database_path: Path, funda_id: str, archived: bool, at: str) -> None:
+    """Archive or restore a Listing. Appends an event; snapshots and Source runs stay untouched."""
+    connection = connect(database_path)
+    try:
+        connection.execute(
+            "INSERT INTO listing_archive_events (funda_id, archived, at) VALUES (?, ?, ?)",
+            (funda_id, int(archived), at),
+        )
+        connection.commit()
     finally:
         connection.close()
 
