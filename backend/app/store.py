@@ -1,6 +1,8 @@
 import dataclasses
 import json
+import re
 import sqlite3
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -57,8 +59,11 @@ def initialise(database_path: Path) -> None:
         connection.close()
 
 
-def add_snapshot(database_path: Path, listing: Listing, fetched_at: str, status: str) -> None:
-    data = {**dataclasses.asdict(listing), "status": status}
+def add_snapshot(
+    database_path: Path, listing: Listing, fetched_at: str, status: str, entry: str = "fetched"
+) -> None:
+    """`entry` records how the snapshot came in: fetched by the provider or entered manually."""
+    data = {**dataclasses.asdict(listing), "status": status, "entry": entry}
     connection = connect(database_path)
     try:
         connection.execute(
@@ -142,6 +147,31 @@ def source_runs(database_path: Path, funda_id: str) -> dict[str, dict]:
         if run["outcome"] == "succeeded":
             entry["last_success"] = run
     return runs
+
+
+_PHOTO_NAME = re.compile(r"^[0-9a-f]{32}(\.[a-z0-9]{1,5})?$")
+_PHOTO_SUFFIX = re.compile(r"\.[a-z0-9]{1,5}$")
+
+
+def _photo_dir(media_dir: Path, funda_id: str) -> Path:
+    return media_dir / "listings" / funda_id / "photos"
+
+
+def save_photo(media_dir: Path, funda_id: str, filename: str, content: bytes) -> str:
+    """Store an uploaded photo under a generated name; returns that name."""
+    suffix = _PHOTO_SUFFIX.search(filename.lower())
+    name = uuid.uuid4().hex + (suffix.group(0) if suffix else "")
+    directory = _photo_dir(media_dir, funda_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / name).write_bytes(content)
+    return name
+
+
+def photo_path(media_dir: Path, funda_id: str, name: str) -> Path | None:
+    if not funda_id.isdigit() or not _PHOTO_NAME.match(name):
+        return None
+    path = _photo_dir(media_dir, funda_id) / name
+    return path if path.is_file() else None
 
 
 def save_buyer_profile(database_path: Path, profile: dict) -> dict:

@@ -99,3 +99,11 @@ button.link { border: 0; background: none; padding: 0; min-height: 0; font-weigh
 .source-status { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 32px; border-bottom: 1px solid var(--rule); }
 .source-status.failed { color: var(--vermilion); font-weight: 600; }
 button.small { padding: 2px 8px; font-size: 12px; }
+.manual-entry { background: var(--surface); border: 1px solid var(--ink); border-radius: 2px; margin: 16px 0 0; padding: 12px 16px; }
+.manual-entry h3 { margin-top: 0; }
+.manual-entry p.muted { max-width: 68ch; }
+.manual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 16px; }
+.manual-entry footer { margin-top: 8px; }
+textarea { font: inherit; border: 1px solid var(--rule); border-radius: 2px; padding: 6px 8px; background: var(--surface); color: var(--ink); }
+textarea[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--vermilion); }
+.notice.error button { font-weight: 400; margin-left: 4px; }

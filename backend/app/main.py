@@ -2,19 +2,22 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field, field_validator
 
 from app import store
 from app.case import build_case
 from app.buyer_profile import BuyerProfile, describe_errors, reduce_profile
 from app.listing_url import funda_id_from_url
+from app.manual_provider import ManualEntry, ManualListingProvider
 from app.ports import (
     InvalidListingUrl,
     ListingError,
+    ListingProvider,
     ListingRemoved,
     Ports,
     ProviderBlocked,
@@ -55,13 +58,45 @@ def create_app(
     class CaptureRequest(BaseModel):
         url: str
 
-    def capture(funda_id: str, url: str) -> dict:
-        listing = replace(ports.listing_provider.fetch(url), funda_id=funda_id, url=url)
+    class ManualEntryForm(BaseModel):
+        url: str
+        raw_status: str = Field(min_length=1)
+        address: str | None = None
+        city: str | None = None
+        asking_price: int | None = Field(default=None, ge=0)
+        living_area: int | None = Field(default=None, ge=0)
+        plot_area: int | None = Field(default=None, ge=0)
+        rooms: int | None = Field(default=None, ge=0)
+        bedrooms: int | None = Field(default=None, ge=0)
+        construction_year: int | None = Field(default=None, ge=1000, le=2100)
+        energy_label: str | None = None
+        heating: str | None = None
+        description: str | None = None
+        photos: list[UploadFile] = []
+
+        @field_validator("*", mode="before")
+        @classmethod
+        def blank_is_absent(cls, value: object) -> object:
+            """An empty form field means the fact is unknown, not zero or an empty string."""
+            return (value.strip() or None) if isinstance(value, str) else value
+
+    def capture(
+        funda_id: str,
+        url: str,
+        provider: ListingProvider = ports.listing_provider,
+        entry: str = "fetched",
+    ) -> dict:
+        listing = replace(provider.fetch(url), funda_id=funda_id, url=url)
         status = settings.listing_status_map.get(listing.raw_status.casefold(), "unknown")
         fetched_at = clock().isoformat()
-        store.add_snapshot(settings.database_path, listing, fetched_at, status)
+        store.add_snapshot(settings.database_path, listing, fetched_at, status, entry)
         run_sources(settings.database_path, ports.source_clients, listing, fetched_at)
         return store.get_listing(settings.database_path, funda_id)
+
+    def already_captured(funda_id: str) -> JSONResponse | None:
+        if store.get_listing(settings.database_path, funda_id) is None:
+            return None
+        return JSONResponse({"code": "already_captured", "funda_id": funda_id}, status_code=409)
 
     @app.exception_handler(ListingError)
     def listing_error(_: Request, error: ListingError) -> JSONResponse:
@@ -71,11 +106,34 @@ def create_app(
     @app.post("/api/listings", status_code=201, response_model=None)
     def capture_listing(request: CaptureRequest) -> dict | JSONResponse:
         funda_id = funda_id_from_url(request.url)
-        if store.get_listing(settings.database_path, funda_id) is not None:
-            return JSONResponse(
-                {"code": "already_captured", "funda_id": funda_id}, status_code=409
-            )
-        return capture(funda_id, request.url.strip())
+        return already_captured(funda_id) or capture(funda_id, request.url.strip())
+
+    @app.post("/api/listings/manual", status_code=201, response_model=None)
+    def enter_listing(
+        form: Annotated[ManualEntryForm, Form()],
+    ) -> dict | JSONResponse:
+        """Fallback when the fetch provider is broken or blocked: the user types the Listing in."""
+        url = form.url.strip()
+        funda_id = funda_id_from_url(url)
+        if duplicate := already_captured(funda_id):
+            return duplicate
+        if any(not (photo.content_type or "").startswith("image/") for photo in form.photos):
+            return JSONResponse({"code": "not_an_image"}, status_code=422)
+        photo_urls = tuple(
+            f"/api/listings/{funda_id}/photos/"
+            + store.save_photo(settings.media_dir, funda_id, photo.filename or "", photo.file.read())
+            for photo in form.photos
+        )
+        facts = form.model_dump(exclude={"url", "photos"})
+        entry = ManualEntry(**{**facts, "photo_urls": photo_urls})
+        return capture(funda_id, url, ManualListingProvider(entry), "manual")
+
+    @app.get("/api/listings/{funda_id}/photos/{name}", response_model=None)
+    def read_photo(funda_id: str, name: str) -> FileResponse | JSONResponse:
+        path = store.photo_path(settings.media_dir, funda_id, name)
+        if path is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        return FileResponse(path)
 
     @app.post("/api/listings/{funda_id}/refetch", response_model=None)
     def refetch_listing(funda_id: str) -> dict | JSONResponse:
