@@ -165,7 +165,7 @@ def test_a_failing_source_leaves_the_case_intact_and_is_listed_as_failed(
         "status": "skipped",
         "reason": "no_coordinates",
         "attempted_at": CAPTURED_AT,
-        "trust": "third_party",
+        "trust": "official",
     }
     assert source_facts(case, "energielabel") == []
     assert len(source_facts(case, "woz")) == 2

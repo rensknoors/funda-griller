@@ -116,7 +116,7 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
 
     case = client.get("/api/listings/80907644/case").json()
 
-    assert case["built_from"] == {"snapshot_id": snapshot["id"], "profile_version": 1, "flag_rules_version": 1}
+    assert case["built_from"] == {"snapshot_id": snapshot["id"], "profile_version": 1, "flag_rules_version": 2}
     facts = {fact["key"]: fact for fact in case["facts"]}
     assert facts["asking_price"]["value"] == 595000
     assert {fact["provenance"] for fact in facts.values()} == {"listing"}

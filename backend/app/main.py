@@ -1,18 +1,19 @@
 from collections.abc import Callable
 from contextlib import asynccontextmanager
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Body, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app import store
-from app.affordability import compute
+from app.affordability import compute, consequences
 from app.case import build_case
-from app.buyer_profile import BuyerProfile, describe_errors, reduce_profile
+from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, reduce_profile
+from app.comparison import summarise
 from app.listing_url import funda_id_from_url
 from app.manual_provider import ManualEntry, ManualListingProvider
 from app.ports import (
@@ -94,7 +95,12 @@ def create_app(
         fetched_at = clock().isoformat()
         store.add_snapshot(settings.database_path, listing, fetched_at, status, entry)
         run_sources(settings.database_path, ports.source_clients, listing, fetched_at)
-        return store.get_listing(settings.database_path, funda_id)
+        return with_comparison(store.get_listing(settings.database_path, funda_id))
+
+    def with_comparison(listing: dict) -> dict:
+        """The Listing plus its comparison-view row. The tier stays empty until a Verdict exists,
+        except a deal-breaker Hard no, which the Case already decides."""
+        return {**listing, "comparison": summarise(listing["snapshots"], current_case(listing))}
 
     def already_captured(funda_id: str) -> JSONResponse | None:
         if store.get_listing(settings.database_path, funda_id) is None:
@@ -239,8 +245,27 @@ def create_app(
         return {"count": len(out_of_date), "verdicts": out_of_date}
 
     @app.get("/api/listings")
-    def list_listings() -> list[dict]:
-        return store.list_listings(settings.database_path)
+    def list_listings(include_archived: bool = False) -> list[dict]:
+        """Archived Listings are hidden unless asked for. Sorting and filtering happen in the view."""
+        return [
+            with_comparison(listing)
+            for listing in store.list_listings(settings.database_path)
+            if include_archived or not listing["archived"]
+        ]
+
+    def set_archived(funda_id: str, archived: bool) -> dict | JSONResponse:
+        if store.get_listing(settings.database_path, funda_id) is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        store.set_archived(settings.database_path, funda_id, archived, clock().isoformat())
+        return with_comparison(store.get_listing(settings.database_path, funda_id))
+
+    @app.post("/api/listings/{funda_id}/archive", response_model=None)
+    def archive_listing(funda_id: str) -> dict | JSONResponse:
+        return set_archived(funda_id, True)
+
+    @app.post("/api/listings/{funda_id}/restore", response_model=None)
+    def restore_listing(funda_id: str) -> dict | JSONResponse:
+        return set_archived(funda_id, False)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -269,6 +294,23 @@ def create_app(
     @app.get("/api/buyer-profile/versions")
     def list_buyer_profile_versions() -> list[dict]:
         return store.buyer_profile_versions(settings.database_path)
+
+    @app.post("/api/buyer-profile/validation")
+    def check_buyer_profile(draft: dict = Body()) -> dict:
+        try:
+            BuyerProfile.model_validate(draft)
+        except ValidationError as error:
+            return {"errors": describe_errors(list(error.errors()))}
+        return {"errors": []}
+
+    @app.post("/api/buyer-profile/consequences")
+    def work_out_consequences(draft: FinanceDraft) -> dict:
+        today = clock().date()
+        rules = load_rules(settings.affordability_rules_path, today.year)
+        return {
+            **asdict(consequences(draft, rules, today)),
+            "rules": {"year": rules.year, "is_current_year": rules.year == today.year},
+        }
 
     @app.get("/api/buyer-profile/reduced")
     def read_reduced_buyer_profile() -> dict:

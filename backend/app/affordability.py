@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import date
 
-from app.buyer_profile import BuyerProfile, home_equity
+from app.buyer_profile import BuyerProfile, FinanceDraft, home_equity
 
 
 @dataclass(frozen=True)
@@ -68,7 +68,16 @@ def _age(born: date, today: date) -> int:
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
-def _is_starter(profile: BuyerProfile, rules: Rules, today: date) -> bool:
+@dataclass(frozen=True)
+class Consequences:
+    """What a Buyer Profile can buy before any Listing is involved (the Gevolgen panel)."""
+
+    max_mortgage: int
+    equity: int
+    budget: int  # highest purchase price payable, after kosten koper
+
+
+def _is_starter(profile: BuyerProfile | FinanceDraft, rules: Rules, today: date) -> bool:
     ages = [_age(m.birth_date, today) for m in profile.household if m.role == "adult"]
     return bool(ages) and all(rules.starter_min_age <= age <= rules.starter_max_age for age in ages)
 
@@ -80,19 +89,34 @@ def _max_mortgage(income: int, energy_label: str | None, rules: Rules) -> tuple[
     return base + bonus, bonus
 
 
+def _own_funds(profile: BuyerProfile | FinanceDraft) -> int:
+    return profile.assets.savings + profile.assets.investments
+
+
+def _budget(
+    profile: BuyerProfile | FinanceDraft, max_mortgage: int, equity: int, rules: Rules, today: date
+) -> int:
+    available = max_mortgage + equity + _own_funds(profile) - rules.fixed_costs
+    max_price = available / (1 + rules.transfer_tax_rate)
+    if _is_starter(profile, rules, today):
+        max_price = max(max_price, min(rules.starter_price_limit, available))
+    return max(0, int(max_price))
+
+
+def consequences(draft: FinanceDraft, rules: Rules, today: date) -> Consequences:
+    max_mortgage, _ = _max_mortgage(draft.gross_annual_income, None, rules)
+    equity = home_equity(draft)
+    return Consequences(max_mortgage, equity, _budget(draft, max_mortgage, equity, rules, today))
+
+
 def compute(
     profile: BuyerProfile, asking_price: int | None, energy_label: str | None, rules: Rules, today: date
 ) -> Affordability:
     starter = _is_starter(profile, rules, today)
     max_mortgage, bonus = _max_mortgage(profile.gross_annual_income, energy_label, rules)
     equity = home_equity(profile)
-    own_funds = profile.assets.savings + profile.assets.investments
-    budget = max_mortgage + equity + own_funds - rules.fixed_costs
-
-    max_price = budget / (1 + rules.transfer_tax_rate)
-    if starter:
-        max_price = max(max_price, min(rules.starter_price_limit, budget))
-    max_price = max(0, int(max_price))
+    own_funds = _own_funds(profile)
+    max_price = _budget(profile, max_mortgage, equity, rules, today)
 
     if asking_price is None:
         return Affordability(max_mortgage, bonus, equity, None, None, None, None, max_price)

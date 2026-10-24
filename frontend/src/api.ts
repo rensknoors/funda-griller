@@ -15,10 +15,33 @@ export type Snapshot = {
   price_history: { date: string | null; price: number | null }[];
 };
 
+/** Verdict tiers in their sort order. `null` until a Verdict exists (a Hard no comes from the Case). */
+export type Tier = "must_buy" | "consider" | "skip" | "hard_no";
+
+/** One Listing's row in the comparison view, read off its snapshots and Case. */
+export type Comparison = {
+  tier: Tier | null;
+  hard_no_reason: string | null;
+  status: string;
+  status_change: { from: string; to: string } | null;
+  asking_price: number | null;
+  previous_asking_price: number | null;
+  living_area: number | null;
+  plot_area: number | null;
+  energy_label: { value: string; official: boolean } | null;
+  asking_vs_woz_percent: number | null;
+  headroom: number | null;
+  flag_counts: { pro: number; con: number; risk: number };
+  stale_count: number;
+  last_fetched_at: string;
+};
+
 export type Listing = {
   funda_id: string;
   url: string;
+  archived: boolean;
   snapshots: Snapshot[];
+  comparison: Comparison;
 };
 
 export type CaptureError =
@@ -28,11 +51,21 @@ export type CaptureError =
   | { kind: "already_captured"; fundaId: string }
   | { kind: "unknown" };
 
+/** All Listings, archived ones included: the view hides those unless asked. */
 export async function fetchListings(): Promise<Listing[]> {
-  const response = await fetch("/api/listings");
+  const response = await fetch("/api/listings?include_archived=true");
   if (!response.ok) throw new Error("listings unavailable");
   return response.json();
 }
+
+async function setArchived(fundaId: string, action: "archive" | "restore"): Promise<Listing> {
+  const response = await fetch(`/api/listings/${fundaId}/${action}`, { method: "POST" });
+  if (!response.ok) throw new Error(`${action} unavailable`);
+  return response.json();
+}
+
+export const archiveListing = (fundaId: string) => setArchived(fundaId, "archive");
+export const restoreListing = (fundaId: string) => setArchived(fundaId, "restore");
 
 async function post(path: string, body?: unknown): Promise<Listing | CaptureError> {
   try {
@@ -198,8 +231,6 @@ export async function refetchSource(fundaId: string, source: string): Promise<Ca
   if (!response.ok) throw new Error("source refetch unavailable");
   return response.json();
 }
-
-export type Tier = "must_buy" | "consider" | "skip" | "hard_no";
 
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
 export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
