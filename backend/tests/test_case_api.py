@@ -33,7 +33,7 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
 
     built_from = client.get("/api/listings/80907644/case").json()["built_from"]
 
-    assert built_from == {"snapshot_id": snapshot["id"], "profile_version": 1, "flag_rules_version": 1}
+    assert built_from == {"snapshot_id": snapshot["id"], "profile_version": 1, "flag_rules_version": 2}
 
 
 def test_typical_household_affordability(client, listing_provider):
