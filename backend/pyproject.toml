@@ -34,7 +34,7 @@ forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.m
 [[tool.importlinter.contracts]]
 name = "Case builder is pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
 type = "forbidden"
-source_modules = ["app.case", "app.affordability"]
+source_modules = ["app.case", "app.affordability", "app.flags"]
 forbidden_modules = [
   "app.ports",
   "app.production_ports",
