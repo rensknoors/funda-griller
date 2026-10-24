@@ -98,9 +98,11 @@ def create_app(
         return with_comparison(store.get_listing(settings.database_path, funda_id))
 
     def with_comparison(listing: dict) -> dict:
-        """The Listing plus its comparison-view row. The tier stays empty until a Verdict exists,
-        except a deal-breaker Hard no, which the Case already decides."""
-        return {**listing, "comparison": summarise(listing["snapshots"], current_case(listing))}
+        """The Listing plus its comparison-view row: the latest Verdict's tier, or none until a
+        Verdict exists. A deal-breaker Hard no in the Case overrides it."""
+        verdicts = store.verdicts(settings.database_path, listing["funda_id"])
+        tier = verdicts[0]["tier"] if verdicts else None
+        return {**listing, "comparison": summarise(listing["snapshots"], current_case(listing), tier)}
 
     def already_captured(funda_id: str) -> JSONResponse | None:
         if store.get_listing(settings.database_path, funda_id) is None:

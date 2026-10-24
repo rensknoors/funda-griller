@@ -51,6 +51,8 @@ export function ListingsTable(props: {
   onRefetch: (fundaId: string) => void;
   onArchive: (fundaId: string) => void;
   onRestore: (fundaId: string) => void;
+  /** Make a new Verdict version for this Woning; never happens by itself. */
+  onRerunVerdict: (fundaId: string) => void;
 }) {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
@@ -185,6 +187,7 @@ export function ListingsTable(props: {
               onRefetch={props.onRefetch}
               onArchive={() => setArchiveTarget(listing)}
               onRestore={props.onRestore}
+              onRerunVerdict={props.onRerunVerdict}
             />
           ))}
         </tbody>
@@ -259,6 +262,7 @@ function ListingRow(props: {
   onRefetch: (fundaId: string) => void;
   onArchive: () => void;
   onRestore: (fundaId: string) => void;
+  onRerunVerdict: (fundaId: string) => void;
 }) {
   const { listing } = props;
   const row = listing.comparison;
@@ -364,6 +368,9 @@ function ListingRow(props: {
             <Menu.Positioner align="end">
               <Menu.Popup className="menu">
                 <Menu.Item onClick={() => props.onRefetch(listing.funda_id)}>Opnieuw ophalen</Menu.Item>
+                <Menu.Item onClick={() => props.onRerunVerdict(listing.funda_id)}>
+                  Oordeel opnieuw draaien
+                </Menu.Item>
                 {listing.archived ? (
                   <Menu.Item onClick={() => props.onRestore(listing.funda_id)}>Terugzetten</Menu.Item>
                 ) : (

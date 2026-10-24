@@ -300,3 +300,28 @@ def test_a_manually_entered_listing_gets_a_verdict(client, llm_client):
     [(case, _)] = llm_client.rate_calls
     assert {fact["key"]: fact["value"] for fact in case["facts"]}["asking_price"] == 595_000
     assert verdict["bid_advice"]["affordable_maximum"] == case["affordability"]["max_price"]
+
+
+def test_the_comparison_row_shows_the_latest_verdict_tier(client, listing_provider, llm_client):
+    prepare(client, listing_provider)
+    assert client.get("/api/listings").json()[0]["comparison"]["tier"] is None
+
+    llm_client.verdict = model_says("consider")
+    client.post(VERDICT)
+    llm_client.verdict = model_says("must_buy")
+    client.post(VERDICT)
+
+    assert client.get("/api/listings").json()[0]["comparison"]["tier"] == "must_buy"
+
+
+def test_a_case_hard_no_overrides_an_earlier_verdict_tier_in_the_comparison_row(
+    client, listing_provider, llm_client
+):
+    prepare(client, listing_provider, description="Appartement op erfpacht.")
+    llm_client.verdict = model_says("must_buy")
+    client.post(VERDICT)
+
+    client.put("/api/buyer-profile", json=typical_profile() | {"deal_breakers": ["Geen erfpacht"]})
+
+    row = client.get("/api/listings").json()[0]["comparison"]
+    assert (row["tier"], row["hard_no_reason"]) == ("hard_no", "Geen erfpacht")
