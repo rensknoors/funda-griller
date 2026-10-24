@@ -118,6 +118,7 @@ export function CaseView(props: {
           <h2 id="case-title">Dossier: {latest.address ?? listing.url}</h2>
           <p className="muted">
             Advertentie van {shortDate(latest.fetched_at)}
+            {latest.entry === "manual" && <> · Handmatig ingevoerd</>}
             {state.kind === "klaar" && state.data.built_from.profile_version !== null && (
               <> · Koperprofiel versie {state.data.built_from.profile_version}</>
             )}
