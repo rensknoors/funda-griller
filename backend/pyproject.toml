@@ -1,0 +1,21 @@
+[project]
+name = "funda-griller-backend"
+version = "0.1.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi==0.136.0",
+  "uvicorn==0.46.0",
+  "pydantic-settings==2.14.0",
+  "pyfunda==3.1.5",
+  "tls-client<2.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.0.3",
+  "httpx==0.28.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
