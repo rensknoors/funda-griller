@@ -1,0 +1,60 @@
+export type Snapshot = {
+  id: number;
+  fetched_at: string;
+  raw_status: string;
+  status: string;
+  address: string | null;
+  city: string | null;
+  asking_price: number | null;
+  living_area: number | null;
+  plot_area: number | null;
+  energy_label: string | null;
+  price_history: { date: string | null; price: number | null }[];
+};
+
+export type Listing = {
+  funda_id: string;
+  url: string;
+  snapshots: Snapshot[];
+};
+
+export type CaptureError =
+  | { kind: "bad_url" }
+  | { kind: "listing_removed" }
+  | { kind: "provider_blocked" }
+  | { kind: "already_captured"; fundaId: string }
+  | { kind: "unknown" };
+
+export async function fetchListings(): Promise<Listing[]> {
+  const response = await fetch("/api/listings");
+  if (!response.ok) throw new Error("listings unavailable");
+  return response.json();
+}
+
+async function post(path: string, body?: unknown): Promise<Listing | CaptureError> {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const payload = await response.json();
+    if (response.ok) return payload as Listing;
+    if (payload.code === "already_captured") {
+      return { kind: "already_captured", fundaId: payload.funda_id };
+    }
+    if (["bad_url", "listing_removed", "provider_blocked"].includes(payload.code)) {
+      return { kind: payload.code } as CaptureError;
+    }
+  } catch {
+    // fall through to unknown
+  }
+  return { kind: "unknown" };
+}
+
+export const captureListing = (url: string) => post("/api/listings", { url });
+export const refetchListing = (fundaId: string) => post(`/api/listings/${fundaId}/refetch`);
+
+export function isCaptureError(result: Listing | CaptureError): result is CaptureError {
+  return "kind" in result;
+}

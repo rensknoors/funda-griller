@@ -5,12 +5,15 @@ from app.ports import Listing, SourceFact
 
 class FakeListingProvider:
     def __init__(self) -> None:
-        self.listings: dict[str, Listing] = {}
+        self.listings: dict[str, Listing | Exception] = {}
         self.calls: list[str] = []
 
     def fetch(self, url: str) -> Listing:
         self.calls.append(url)
-        return self.listings[url]
+        result = self.listings[url]
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 class FakeSourceClient:

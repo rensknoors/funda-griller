@@ -4,11 +4,50 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 
+class ListingError(Exception):
+    """Base for failures to fetch a Listing."""
+
+
+class InvalidListingUrl(ListingError):
+    pass
+
+
+class ListingRemoved(ListingError):
+    pass
+
+
+class ProviderBlocked(ListingError):
+    pass
+
+
+@dataclass(frozen=True)
+class PricePoint:
+    date: str | None
+    price: int | None
+
+
 @dataclass(frozen=True)
 class Listing:
     funda_id: str
     url: str
     raw_status: str
+    provider_id: str | None = None
+    address: str | None = None
+    city: str | None = None
+    asking_price: int | None = None
+    living_area: int | None = None
+    plot_area: int | None = None
+    rooms: int | None = None
+    bedrooms: int | None = None
+    construction_year: int | None = None
+    energy_label: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    heating: str | None = None
+    description: str | None = None
+    price_history: tuple[PricePoint, ...] = ()
+    photo_urls: tuple[str, ...] = ()
+    brochure_url: str | None = None
 
 
 @dataclass(frozen=True)
