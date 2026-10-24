@@ -32,6 +32,10 @@ class SourceFailed(Exception):
     """A Source client tried and failed. Any other exception from a client counts as failed too."""
 
 
+class LlmError(Exception):
+    """The LLM client could not produce an answer (network, quota, refusal, unparseable reply)."""
+
+
 @dataclass(frozen=True)
 class PricePoint:
     date: str | None
@@ -87,7 +91,9 @@ class LlmClient(Protocol):
 
     def extract_findings(self, document_path: str) -> list[dict]: ...
 
-    def rate(self, case: dict, buyer_profile: dict) -> dict: ...
+    def rate(self, case: dict, buyer_profile: dict) -> dict:
+        """The Verdict model's raw answer for a Case and the reduced Buyer Profile. Raises LlmError."""
+        ...
 
 
 @dataclass

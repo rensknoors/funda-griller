@@ -39,10 +39,23 @@ forbidden_modules = [
   "app.ports",
   "app.production_ports",
   "app.pyfunda_provider",
+  "app.gemini_client",
   "app.source_clients",
   "app.source_runner",
   "app.store",
   "app.settings",
   "app.rules_loader",
+  "app.main",
+]
+
+[[tool.importlinter.contracts]]
+name = "Verdict service reaches the LLM only through the port: no adapters, storage, settings or app wiring"
+type = "forbidden"
+source_modules = ["app.verdict"]
+forbidden_modules = [
+  "app.gemini_client",
+  "app.production_ports",
+  "app.store",
+  "app.settings",
   "app.main",
 ]

@@ -15,10 +15,16 @@ import {
   toPayload,
   vakOrder,
 } from "./profile";
+import { fetchOutOfDateVerdicts } from "./api";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; form: FormState; firstRun: boolean };
 
-type SaveState = { kind: "idle" } | { kind: "saving" } | { kind: "saved"; version: number } | { kind: "failed" };
+type SaveState =
+  | { kind: "idle" }
+  | { kind: "saving" }
+  /** `changedVerdicts`: Oordelen this save made Achterhaald; null when that count could not be read. */
+  | { kind: "saved"; version: number; changedVerdicts: number | null }
+  | { kind: "failed" };
 
 type GevolgenState = { kind: "pending" } | { kind: "figures"; data: Consequences } | { kind: "incomplete" };
 
@@ -32,7 +38,8 @@ const toFieldErrors = (errors: { field: string; message: string }[]): FieldError
   Object.fromEntries(errors.map((error) => [error.field, error.message]));
 
 /** Loads the latest Koperprofiel, then hands it to the form; skeleton while loading, banner on failure. */
-export function BuyerProfileForm() {
+/** `onSaved` lets the Woningen list refresh: a profile change can change Hard no tiers. */
+export function BuyerProfileForm({ onSaved }: { onSaved?: () => void } = {}) {
   const [load, setLoad] = useState<LoadState>({ kind: "laden" });
   const [attempt, setAttempt] = useState(0);
 
@@ -76,12 +83,20 @@ export function BuyerProfileForm() {
           </button>
         </div>
       )}
-      {load.kind === "klaar" && <ProfileForm initial={load.form} firstRun={load.firstRun} />}
+      {load.kind === "klaar" && <ProfileForm initial={load.form} firstRun={load.firstRun} onSaved={onSaved} />}
     </div>
   );
 }
 
-function ProfileForm({ initial, firstRun }: { initial: FormState; firstRun: boolean }) {
+function ProfileForm({
+  initial,
+  firstRun,
+  onSaved,
+}: {
+  initial: FormState;
+  firstRun: boolean;
+  onSaved?: () => void;
+}) {
   const [form, setForm] = useState<FormState>(initial);
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
   const [problems, setProblems] = useState<FieldErrors>({});
@@ -160,7 +175,12 @@ function ProfileForm({ initial, firstRun }: { initial: FormState; firstRun: bool
       } else if (response.ok) {
         setProblems({});
         setTouched(new Set());
-        setSave({ kind: "saved", version: (await response.json()).version });
+        const { version } = await response.json();
+        const changedVerdicts = await fetchOutOfDateVerdicts()
+          .then((outOfDate) => outOfDate.count)
+          .catch(() => null);
+        setSave({ kind: "saved", version, changedVerdicts });
+        onSaved?.();
       } else {
         setSave({ kind: "failed" });
       }
@@ -385,7 +405,25 @@ function ProfileForm({ initial, firstRun }: { initial: FormState; firstRun: bool
             </a>
           </p>
         )}
-        {save.kind === "saved" && <p role="status">Opgeslagen als versie {save.version}.</p>}
+        {save.kind === "saved" && (
+          <p role="status">
+            Opgeslagen als versie {save.version}.
+            {save.changedVerdicts !== null && (
+              <>
+                {" "}
+                {save.changedVerdicts === 0 ? (
+                  "Er veranderen geen oordelen."
+                ) : (
+                  <>
+                    Dit verandert {save.changedVerdicts} {save.changedVerdicts === 1 ? "oordeel" : "oordelen"}.
+                    Achterhaalde oordelen draaien pas opnieuw als je dat vraagt.{" "}
+                    <a href="#woningen">Naar de woningen</a>
+                  </>
+                )}
+              </>
+            )}
+          </p>
+        )}
         {save.kind === "failed" && (
           <div role="alert" className="banner">
             <span aria-hidden="true">! </span>Opslaan mislukt. Je invoer is bewaard.{" "}
