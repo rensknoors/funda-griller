@@ -1,0 +1,50 @@
+:root {
+  --ground: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #0e1f3a;
+  --ink-muted: #4a5b73;
+  --rule: #c3cad6;
+  --form-blue: #154273;
+  --vermilion: #c2410c;
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--ground);
+}
+
+body { margin: 0; }
+main { max-width: 1440px; margin: 0 auto; padding: 24px; }
+h1 { font-size: 28px; margin: 0 0 16px; }
+h2 { font-size: 18px; margin: 24px 0 8px; }
+
+.vak { background: var(--surface); border: 1px solid var(--ink); border-radius: 2px; padding: 12px 16px; }
+.vak label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.vak-row { display: flex; gap: 8px; }
+.vak input { flex: 1; min-height: 32px; border: 1px solid var(--rule); border-radius: 2px; padding: 0 8px; font: inherit; }
+.vak input[aria-invalid="true"] { border-color: var(--vermilion); }
+
+button { min-height: 32px; border: 1px solid var(--form-blue); border-radius: 2px; background: var(--surface); color: var(--form-blue); padding: 0 12px; font: inherit; cursor: pointer; }
+button.primary { background: var(--form-blue); color: #fff; }
+button:disabled { opacity: 0.6; cursor: default; }
+:focus-visible { outline: 2px solid var(--form-blue); outline-offset: 2px; }
+
+.notice { margin: 8px 0 0; }
+.notice.error { color: var(--vermilion); font-weight: 600; }
+
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--ink); }
+th, td { text-align: left; padding: 4px 8px; height: 32px; border-bottom: 1px solid var(--rule); font-weight: 400; }
+thead th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+tbody th { font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+.muted { color: var(--ink-muted); font-weight: 400; }
+.chip { border: 1px solid var(--ink-muted); border-radius: 2px; padding: 0 4px; font-size: 12px; font-weight: 400; }
+.sold { color: var(--ink-muted); }
+.struck { text-decoration: line-through; }
+.empty { max-width: 68ch; }
+.skeleton { height: 96px; background: repeating-linear-gradient(0deg, #eef0f4 0 32px, var(--ground) 32px 36px); }
+.api-state { color: var(--ink-muted); font-size: 12px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 1023px) {
+  table th:nth-child(3), table td:nth-child(3), table th:nth-child(4), table td:nth-child(4) { display: none; }
+}
