@@ -72,5 +72,4 @@ _Avoid_: Max price, ceiling
 **Buyer Profile**:
 The household's finances (income, household composition, assets, current home equity) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally.
 _Dutch UI_: **Koperprofiel**; the preference lists keep their English labels **Must-have**, **Nice-to-have** and **Deal-breaker**, which are common usage in Dutch
-_Dutch UI_: **Koperprofiel**
 _Avoid_: User profile, account, settings
