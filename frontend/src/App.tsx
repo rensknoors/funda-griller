@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 
 import { BuyerProfileForm } from "./BuyerProfileForm";
 import { CaseView } from "./CaseView";
+import { ListingsTable } from "./ListingsTable";
 import { ManualEntryForm } from "./ManualEntryForm";
 import {
+  archiveListing,
   captureListing,
   fetchListings,
   isCaptureError,
   refetchListing,
+  restoreListing,
   type CaptureError,
   type Listing,
 } from "./api";
@@ -24,13 +27,6 @@ const ERROR_COPY: Record<FetchFailure["kind"], string> = {
   unknown: "Ophalen mislukt. Probeer het opnieuw.",
 };
 
-const euro = new Intl.NumberFormat("nl-NL", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
-const dateTime = new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium", timeStyle: "short" });
-
 export function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [listState, setListState] = useState<ListState>("laden");
@@ -38,10 +34,12 @@ export function App() {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<FetchFailure | null>(null);
-  const [rowErrors, setRowErrors] = useState<Record<string, FetchFailure>>({});
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
   const [openCaseId, setOpenCaseId] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState<string | null>(null);
+  const [archiveFailed, setArchiveFailed] = useState(false);
 
   useEffect(() => {
     fetch("/api/health")
@@ -91,8 +89,19 @@ export function App() {
     setRowErrors(({ [fundaId]: _cleared, ...rest }) => rest);
     if (!isCaptureError(result)) {
       upsert(result);
+      setFlashId(null);
+      requestAnimationFrame(() => setFlashId(fundaId));
     } else if (result.kind !== "already_captured") {
-      setRowErrors((current) => ({ ...current, [fundaId]: result }));
+      setRowErrors((current) => ({ ...current, [fundaId]: ERROR_COPY[result.kind] }));
+    }
+  }
+
+  async function handleArchive(fundaId: string, archived: boolean) {
+    setArchiveFailed(false);
+    try {
+      upsert(await (archived ? archiveListing(fundaId) : restoreListing(fundaId)));
+    } catch {
+      setArchiveFailed(true);
     }
   }
 
@@ -193,33 +202,22 @@ export function App() {
           opgehaald en als momentopname bewaard. Daarna staat de woning in deze lijst.
         </p>
       )}
+      {archiveFailed && (
+        <p role="alert" className="notice error">
+          <span aria-hidden="true">! </span>Archiveren of terugzetten mislukt. Probeer het opnieuw.
+        </p>
+      )}
       {listState === "klaar" && listings.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Adres</th>
-              <th scope="col" className="num">Vraagprijs</th>
-              <th scope="col" className="num">m² woon / perceel</th>
-              <th scope="col">Label</th>
-              <th scope="col">Laatst opgehaald</th>
-              <th scope="col">
-                <span className="visually-hidden">Acties</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {listings.map((listing) => (
-              <ListingRow
-                key={listing.funda_id}
-                listing={listing}
-                busy={busy}
-                failure={rowErrors[listing.funda_id]}
-                onRefetch={handleRefetch}
-                onOpen={setOpenCaseId}
-              />
-            ))}
-          </tbody>
-        </table>
+        <ListingsTable
+          listings={listings}
+          busy={busy}
+          rowErrors={rowErrors}
+          flashId={flashId}
+          onOpen={setOpenCaseId}
+          onRefetch={handleRefetch}
+          onArchive={(fundaId) => handleArchive(fundaId, true)}
+          onRestore={(fundaId) => handleArchive(fundaId, false)}
+        />
       )}
       <p role="status" className="api-state">
         API: {apiState}
@@ -229,62 +227,4 @@ export function App() {
       </div>
     </main>
   );
-}
-
-function ListingRow({
-  listing,
-  busy,
-  failure,
-  onRefetch,
-  onOpen,
-}: {
-  listing: Listing;
-  busy: boolean;
-  failure: FetchFailure | undefined;
-  onRefetch: (fundaId: string) => void;
-  onOpen: (fundaId: string) => void;
-}) {
-  const latest = listing.snapshots[0];
-  const sold = latest.status === "sold";
-  return (
-    <tr className={sold ? "sold" : undefined}>
-      <th scope="row">
-        <button type="button" className="link" onClick={() => onOpen(listing.funda_id)}>
-          <span className={sold ? "struck" : undefined}>{latest.address ?? listing.url}</span>
-        </button>
-        {latest.city && <span className="muted"> {latest.city}</span>}{" "}
-        <span className="chip">{statusLabel(latest.status, latest.raw_status)}</span>
-        {latest.entry === "manual" && <>{" "}<span className="chip">Handmatig ingevoerd</span></>}
-        {failure && (
-          <span role="alert" className="row-error">
-            <span aria-hidden="true">! </span>
-            {ERROR_COPY[failure.kind]}
-          </span>
-        )}
-      </th>
-      <td className="num">{latest.asking_price != null ? euro.format(latest.asking_price) : "–"}</td>
-      <td className="num">
-        {latest.living_area ?? "–"} / {latest.plot_area ?? "–"}
-      </td>
-      <td>{latest.energy_label ?? "–"}</td>
-      <td>
-        {dateTime.format(new Date(latest.fetched_at))}
-        {listing.snapshots.length > 1 && (
-          <span className="muted"> · {listing.snapshots.length} momentopnames</span>
-        )}
-      </td>
-      <td>
-        <button type="button" disabled={busy} onClick={() => onRefetch(listing.funda_id)}>
-          Opnieuw ophalen
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-function statusLabel(status: string, raw: string): string {
-  if (status === "available") return "Beschikbaar";
-  if (status === "negotiations") return "Onder bod";
-  if (status === "sold") return "Verkocht";
-  return raw || "Onbekend";
 }

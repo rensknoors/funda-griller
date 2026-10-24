@@ -11,12 +11,36 @@ from tests.fakes import FakeListingProvider, FakeLlmClient, FakeSourceClient
 from tests.listing_fixtures import LIVE_URL, live_listing
 
 BLOCKED_URL = "https://www.funda.nl/detail/koop/utrecht/huis-oudegracht-2/12345678/"
+# Available on first fetch, sold on every refetch after: the comparison view's status change.
+CHANGING_URL = "https://www.funda.nl/detail/koop/maastricht/appartement-markt-3/55500001/"
 
-_data_dir =Path(tempfile.mkdtemp(prefix="funda-griller-e2e-"))
+_data_dir = Path(tempfile.mkdtemp(prefix="funda-griller-e2e-"))
 
 _listing_provider = FakeListingProvider()
 _listing_provider.listings[LIVE_URL] = live_listing()
 _listing_provider.listings[BLOCKED_URL] = ProviderBlocked(BLOCKED_URL)
+_markt = dict(
+    funda_id="55500001",
+    provider_id="55500001",
+    url=CHANGING_URL,
+    address="Markt 3",
+    city="Maastricht",
+    asking_price=425_000,
+    living_area=80,
+    plot_area=None,
+    rooms=3,
+    bedrooms=2,
+    construction_year=1965,
+    energy_label="C",
+    description="Appartement met balkon.",
+    price_history=(),
+    photo_urls=(),
+    brochure_url=None,
+)
+_listing_provider.listings[CHANGING_URL] = [
+    live_listing(**_markt),
+    live_listing(**_markt, raw_status="Verkocht"),
+]
 
 _source_clients = {name: FakeSourceClient(name) for name in SOURCES}
 _source_clients["energielabel"].facts = [SourceFact("energy_label", "A", "2021-06-14")]

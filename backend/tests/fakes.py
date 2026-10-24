@@ -6,13 +6,18 @@ from app.ports import Listing, SourceFact
 
 
 class FakeListingProvider:
+    """`listings` maps a URL to its Listing or error, or to a list of them returned one per fetch
+    (the last one repeats), for a Listing whose status changes between fetches."""
+
     def __init__(self) -> None:
-        self.listings: dict[str, Listing | Exception] = {}
+        self.listings: dict[str, Listing | Exception | list[Listing | Exception]] = {}
         self.calls: list[str] = []
 
     def fetch(self, url: str) -> Listing:
         self.calls.append(url)
         result = self.listings[url]
+        if isinstance(result, list):
+            result = result.pop(0) if len(result) > 1 else result[0]
         if isinstance(result, Exception):
             raise result
         return result
