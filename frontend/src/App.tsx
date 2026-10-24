@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { BuyerProfileForm } from "./BuyerProfileForm";
 import { CaseView } from "./CaseView";
 import { ManualEntryForm } from "./ManualEntryForm";
+import { VerdictView } from "./VerdictView";
 import {
   captureListing,
   fetchListings,
@@ -42,6 +43,8 @@ export function App() {
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
   const [openCaseId, setOpenCaseId] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState<string | null>(null);
+  const [verdictOpen, setVerdictOpen] = useState(false);
+  const [focusFlagId, setFocusFlagId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/health")
@@ -97,6 +100,24 @@ export function App() {
   }
 
   const openCase = listings.find((l) => l.funda_id === openCaseId);
+  if (openCase && verdictOpen) {
+    return (
+      <main>
+        <h1>Funda Griller</h1>
+        <VerdictView
+          listing={openCase}
+          onBackToCase={() => {
+            setFocusFlagId(null);
+            setVerdictOpen(false);
+          }}
+          onShowFlag={(flagId) => {
+            setFocusFlagId(flagId);
+            setVerdictOpen(false);
+          }}
+        />
+      </main>
+    );
+  }
   if (openCase) {
     return (
       <main>
@@ -104,8 +125,13 @@ export function App() {
         <CaseView
           listing={openCase}
           busy={busy}
-          onClose={() => setOpenCaseId(null)}
+          onClose={() => {
+            setFocusFlagId(null);
+            setOpenCaseId(null);
+          }}
           onRefetch={handleRefetch}
+          onOpenVerdict={() => setVerdictOpen(true)}
+          focusFlagId={focusFlagId}
         />
       </main>
     );

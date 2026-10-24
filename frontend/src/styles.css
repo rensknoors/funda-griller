@@ -120,3 +120,38 @@ textarea[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(-
 .flags summary { cursor: pointer; }
 .evidence { padding-left: 24px; }
 .fact:target { background: #eef3fa; }
+.flags > li.focused { background: #eef3fa; box-shadow: inset 4px 0 0 var(--form-blue); }
+
+/* Oordeel (Verdict page). Tier marks read in greyscale: fill pattern + glyph + word. */
+button.primary { background: var(--form-blue); color: #fff; }
+.empty-vak { background: var(--surface); border: 1px solid var(--rule); border-radius: 2px; padding: 12px 16px; margin-bottom: 16px; }
+.empty-vak p { max-width: 68ch; margin-top: 0; }
+.tier-skeleton { padding: 8px 16px; margin-bottom: 16px; }
+.tier-block { display: grid; gap: 8px; }
+.tier-block h3 { margin: 0; }
+.tier-mark { display: inline-flex; align-items: center; gap: 12px; }
+.tier-glyph { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 2px solid var(--form-blue); border-radius: 2px; font-size: 22px; font-weight: 600; color: var(--form-blue); }
+.tier-label { font-size: 28px; font-weight: 600; }
+.tier-must_buy .tier-glyph { background: var(--form-blue); color: #fff; }
+.tier-skip .tier-glyph { border-color: var(--ink-muted); color: var(--ink); background: repeating-linear-gradient(45deg, var(--surface) 0 4px, #dfe3ea 4px 5px); }
+.tier-hard_no .tier-glyph { border: 4px double var(--vermilion); color: var(--vermilion); background: linear-gradient(135deg, transparent 47%, var(--vermilion) 47% 53%, transparent 53%); }
+.tier-block-hard_no { border: 4px double var(--vermilion); }
+.tier-summary { font-size: 16px; max-width: 68ch; margin: 0; }
+.tier-block.out-of-date { background: repeating-linear-gradient(45deg, #eef0f4 0 6px, #dfe3ea 6px 7px); }
+.achterhaald-banner { border: 1px solid var(--ink); box-shadow: inset 4px 0 0 var(--ink); background: var(--surface); padding: 8px 16px; margin-bottom: 16px; }
+.achterhaald-banner button { margin-left: 8px; }
+.prose { font-size: 16px; line-height: 1.5; max-width: 68ch; }
+.signaal-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.signaal-chip { color: var(--ink); border-color: var(--rule); padding: 2px 8px; }
+.signaal-chip.flag-pro .flag-glyph { border-radius: 50%; }
+.signaal-chip.flag-risk .flag-glyph { border-color: var(--vermilion); color: var(--vermilion); }
+.bid-vakken { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.vak-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.bid-amount { font-size: 28px; font-weight: 600; margin: 4px 0; text-align: left; }
+.bid-vakken details summary { cursor: pointer; color: var(--form-blue); }
+.conditions { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.verdict-history { margin: 8px 0 0; padding-left: 24px; display: grid; gap: 8px; }
+
+@media (max-width: 719px) {
+  .bid-vakken { grid-template-columns: 1fr; }
+}
