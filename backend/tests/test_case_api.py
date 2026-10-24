@@ -46,13 +46,13 @@ def test_typical_household_affordability(client, listing_provider):
     assert affordability.pop("provenance") == "computed"
     assert affordability.pop("computed_on")
     assert affordability == {
-        "max_mortgage": 486_660,
-        "energy_label_bonus": 0,
-        "kosten_koper": {"transfer_tax": 11_900, "fixed_costs": 6_000, "total": 17_900},
+        "max_mortgage": 496_660,
+        "energy_label_bonus": 10_000,
+        "kosten_koper": {"transfer_tax": 11_900, "fixed_costs": 5_050, "total": 16_950},
         "equity": 172_000,
-        "mortgage_needed": 385_900,
-        "monthly_cost": 1_842,
-        "headroom": 98_784,
+        "mortgage_needed": 384_950,
+        "monthly_cost": 1_838,
+        "headroom": 109_519,
     }
     assert case["rules"]["year"] == 2026
 
@@ -63,11 +63,11 @@ def test_low_income_starters_pay_no_transfer_tax_but_fall_far_short(client, list
 
     affordability = client.get("/api/listings/80907644/case").json()["affordability"]
 
-    assert affordability["max_mortgage"] == 169_516
-    assert affordability["kosten_koper"] == {"transfer_tax": 0, "fixed_costs": 6_000, "total": 6_000}
+    assert affordability["max_mortgage"] == 179_516
+    assert affordability["kosten_koper"] == {"transfer_tax": 0, "fixed_costs": 5_050, "total": 5_050}
     assert affordability["equity"] == 0
-    assert affordability["monthly_cost"] == 1_404
-    assert affordability["headroom"] == -124_484
+    assert affordability["monthly_cost"] == 1_399
+    assert affordability["headroom"] == -113_534
 
 
 def test_starter_exemption_is_lost_above_the_price_limit(client, listing_provider):
@@ -77,8 +77,8 @@ def test_starter_exemption_is_lost_above_the_price_limit(client, listing_provide
     affordability = client.get("/api/listings/80907644/case").json()["affordability"]
 
     assert affordability["kosten_koper"]["transfer_tax"] == 11_900
-    assert affordability["monthly_cost"] == 2_869
-    assert affordability["headroom"] == -419_484
+    assert affordability["monthly_cost"] == 2_864
+    assert affordability["headroom"] == -408_534
 
 
 def test_high_equity_household_has_large_headroom_and_no_mortgage_need(client, listing_provider):
@@ -89,7 +89,7 @@ def test_high_equity_household_has_large_headroom_and_no_mortgage_need(client, l
 
     assert affordability["equity"] == 780_000
     assert affordability["monthly_cost"] == 0
-    assert affordability["headroom"] == 584_825
+    assert affordability["headroom"] == 595_560
 
 
 def test_energielabel_raises_borrowing_capacity(client, listing_provider):
@@ -98,14 +98,14 @@ def test_energielabel_raises_borrowing_capacity(client, listing_provider):
 
     affordability = client.get("/api/listings/80907644/case").json()["affordability"]
 
-    assert affordability["energy_label_bonus"] == 30_000
-    assert affordability["max_mortgage"] == 309_422
-    assert affordability["headroom"] == 614_237
+    assert affordability["energy_label_bonus"] == 25_000
+    assert affordability["max_mortgage"] == 304_422
+    assert affordability["headroom"] == 610_266
 
 
 def test_energielabel_without_bonus_leaves_capacity_unchanged(client, listing_provider):
     client.put("/api/buyer-profile", json=high_equity_profile())
-    capture(client, listing_provider, energy_label="C")
+    capture(client, listing_provider, energy_label="E")
 
     affordability = client.get("/api/listings/80907644/case").json()["affordability"]
 
@@ -129,7 +129,7 @@ def test_listing_without_asking_price_still_gets_maximum_mortgage(client, listin
 
     affordability = client.get("/api/listings/80907644/case").json()["affordability"]
 
-    assert affordability["max_mortgage"] == 486_660
+    assert affordability["max_mortgage"] == 496_660
     assert affordability["kosten_koper"] is None
     assert affordability["monthly_cost"] is None
     assert affordability["headroom"] is None
@@ -144,7 +144,7 @@ def test_case_is_rebuilt_when_the_profile_changes(client, listing_provider):
     case = client.get("/api/listings/80907644/case").json()
 
     assert case["built_from"]["profile_version"] == 2
-    assert case["affordability"]["max_mortgage"] == 614_729
+    assert case["affordability"]["max_mortgage"] == 624_729
 
 
 def test_case_is_rebuilt_when_the_snapshot_changes(client, listing_provider):
@@ -190,5 +190,5 @@ def test_rules_come_from_the_table_for_the_year_and_the_year_is_shown(
     case = client.get("/api/listings/80907644/case").json()
 
     assert case["rules"] == {"year": 2001, "is_current_year": False}
-    assert case["affordability"]["max_mortgage"] == 547_217
+    assert case["affordability"]["max_mortgage"] == 557_217
 

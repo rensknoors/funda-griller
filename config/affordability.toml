@@ -1,6 +1,12 @@
 # Dutch affordability rules, one table per year. Updating for a new year is a table change.
-# Figures are modelling assumptions, not advice: check them against the Nibud and
-# Rijksoverheid tables for the year before relying on them.
+# Decision support, not advice. Verification status per figure (checked 2026-10-24):
+#   verified   energy_label_bonus (Volkshuisvesting Nederland, "Maximale hypotheek op basis van
+#              energielabel", effective 2026-01-01), starter_price_limit and age (SRA, 2026-01).
+#   estimate   fixed_costs: midpoints of ranges quoted by lenders (notary 1000-1500, valuation
+#              400-900, advice 1500-4000).
+#   UNVERIFIED test_rate, term_months, mortgage_rate, housing_ratio. A third-party table
+#              (hypotheker.nl) lists woonquotes of 19.3% to 26.5% for 3-3.5% mortgage rates, well
+#              below the ratios here, and the official 2026 financieringslast table was not found.
 
 [years.2026]
 # Interest rate and term the lender tests the maximum mortgage against.
@@ -21,21 +27,24 @@ housing_ratio = [
 
 # Extra borrowing capacity for an energy-efficient house, by energielabel.
 [years.2026.energy_label_bonus]
-"A++++" = 40000
-"A+++" = 30000
-"A++" = 25000
+"A++++" = 30000  # 40000 with an energy performance guarantee of at least ten years
+"A+++" = 25000
+"A++" = 20000
 "A+" = 20000
 "A" = 10000
+"B" = 10000
+"C" = 5000
+"D" = 5000
 
 [years.2026.transfer_tax]
 rate = 0.02
 # Exempt when every adult is within the age range and the price is at or below the limit.
 starter_min_age = 18
 starter_max_age = 34
-starter_price_limit = 525000
+starter_price_limit = 555000
 
 # Fixed kosten koper, in euro.
 [years.2026.fixed_costs]
-notary = 1800
-valuation = 700
-advice = 3500
+notary = 1250
+valuation = 800
+advice = 3000
