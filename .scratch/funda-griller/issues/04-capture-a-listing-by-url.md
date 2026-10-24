@@ -17,3 +17,7 @@
 - [x] The snapshot serialiser stores the provider's objects correctly (not as empty output)
 - [x] API tests run against fixtures recorded from the two prototype listings; no network in tests
 - [x] The Listings list screen shows captured Listings, built to the design brief
+
+## Answer
+
+Implemented and checked in a headless browser against fakes (bad URL, provider blocked, duplicate notice, re-fetch snapshot count, sold row restyle, narrow width). Not done here, left to later tickets: Oordeel/Signalen columns, row menu, sorting, arrow-key row focus, 200 ms refetch highlight, card layout below 720px. Known gaps: fixtures are hand-built from the prototype notes, not recorded live; snapshot immutability is by convention, not enforced in SQLite.
