@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 
-import { type Affordability, type Case, type CaseFact, type Listing, fetchCase } from "./api";
+import {
+  type Affordability,
+  type Case,
+  type CaseFact,
+  type Evidence,
+  type Flag,
+  type FlagClass,
+  type HardNo,
+  type Listing,
+  fetchCase,
+} from "./api";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
 
@@ -25,7 +35,34 @@ const FACT_LABELS: Record<string, string> = {
   energy_label: "Energielabel",
   heating: "Verwarming",
 };
-const MONEY_FACTS = new Set(["asking_price"]);
+const MONEY_FACTS = new Set(["asking_price", "headroom", "woz_value"]);
+
+const EVIDENCE_LABELS: Record<string, string> = {
+  ...FACT_LABELS,
+  official_energy_label: "Energielabel (register)",
+  woz_value: "WOZ-waarde",
+  asking_vs_woz: "Vraagprijs gedeeld door WOZ",
+  headroom: "Ruimte boven vraag",
+  renovation_tolerance: "Verbouwtolerantie",
+  worst_acceptable_energy_label: "Slechtst passende energielabel",
+  threshold: "Drempel",
+  must_have: "Must-have",
+  deal_breaker: "Deal-breaker",
+};
+
+const PROVENANCE_LABELS: Record<string, string> = {
+  listing: "Advertentie",
+  source: "Bron",
+  computed: "Berekend",
+  buyer_profile: "Koperprofiel",
+  rule: "Regel",
+};
+
+const FLAG_BANDS: { flagClass: FlagClass; glyph: string; label: string }[] = [
+  { flagClass: "pro", glyph: "+", label: "Pluspunt" },
+  { flagClass: "con", glyph: "−", label: "Minpunt" },
+  { flagClass: "risk", glyph: "!", label: "Risico" },
+];
 
 function formatFact(fact: CaseFact): string {
   if (MONEY_FACTS.has(fact.key) && typeof fact.value === "number") return euro.format(fact.value);
@@ -74,6 +111,9 @@ export function CaseView(props: {
           </button>
         </div>
       </header>
+      {state.kind === "klaar" && state.data.hard_no && (
+        <HardNoBanner hardNo={state.data.hard_no} flags={state.data.flags} />
+      )}
       {state.kind === "klaar" && <KeyFigures askingPrice={latest.asking_price} affordability={state.data.affordability} />}
 
       {state.kind === "laden" && (
@@ -92,6 +132,7 @@ export function CaseView(props: {
       )}
       {state.kind === "klaar" && (
         <>
+          <Signalen flags={state.data.flags} facts={state.data.facts} rulesVersion={state.data.built_from.flag_rules_version} />
           <Betaalruimte affordability={state.data.affordability} rules={state.data.rules} />
           <FactGroup facts={state.data.facts} />
         </>
@@ -202,7 +243,7 @@ function FactGroup({ facts }: { facts: CaseFact[] }) {
       </summary>
       <ol className="facts">
         {facts.map((fact, index) => (
-          <li key={fact.key} className="fact">
+          <li key={fact.key} id={`vak-${index + 1}`} className="fact">
             <span className="vak-number">{index + 1}</span>
             <span className="fact-label">{FACT_LABELS[fact.key] ?? fact.key}</span>
             <span className="fact-value">{formatFact(fact)}</span>
@@ -214,4 +255,86 @@ function FactGroup({ facts }: { facts: CaseFact[] }) {
       </ol>
     </details>
   );
+}
+
+function HardNoBanner({ hardNo, flags }: { hardNo: HardNo; flags: Flag[] }) {
+  const cause = flags.find((flag) => flag.id === hardNo.flag_id);
+  return (
+    <div role="status" className="hard-no">
+      <span className="hard-no-mark" aria-hidden="true">✕</span>
+      <div>
+        <p className="hard-no-tier">Harde afwijzing</p>
+        <p>
+          Deal-breaker: <strong>{hardNo.deal_breaker}</strong>
+          {cause && <> · {cause.title}</>}
+        </p>
+        <p className="muted">Deterministisch toegepast, geen model gebruikt.</p>
+      </div>
+    </div>
+  );
+}
+
+function Signalen({ flags, facts, rulesVersion }: { flags: Flag[]; facts: CaseFact[]; rulesVersion: number }) {
+  return (
+    <section aria-labelledby="signalen-title">
+      <h3 id="signalen-title">Signalen</h3>
+      {flags.length === 0 && <p className="empty">Geen signalen bij deze woning volgens regelset {rulesVersion}.</p>}
+      {FLAG_BANDS.map((band) => {
+        const inBand = flags.filter((flag) => flag.class === band.flagClass);
+        if (inBand.length === 0) return null;
+        return (
+          <div key={band.flagClass} className={`flag-band flag-${band.flagClass}`}>
+            <h4>
+              <span className="flag-glyph" aria-hidden="true">{band.glyph}</span> {band.label} ({inBand.length})
+            </h4>
+            <ul className="flags">
+              {inBand.map((flag) => (
+                <li key={flag.id}>
+                  <details>
+                    <summary>{flag.title}</summary>
+                    <p className="muted">
+                      Regel {flag.rule_id} · versie {flag.rule_version}
+                    </p>
+                    <ul className="evidence">
+                      {flag.evidence.map((item) => (
+                        <EvidenceRow key={item.key} item={item} facts={facts} />
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
+  const vak = facts.findIndex((fact) => fact.key === item.key) + 1;
+  return (
+    <li>
+      {evidenceLabel(item.key)}: <strong>{evidenceValue(item)}</strong>{" "}
+      <span className="muted">({PROVENANCE_LABELS[item.provenance] ?? item.provenance})</span>
+      {vak > 0 && (
+        <>
+          {" "}
+          <a href={`#vak-${vak}`}>Zie vak {vak}</a>
+        </>
+      )}
+    </li>
+  );
+}
+
+function evidenceLabel(key: string): string {
+  if (key.endsWith("_mentioned")) return `‘${key.slice(0, -"_mentioned".length)}’ genoemd in advertentie`;
+  return EVIDENCE_LABELS[key] ?? key;
+}
+
+function evidenceValue(item: Evidence): string {
+  if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
+  if (item.value === null) return "–";
+  if (MONEY_FACTS.has(item.key) && typeof item.value === "number") return euro.format(item.value);
+  return String(item.value);
 }

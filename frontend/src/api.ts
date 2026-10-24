@@ -78,11 +78,33 @@ export type Affordability = {
   computed_on: string;
 };
 
+export type Evidence = {
+  key: string;
+  value: string | number | boolean | null;
+  provenance: string;
+  fetched_at?: string | null;
+};
+
+export type FlagClass = "pro" | "con" | "risk";
+
+export type Flag = {
+  id: string;
+  rule_id: string;
+  rule_version: number;
+  class: FlagClass;
+  title: string;
+  evidence: Evidence[];
+};
+
+export type HardNo = { tier: "hard_no"; deal_breaker: string; flag_id: string };
+
 export type Case = {
   funda_id: string;
-  built_from: { snapshot_id: number; profile_version: number | null };
+  built_from: { snapshot_id: number; profile_version: number | null; flag_rules_version: number };
   facts: CaseFact[];
   affordability: Affordability | null;
+  flags: Flag[];
+  hard_no: HardNo | null;
   rules: { year: number; is_current_year: boolean };
 };
 
