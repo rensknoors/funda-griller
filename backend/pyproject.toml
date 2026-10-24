@@ -38,6 +38,8 @@ forbidden_modules = [
   "app.ports",
   "app.production_ports",
   "app.pyfunda_provider",
+  "app.source_clients",
+  "app.source_runner",
   "app.store",
   "app.settings",
   "app.rules_loader",

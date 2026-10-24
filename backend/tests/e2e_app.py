@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from app.main import create_app
-from app.ports import Ports
+from app.ports import Ports, SourceFact, SourceSkipped
 from app.settings import Settings
 from tests.conftest import SOURCES
 from tests.fakes import FakeListingProvider, FakeLlmClient, FakeSourceClient
@@ -15,6 +15,14 @@ _data_dir = Path(tempfile.mkdtemp(prefix="funda-griller-e2e-"))
 _listing_provider = FakeListingProvider()
 _listing_provider.listings[LIVE_URL] = live_listing()
 
+_source_clients = {name: FakeSourceClient(name) for name in SOURCES}
+_source_clients["energielabel"].facts = [SourceFact("energy_label", "A", "2021-06-14")]
+_source_clients["woz"].facts = [
+    SourceFact("woz_value", 371_000, "2024-01-01"),
+    SourceFact("woz_value", 392_000, "2025-01-01"),
+]
+_source_clients["noise"].error = SourceSkipped("no_coordinates")
+
 app = create_app(
     Settings(
         _env_file=None,
@@ -23,7 +31,7 @@ app = create_app(
     ),
     Ports(
         listing_provider=_listing_provider,
-        source_clients={name: FakeSourceClient(name) for name in SOURCES},
+        source_clients=_source_clients,
         llm_client=FakeLlmClient(),
     ),
 )

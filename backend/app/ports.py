@@ -20,6 +20,18 @@ class ProviderBlocked(ListingError):
     pass
 
 
+class SourceSkipped(Exception):
+    """A Source client cannot run for this Listing (e.g. no postcode, no API key). Not a failure."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class SourceFailed(Exception):
+    """A Source client tried and failed. Any other exception from a client counts as failed too."""
+
+
 @dataclass(frozen=True)
 class PricePoint:
     date: str | None
@@ -33,6 +45,9 @@ class Listing:
     raw_status: str
     provider_id: str | None = None
     address: str | None = None
+    postcode: str | None = None
+    house_number: str | None = None
+    house_number_suffix: str | None = None
     city: str | None = None
     asking_price: int | None = None
     living_area: int | None = None
@@ -52,10 +67,11 @@ class Listing:
 
 @dataclass(frozen=True)
 class SourceFact:
-    source: str
+    """One fact from a Source. The app stamps the fetch time; `as_of` is the date the value refers to."""
+
     name: str
     value: object
-    fetched_at: str
+    as_of: str | None = None
 
 
 class ListingProvider(Protocol):
