@@ -24,6 +24,11 @@ _source_clients["woz"].facts = [
     SourceFact("woz_value", 371_000, "2024-01-01"),
     SourceFact("woz_value", 392_000, "2025-01-01"),
 ]
+_source_clients["flood_soil"].facts = [
+    SourceFact("flood_depth_m", 0.88, "2026-01-28"),
+    SourceFact("subsidence_mm_per_year", 1.5, "2026-06-23"),
+    SourceFact("pile_rot_risk_pct", 2.1),
+]
 _source_clients["noise"].error = SourceSkipped("no_coordinates")
 
 app = create_app(
