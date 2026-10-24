@@ -9,7 +9,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-DEFAULTS_FILE = Path(__file__).resolve().parents[2] / "config" / "defaults.toml"
+CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+DEFAULTS_FILE = CONFIG_DIR / "defaults.toml"
 
 
 class _DefaultsFileSource(PydanticBaseSettingsSource):
@@ -39,6 +40,7 @@ class Settings(BaseSettings):
 
     database_path: Path = Path("data/funda-griller.sqlite")
     media_dir: Path = Path("data/media")
+    affordability_rules_path: Path = CONFIG_DIR / "affordability.toml"
 
     gemini_api_key: str | None = None
     vision_model: str | None = None

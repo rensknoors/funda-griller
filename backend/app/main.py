@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app import store
+from app.case import build_case
 from app.buyer_profile import BuyerProfile, describe_errors, reduce_profile
 from app.listing_url import funda_id_from_url
 from app.ports import (
@@ -17,6 +18,7 @@ from app.ports import (
     Ports,
     ProviderBlocked,
 )
+from app.rules_loader import load_rules
 from app.production_ports import build_production_ports
 from app.settings import Settings
 
@@ -74,6 +76,22 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
         if existing is None:
             return JSONResponse({"code": "not_found"}, status_code=404)
         return capture(funda_id, existing["url"])
+
+    @app.get("/api/listings/{funda_id}/case", response_model=None)
+    def read_case(funda_id: str) -> dict | JSONResponse:
+        listing = store.get_listing(settings.database_path, funda_id)
+        if listing is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        latest = store.latest_buyer_profile(settings.database_path)
+        today = date.today()
+        return build_case(
+            funda_id,
+            listing["snapshots"][0],
+            latest["version"] if latest else None,
+            BuyerProfile.model_validate(latest["profile"]) if latest else None,
+            load_rules(settings.affordability_rules_path, today.year),
+            today,
+        )
 
     @app.get("/api/listings")
     def list_listings() -> list[dict]:
