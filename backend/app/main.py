@@ -18,7 +18,7 @@ from app.ports import (
     Ports,
     ProviderBlocked,
 )
-from app.rules_loader import load_rules
+from app.rules_loader import load_flag_rules, load_rules
 from app.production_ports import build_production_ports
 from app.settings import Settings
 
@@ -90,6 +90,7 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
             latest["version"] if latest else None,
             BuyerProfile.model_validate(latest["profile"]) if latest else None,
             load_rules(settings.affordability_rules_path, today.year),
+            load_flag_rules(settings.flag_rules_path),
             today,
         )
 
