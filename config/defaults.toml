@@ -1,0 +1,17 @@
+# Defaults for swappable runtime configuration. Overridden by environment.
+# Model ids listed on ai.google.dev/gemini-api/docs/models on 2026-10-24.
+# Image/PDF input support is NOT stated there: confirm on the model page at build time.
+[llm]
+vision_model = "gemini-3.8-flash"
+verdict_model = "gemini-3.8-flash"
+
+# Raw funda status string (casefolded) to normalised status.
+# Unmapped strings are shown raw as "unknown". Add the real under-offer string
+# here when first observed live.
+[listing_status_map]
+"beschikbaar" = "available"
+"onder bod" = "negotiations"
+"verkocht" = "sold"
+"sold" = "sold"
+"negotiations" = "negotiations"
+"available" = "available"
