@@ -12,8 +12,11 @@ import {
   isCaptureError,
   refetchListing,
   restoreListing,
+  isVerdictError,
+  runVerdict,
   type CaptureError,
   type Listing,
+  type VerdictError,
 } from "./api";
 
 type ApiState = "checking" | "reachable" | "unreachable";
@@ -26,6 +29,13 @@ const ERROR_COPY: Record<FetchFailure["kind"], string> = {
   listing_removed: "Ophalen mislukt: woning verwijderd. Funda toont deze woning niet meer.",
   provider_blocked: "Ophalen mislukt: aanbieder geblokkeerd. Probeer het later opnieuw.",
   unknown: "Ophalen mislukt. Probeer het opnieuw.",
+};
+
+const VERDICT_ERROR_COPY: Record<VerdictError["kind"], string> = {
+  no_buyer_profile: "Oordeel niet gemaakt: vul eerst je koperprofiel in.",
+  invalid_verdict: "Oordeel niet gemaakt: het model gaf een ongeldig antwoord.",
+  llm_unavailable: "Oordeel niet gemaakt: het model is niet bereikbaar.",
+  unknown: "Oordeel niet gemaakt. Probeer het opnieuw.",
 };
 
 export function App() {
@@ -108,6 +118,24 @@ export function App() {
     }
   }
 
+  async function handleRerunVerdict(fundaId: string) {
+    setBusy(true);
+    setRowErrors(({ [fundaId]: _cleared, ...rest }) => rest);
+    const result = await runVerdict(fundaId);
+    if (isVerdictError(result)) {
+      setRowErrors((current) => ({ ...current, [fundaId]: VERDICT_ERROR_COPY[result.kind] }));
+    } else {
+      try {
+        setListings(await fetchListings());
+        setFlashId(null);
+        requestAnimationFrame(() => setFlashId(fundaId));
+      } catch {
+        setListState("fout");
+      }
+    }
+    setBusy(false);
+  }
+
   const openCase = listings.find((l) => l.funda_id === openCaseId);
   if (openCase && verdictOpen) {
     return (
@@ -137,6 +165,8 @@ export function App() {
           onClose={() => {
             setFocusFlagId(null);
             setOpenCaseId(null);
+            // An Oordeel made from the Dossier changes the row's tier.
+            fetchListings().then(setListings).catch(() => setListState("fout"));
           }}
           onRefetch={handleRefetch}
           onOpenVerdict={() => setVerdictOpen(true)}
@@ -207,7 +237,7 @@ export function App() {
         />
       )}
 
-      <h2>Woningen</h2>
+      <h2 id="woningen">Woningen</h2>
       {listState === "laden" && (
         <div className="skeleton" aria-busy="true">
           <span className="visually-hidden">Woningen laden</span>
@@ -243,13 +273,16 @@ export function App() {
           onRefetch={handleRefetch}
           onArchive={(fundaId) => handleArchive(fundaId, true)}
           onRestore={(fundaId) => handleArchive(fundaId, false)}
+          onRerunVerdict={handleRerunVerdict}
         />
       )}
       <p role="status" className="api-state">
         API: {apiState}
       </p>
       <div className="profile">
-        <BuyerProfileForm />
+        <BuyerProfileForm
+          onSaved={() => fetchListings().then(setListings).catch(() => setListState("fout"))}
+        />
       </div>
     </main>
   );

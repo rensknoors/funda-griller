@@ -51,4 +51,19 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
 
   await redenering.getByRole("button", { name: /Vraagprijs ver boven de WOZ-waarde/ }).click();
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
+
+  // The list shows the Oordeel tier; saving the koperprofiel says how many Oordelen it changes.
+  await page.getByRole("button", { name: "Terug naar woningen" }).click();
+  const row = page.getByRole("table", { name: "Woningen" }).getByRole("row", { name: /Buchterweg 15/ });
+  await expect(row.getByText("Overwegen")).toBeVisible();
+  await page.getByRole("button", { name: "Opslaan" }).click();
+  await expect(page.getByText("Dit verandert 1 oordeel.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Naar de woningen" })).toHaveAttribute("href", "#woningen");
+
+  await row.getByRole("button", { name: "Acties" }).click();
+  await page.getByRole("menuitem", { name: "Oordeel opnieuw draaien" }).click();
+  await row.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("button", { name: "Oordeel bekijken" }).click();
+  await expect(page.getByText("Eerdere oordelen (2)")).toBeVisible();
+  await expect(page.getByText("Dit oordeel is gebaseerd op een oudere versie")).toBeHidden();
 });
