@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from app.affordability import Rules, compute
 from app.buyer_profile import BuyerProfile
+from app.flags import RuleSet, evaluate, hard_no
 
 LISTING_FACTS = (
     "address",
@@ -31,6 +32,7 @@ def build_case(
     profile_version: int | None,
     profile: BuyerProfile | None,
     rules: Rules,
+    flag_rules: RuleSet,
     now: datetime,
     sources: list[str],
     source_runs: dict[str, dict],
@@ -52,26 +54,33 @@ def build_case(
         if profile
         else None
     )
+    facts = [
+        {
+            "key": key,
+            "value": snapshot[key],
+            "provenance": "listing",
+            "fetched_at": snapshot["fetched_at"],
+        }
+        for key in LISTING_FACTS
+        if snapshot.get(key) is not None
+    ] + source_facts
+    flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, profile))
     return {
         "funda_id": funda_id,
-        "built_from": {"snapshot_id": snapshot["id"], "profile_version": profile_version},
-        "facts": [
-            {
-                "key": key,
-                "value": snapshot[key],
-                "provenance": "listing",
-                "fetched_at": snapshot["fetched_at"],
-            }
-            for key in LISTING_FACTS
-            if snapshot.get(key) is not None
-        ]
-        + source_facts,
+        "built_from": {
+            "snapshot_id": snapshot["id"],
+            "profile_version": profile_version,
+            "flag_rules_version": flag_rules.version,
+        },
+        "facts": facts,
         "sources": [_source_status(name, source_runs.get(name)) for name in sources],
         "metrics": {
             "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
             "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
         },
         "affordability": affordability,
+        "flags": flags,
+        "hard_no": hard_no(flag_rules, profile.deal_breakers, flags) if profile else None,
         "rules": {"year": rules.year, "is_current_year": rules.year == today.year},
     }
 
@@ -146,3 +155,38 @@ def _source_facts(source_runs: dict[str, dict], ttl_days: dict[str, int], now: d
             for fact in run["facts"]
         )
     return facts
+
+
+def _rule_inputs(
+    snapshot: dict, facts: list[dict], affordability: dict | None, profile: BuyerProfile | None
+) -> dict:
+    """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values."""
+    inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
+    # Source facts are keyed `<source>.<key>` (e.g. `woz.woz_value`), so the register's
+    # energielabel never shadows the Listing's claim; the value with the latest `as_of` wins.
+    for fact in sorted(
+        (f for f in facts if f["provenance"] == "source"), key=lambda f: f["as_of"] or ""
+    ):
+        inputs[f"{fact['source']}.{fact['key']}"] = fact
+    if snapshot.get("description"):
+        inputs["description"] = {
+            "key": "description",
+            "value": snapshot["description"],
+            "provenance": "listing",
+            "fetched_at": snapshot["fetched_at"],
+        }
+    if affordability and affordability["headroom"] is not None:
+        inputs["headroom"] = {
+            "key": "headroom",
+            "value": affordability["headroom"],
+            "provenance": "computed",
+        }
+    if profile:
+        inputs["renovation_tolerance"] = {
+            "key": "renovation_tolerance",
+            "value": profile.renovation_tolerance,
+            "provenance": "buyer_profile",
+        }
+        for key in ("must_haves", "deal_breakers"):
+            inputs[key] = {"key": key, "value": getattr(profile, key), "provenance": "buyer_profile"}
+    return inputs

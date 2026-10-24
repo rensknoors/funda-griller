@@ -22,7 +22,7 @@ from app.ports import (
     Ports,
     ProviderBlocked,
 )
-from app.rules_loader import load_rules
+from app.rules_loader import load_flag_rules, load_rules
 from app.production_ports import build_production_ports
 from app.settings import Settings
 from app.source_runner import run_sources
@@ -172,6 +172,7 @@ def create_app(
             latest["version"] if latest else None,
             BuyerProfile.model_validate(latest["profile"]) if latest else None,
             load_rules(settings.affordability_rules_path, now.year),
+            load_flag_rules(settings.flag_rules_path),
             now,
             list(ports.source_clients),
             store.source_runs(settings.database_path, funda_id),
