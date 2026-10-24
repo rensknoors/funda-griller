@@ -93,7 +93,7 @@ Tier order is the sort order. Hard no always shows its triggering deal-breaker b
 
 1. Header strip: tier mark, price, asking vs WOZ, asking vs vergelijkbaar, headroom. Answerable in 3 seconds.
 2. Flag bands next (Pluspunt, Minpunt, Risico); each shows title lines only, expand on demand.
-3. Facts in named groups (Woning, Prijs en waarde, Energie en milieu, Verkoper-informatie, Foto-waarnemingen, Documenten) as collapsible sections, each with a one-line summary and a count of Stale/estimated items.
+3. Facts in named groups (Kenmerken, Prijs en waarde, Energie en milieu, Verkoper-informatie, Foto-waarnemingen, Documenten) as collapsible sections, each with a one-line summary and a count of Stale/estimated items.
 4. Sticky group index on the left, fact filter bar: by herkomst class, `alleen verouderd`, `alleen geschat`.
 5. Rows are one line; long values truncate with the full value on focus/hover and in the Popover.
 
@@ -129,11 +129,10 @@ Below 1024: sticky group index becomes a top select; Listings table collapses co
 
 ## Copy (UI language: Dutch)
 
-Proposed Dutch labels for glossary terms, to confirm: Listing = Woning, Source = Bron, Stale = Verouderd, Case = Dossier, Flag = Signaal (groups Pluspunt/Minpunt/Risico), Observation = Waarneming (geschat), Document = Document, Finding = Bevinding (door verkoper), Verdict = Oordeel, Hard no = Harde afwijzing, Bid Advice = Biedadvies, Walk-away Maximum = Maximumbod, Buyer Profile = Koperprofiel. Tiers: Kopen, Overwegen, Overslaan, Harde afwijzing.
+The confirmed Dutch label for every glossary term lives in `GLOSSARY.md` (`_Dutch UI_` line per term). Use those; do not invent variants. Two rules from that set: **Verouderd** is only for a Stale fact, **Achterhaald** is only for a Verdict or Case built on older inputs; **Woning** is the house in lists and navigation, **Advertentie** only where the captured snapshot is explicit.
 
 ## Open decisions
 
-- Dutch term set above (not yet in `GLOSSARY.md`; adding it is a domain-modeling step).
 - Whether CSS is plain CSS modules or a utility layer (ticket 01 scaffold owns it).
 - Font hosting: self-hosted Source Sans 3 assumed.
 - No throwaway prototype was run: no screen stayed unresolved after the briefs (see end of `screens.md`).
