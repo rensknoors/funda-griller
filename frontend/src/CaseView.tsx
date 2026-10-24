@@ -131,7 +131,7 @@ function Betaalruimte({
         {!rules.is_current_year && (
           <>
             {" "}
-            <span className="chip">Verouderd</span> tabel is niet van dit jaar
+            <span className="chip">Achterhaald</span> regels zijn niet van dit jaar
           </>
         )}
       </p>
@@ -158,7 +158,7 @@ function FactGroup({ facts }: { facts: CaseFact[] }) {
   return (
     <section aria-labelledby="feiten-title">
       <h3 id="feiten-title">Kenmerken</h3>
-      <p className="muted">{facts.length} feiten · 0 verouderd · 0 geschat</p>
+      <p className="muted">{facts.length} feiten</p>
       <ol className="facts">
         {facts.map((fact, index) => (
           <li key={fact.key} className="fact">
