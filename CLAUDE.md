@@ -10,4 +10,4 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. UI copy is Dutch: use each term's `_Dutch UI_` label. See `docs/agents/domain.md`.

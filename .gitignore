@@ -23,3 +23,13 @@ playwright-report/
 
 PROTOTYPE_out/
 PROTOTYPE_out_live/
+
+# Agent harness files installed by impeccable (per-harness copies of skills and agents)
+.agent/
+.agents/
+.codex/
+.cursor/
+.gemini/
+.opencode/
+.claude/*
+!.claude/settings.json

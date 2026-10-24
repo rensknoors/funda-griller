@@ -11,6 +11,6 @@
 - [ ] Affordability is driven by a data table per year; the year used is shown on the Case
 - [ ] The energielabel's effect on borrowing capacity is included
 - [ ] The Case is rebuilt when the profile or snapshot changes and records which versions produced it
-- [ ] The Case builder does no I/O and no judgement
+- [ ] The Case builder does no I/O and no judgement; an import-linter contract in the backend config forbids it from importing adapters, storage, settings or the LLM client
 - [ ] API tests with fixture profiles cover typical, low-income and high-equity households
 - [ ] The Case detail screen is built to the design brief

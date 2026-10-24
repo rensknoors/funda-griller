@@ -14,8 +14,18 @@ dependencies = [
 dev = [
   "pytest==9.0.3",
   "httpx==0.28.1",
+  "import-linter==2.15",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "Ports are pure types: no adapters, storage, settings or app wiring"
+type = "forbidden"
+source_modules = ["app.ports"]
+forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main"]
