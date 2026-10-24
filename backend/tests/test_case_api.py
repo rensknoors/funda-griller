@@ -42,7 +42,10 @@ def test_typical_household_affordability(client, listing_provider):
 
     case = client.get("/api/listings/80907644/case").json()
 
-    assert case["affordability"] == {
+    affordability = case["affordability"]
+    assert affordability.pop("provenance") == "computed"
+    assert affordability.pop("computed_on")
+    assert affordability == {
         "max_mortgage": 486_660,
         "energy_label_bonus": 0,
         "kosten_koper": {"transfer_tax": 11_900, "fixed_costs": 6_000, "total": 17_900},

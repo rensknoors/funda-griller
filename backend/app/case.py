@@ -29,7 +29,11 @@ def build_case(
     today: date,
 ) -> dict:
     affordability = (
-        compute(profile, snapshot.get("asking_price"), snapshot.get("energy_label"), rules, today)
+        {
+            **compute(profile, snapshot.get("asking_price"), snapshot.get("energy_label"), rules, today),
+            "provenance": "computed",
+            "computed_on": today.isoformat(),
+        }
         if profile
         else None
     )

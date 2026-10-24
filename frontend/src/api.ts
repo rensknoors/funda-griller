@@ -73,6 +73,8 @@ export type Affordability = {
   kosten_koper: { transfer_tax: number; fixed_costs: number; total: number } | null;
   monthly_cost: number | null;
   headroom: number | null;
+  provenance: "computed";
+  computed_on: string;
 };
 
 export type Case = {
