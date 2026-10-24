@@ -1,0 +1,13 @@
+# Defaults for swappable runtime configuration. Overridden by environment.
+# Model ids confirmed against ai.google.dev/gemini-api/docs/models on 2026-10-24.
+[llm]
+vision_model = "gemini-3.8-flash"
+verdict_model = "gemini-4-argon"
+
+# Raw funda status string (casefolded) to normalised status.
+# Unmapped strings are shown raw as "unknown". Add the real under-offer string
+# here when first observed live.
+[listing_status]
+"beschikbaar" = "available"
+"onder bod" = "negotiations"
+"verkocht" = "sold"
