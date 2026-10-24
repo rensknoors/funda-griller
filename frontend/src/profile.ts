@@ -64,6 +64,84 @@ export function toPayload(form: FormState) {
   };
 }
 
+export type SectionId = "huishouden" | "inkomen" | "vermogen" | "wensen" | "reizen";
+
+export const SECTIONS: { id: SectionId; title: string; hint: string; fields: string[] }[] = [
+  { id: "huishouden", title: "Huishouden", hint: "Wie er gaat wonen, met geboortedata.", fields: ["household"] },
+  { id: "inkomen", title: "Inkomen", hint: "Bruto jaarinkomen van het huishouden.", fields: ["gross_annual_income"] },
+  {
+    id: "vermogen",
+    title: "Vermogen en eigen woning",
+    hint: "Spaargeld, beleggingen en de overwaarde van je huidige woning.",
+    fields: ["assets", "current_home"],
+  },
+  {
+    id: "wensen",
+    title: "Wensen",
+    hint: "Must-haves, nice-to-haves en deal-breakers.",
+    fields: ["must_haves", "nice_to_haves", "deal_breakers"],
+  },
+  {
+    id: "reizen",
+    title: "Reizen en verbouwen",
+    hint: "Pendelbestemmingen en hoeveel verbouwing je aankunt.",
+    fields: ["commute_destinations", "renovation_tolerance"],
+  },
+];
+
+export function sectionOf(field: string): SectionId {
+  const root = field.split(".")[0];
+  return SECTIONS.find((section) => section.fields.includes(root))?.id ?? "huishouden";
+}
+
+/** Every vak in page order; a vak's number is its position plus one, so numbers stay unique and gapless. */
+export function vakOrder(form: FormState): string[] {
+  const rows = (prefix: string, count: number, parts: string[] = [""]) =>
+    Array.from({ length: count }, (_, i) => parts.map((part) => `${prefix}.${i}${part}`)).flat();
+  return [
+    ...rows("household", form.household.length, [".role", ".birth_date"]),
+    "gross_annual_income",
+    "assets.savings",
+    "assets.investments",
+    ...(form.has_home
+      ? ["current_home.value", "current_home.outstanding_mortgage", "current_home.selling_costs", "current_home.address"]
+      : []),
+    ...rows("must_haves", form.must_haves.length),
+    ...rows("nice_to_haves", form.nice_to_haves.length),
+    ...rows("deal_breakers", form.deal_breakers.length),
+    ...rows("commute_destinations", form.commute_destinations.length, [".label", ".address", ".max_minutes"]),
+    "renovation_tolerance",
+  ];
+}
+
+export const fieldId = (field: string) => `vak-${field.replaceAll(".", "-")}`;
+
+/** The finance vakken the Gevolgen panel needs, or null until income is filled in. */
+export function toFinanceDraft(form: FormState) {
+  if (form.gross_annual_income.trim() === "") return null;
+  const homeFilled = [form.home_value, form.outstanding_mortgage, form.selling_costs].every((text) => text.trim() !== "");
+  return {
+    household: form.household.filter((member) => member.birth_date !== ""),
+    gross_annual_income: amount(form.gross_annual_income),
+    assets: { savings: amount(form.savings), investments: amount(form.investments) },
+    current_home:
+      form.has_home && homeFilled
+        ? {
+            value: amount(form.home_value),
+            outstanding_mortgage: amount(form.outstanding_mortgage),
+            selling_costs: amount(form.selling_costs),
+          }
+        : null,
+  };
+}
+
+export type Consequences = {
+  max_mortgage: number;
+  equity: number;
+  budget: number;
+  rules: { year: number; is_current_year: boolean };
+};
+
 type StoredProfile = ReturnType<typeof toPayload>;
 
 export function fromStored(stored: StoredProfile): FormState {
