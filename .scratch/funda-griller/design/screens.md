@@ -47,7 +47,7 @@ Shared state vocabulary (every screen): **leeg** (empty, teaches the next action
 1. **Header strip.** Address, status chip, photo thumbnail strip link, tier mark (links to Oordeel), key figures: vraagprijs, t.o.v. WOZ, t.o.v. vergelijkbaar, ruimte boven vraag, maandlasten bij vraagprijs. Actions: Opnieuw ophalen, Oordeel bekijken.
 2. **Brondekking bar.** One line: `7 bronnen: 5 gelukt, 1 mislukt, 1 overgeslagen`, each a small stamp with glyph + word (✓ gelukt, ✕ mislukt, – overgeslagen) and Opnieuw proberen on failures. Legend for herkomst codes pinned right.
 3. **Signalen.** Three labelled bands in fixed order Pluspunt, Minpunt, Risico (the ticket's order); each band lists Flag titles one per line with count in the band header. Row expands to rule id, version and evidence links ("Zie vak 14", which scrolls and highlights that vak).
-4. **Feiten.** Named groups (Woning, Prijs en waarde, Energie en milieu, Omgeving, Verkoper-informatie, Foto-waarnemingen), each a collapsible section with a summary line and rollups: `12 feiten · 2 verouderd · 3 geschat`. Every fact is a row on the four-track grid (nr | label | waarde | herkomst-kantlijn). Groups default: open where a Flag or Stale lives, closed otherwise.
+4. **Feiten.** Named groups (Kenmerken, Prijs en waarde, Energie en milieu, Omgeving, Verkoper-informatie, Foto-waarnemingen), each a collapsible section with a summary line and rollups: `12 feiten · 2 verouderd · 3 geschat`. Every fact is a row on the four-track grid (nr | label | waarde | herkomst-kantlijn). Groups default: open where a Flag or Stale lives, closed otherwise.
 5. **Documenten panel.** List of uploaded Documents with status (gelezen, kon niet gelezen worden), upload, verwijder; Findings link back to their vak.
 6. **Prijsverloop** small step chart with a data table fallback.
 
@@ -72,10 +72,10 @@ Shared state vocabulary (every screen): **leeg** (empty, teaches the next action
 1. **Tier block.** Large tier mark (28px label + mark) and one-sentence summary. A Hard no shows the triggering deal-breaker as the headline reason, states "Deterministisch toegepast, geen model gebruikt", and omits Biedadvies.
 2. **Redenering.** Prose, ≤68ch, with inline Signaal chips (glyph + title) that scroll to the Signaal in the Dossier. Provenance-aware: sentences leaning on a seller claim carry the `❝ VRK` mark.
 3. **Biedadvies.** Three vakken side by side: Openingsbod, Maximumbod (derived from vergelijkbaar + betaalruimte, with a "hoe berekend" expander showing both inputs), Voorwaarden (checklist: financieringsvoorbehoud, bouwkundige keuring, Document-opvolging items). Beneath: maandlasten bij vraagprijs and bij Maximumbod, ruimte boven vraag, rules year/version.
-4. **Versie-stempel.** Which Dossier snapshot, Koperprofiel version, rules version and model produced this; older Oordelen list with diff of tier and numbers ("Was Overwegen, nu Kopen: inkomen +€ 5.000").
+4. **Versie-stempel.** Which Dossier snapshot, Koperprofiel version, rules version and model produced this; older Oordelen list with diff of tier and numbers ("Was Overwegen, nu Zeker kopen: inkomen +€ 5.000").
 5. Actions: Oordeel opnieuw draaien (primary only when inputs changed), terug naar Dossier.
 
-**States.** Leeg (no Verdict yet): explains it needs a Dossier and profile, button Oordeel opvragen. Laden: tier block skeleton with "model leest dossier" status line; Biedadvies appears after. Fout: model error or invalid response shown inline with Opnieuw proberen, last valid Oordeel kept and labelled `verouderd` with its inputs. Verouderd: if the Dossier or profile changed since, a banner "Dit oordeel is gebaseerd op een oudere versie" with a re-run action and the hatched wash on the tier block.
+**States.** Leeg (no Verdict yet): explains it needs a Dossier and profile, button Oordeel opvragen. Laden: tier block skeleton with "model leest dossier" status line; Biedadvies appears after. Fout: model error or invalid response shown inline with Opnieuw proberen, last valid Oordeel kept and labelled `achterhaald` with its inputs. Achterhaald: if the Dossier or profile changed since, a banner "Dit oordeel is gebaseerd op een oudere versie" with a re-run action and the hatched wash on the tier block.
 
 **Narrow.** Biedadvies vakken stack; Redenering stays prose; version history becomes an accordion.
 
