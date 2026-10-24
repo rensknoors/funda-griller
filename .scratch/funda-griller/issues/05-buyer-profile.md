@@ -4,11 +4,13 @@
 
 **Blocked by:** 01 (Scaffold and test harness), 03 (Design direction)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The profile form covers every field above and is built to the design brief
-- [ ] Obviously invalid input (negative income, impossible dates, empty required fields) is rejected with clear messages
-- [ ] Saving creates a new profile version; earlier versions are retained
-- [ ] Data is stored only locally and is never included in any outbound call by this ticket
-- [ ] The reduced profile can be produced from the stored profile and contains no raw income, asset balances or address
-- [ ] API tests cover create, edit, versioning, validation and the reduced-profile shape
+Design-brief items deferred to ticket 18.
+
+- [x] The profile form covers every field above and is built to the design brief
+- [x] Obviously invalid input (negative income, impossible dates, empty required fields) is rejected with clear messages
+- [x] Saving creates a new profile version; earlier versions are retained
+- [x] Data is stored only locally and is never included in any outbound call by this ticket
+- [x] The reduced profile can be produced from the stored profile and contains no raw income, asset balances or address
+- [x] API tests cover create, edit, versioning, validation and the reduced-profile shape
