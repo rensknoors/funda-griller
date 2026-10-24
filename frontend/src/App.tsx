@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { BuyerProfileForm } from "./BuyerProfileForm";
+
 type ApiState = "checking" | "reachable" | "unreachable";
 
 export function App() {
@@ -16,6 +18,7 @@ export function App() {
     <main>
       <h1>Funda Griller</h1>
       <p role="status">API: {apiState}</p>
+      <BuyerProfileForm />
     </main>
   );
 }
