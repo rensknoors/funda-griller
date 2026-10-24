@@ -85,3 +85,12 @@ button.link { border: 0; background: none; padding: 0; min-height: 0; font-weigh
 .fact-group { margin: 0 0 16px; }
 .fact-group summary { display: flex; align-items: baseline; gap: 16px; cursor: pointer; }
 .fact-group summary h3 { display: inline; margin: 8px 0; }
+
+.manual-entry { background: var(--surface); border: 1px solid var(--ink); border-radius: 2px; margin: 16px 0 0; padding: 12px 16px; }
+.manual-entry h3 { margin-top: 0; }
+.manual-entry p.muted { max-width: 68ch; }
+.manual-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 16px; }
+.manual-entry footer { margin-top: 8px; }
+textarea { font: inherit; border: 1px solid var(--rule); border-radius: 2px; padding: 6px 8px; background: var(--surface); color: var(--ink); }
+textarea[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--vermilion); }
+.notice.error button { font-weight: 400; margin-left: 4px; }

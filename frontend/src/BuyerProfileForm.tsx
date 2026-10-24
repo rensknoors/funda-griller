@@ -1,5 +1,6 @@
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 
+import { Vak } from "./Vak";
 import { type FieldErrors, type FormState, emptyForm, fromStored, toPayload } from "./profile";
 
 type SaveState =
@@ -9,25 +10,6 @@ type SaveState =
   | { kind: "failed" };
 
 const TOLERANCE_LABELS = ["Instap-klaar", "Kleine klussen", "Gemiddeld", "Flinke klus", "Project"];
-
-function Vak(props: { number: number; label: string; error?: string; children: (ids: { id: string; describedBy?: string; invalid: boolean }) => ReactNode }) {
-  const id = useId();
-  const errorId = `${id}-error`;
-  return (
-    <div className="vak">
-      <label htmlFor={id}>
-        <span className="vak-number">{props.number}</span> {props.label}
-      </label>
-      {props.children({ id, describedBy: props.error ? errorId : undefined, invalid: Boolean(props.error) })}
-      {props.error && (
-        <p className="vak-error" id={errorId}>
-          <span aria-hidden="true">! </span>
-          {props.error}
-        </p>
-      )}
-    </div>
-  );
-}
 
 function RowList(props: {
   legend: string;
