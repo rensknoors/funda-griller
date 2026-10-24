@@ -1,12 +1,14 @@
 import dataclasses
 import json
+import re
 import sqlite3
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.ports import Listing
+from app.ports import Listing, PricePoint
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -18,6 +20,15 @@ CREATE TABLE IF NOT EXISTS listing_snapshots (
     funda_id TEXT NOT NULL REFERENCES listings(funda_id),
     fetched_at TEXT NOT NULL,
     data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS source_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    funda_id TEXT NOT NULL REFERENCES listings(funda_id),
+    source TEXT NOT NULL,
+    attempted_at TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    reason TEXT,
+    facts TEXT
 );
 """
 
@@ -48,8 +59,11 @@ def initialise(database_path: Path) -> None:
         connection.close()
 
 
-def add_snapshot(database_path: Path, listing: Listing, fetched_at: str, status: str) -> None:
-    data = {**dataclasses.asdict(listing), "status": status}
+def add_snapshot(
+    database_path: Path, listing: Listing, fetched_at: str, status: str, entry: str = "fetched"
+) -> None:
+    """`entry` records how the snapshot came in: fetched by the provider or entered manually."""
+    data = {**dataclasses.asdict(listing), "status": status, "entry": entry}
     connection = connect(database_path)
     try:
         connection.execute(
@@ -63,6 +77,101 @@ def add_snapshot(database_path: Path, listing: Listing, fetched_at: str, status:
         connection.commit()
     finally:
         connection.close()
+
+
+def listing_from_snapshot(funda_id: str, url: str, snapshot: dict) -> Listing:
+    """Rebuild the Listing a snapshot was taken from, for Source clients refetched on their own."""
+    fields = {f.name for f in dataclasses.fields(Listing)}
+    data = {key: value for key, value in snapshot.items() if key in fields}
+    return Listing(
+        **{
+            **data,
+            "funda_id": funda_id,
+            "url": url,
+            "price_history": tuple(PricePoint(**p) for p in snapshot.get("price_history", ())),
+            "photo_urls": tuple(snapshot.get("photo_urls", ())),
+        }
+    )
+
+
+def add_source_run(
+    database_path: Path,
+    funda_id: str,
+    source: str,
+    attempted_at: str,
+    outcome: str,
+    reason: str | None = None,
+    facts: list[dict] | None = None,
+) -> None:
+    """Append one Source run. Earlier runs stay, so a failed refetch never erases good facts."""
+    connection = connect(database_path)
+    try:
+        connection.execute(
+            "INSERT INTO source_runs (funda_id, source, attempted_at, outcome, reason, facts) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                funda_id,
+                source,
+                attempted_at,
+                outcome,
+                reason,
+                json.dumps(facts) if facts is not None else None,
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def source_runs(database_path: Path, funda_id: str) -> dict[str, dict]:
+    """Per Source: its latest run, and its latest succeeded run (whose facts the Case shows)."""
+    connection = connect(database_path)
+    try:
+        rows = connection.execute(
+            "SELECT source, attempted_at, outcome, reason, facts FROM source_runs "
+            "WHERE funda_id = ? ORDER BY id",
+            (funda_id,),
+        ).fetchall()
+    finally:
+        connection.close()
+    runs: dict[str, dict] = {}
+    for row in rows:
+        run = {
+            "attempted_at": row["attempted_at"],
+            "outcome": row["outcome"],
+            "reason": row["reason"],
+            "facts": json.loads(row["facts"]) if row["facts"] is not None else None,
+        }
+        entry = runs.setdefault(row["source"], {"latest": run, "last_success": None})
+        entry["latest"] = run
+        if run["outcome"] == "succeeded":
+            entry["last_success"] = run
+    return runs
+
+
+_PHOTO_NAME = re.compile(r"^[0-9a-f]{32}(\.[a-z0-9]{1,5})?$")
+_PHOTO_SUFFIX = re.compile(r"\.[a-z0-9]{1,5}$")
+
+
+def _photo_dir(media_dir: Path, funda_id: str) -> Path:
+    return media_dir / "listings" / funda_id / "photos"
+
+
+def save_photo(media_dir: Path, funda_id: str, filename: str, content: bytes) -> str:
+    """Store an uploaded photo under a generated name; returns that name."""
+    suffix = _PHOTO_SUFFIX.search(filename.lower())
+    name = uuid.uuid4().hex + (suffix.group(0) if suffix else "")
+    directory = _photo_dir(media_dir, funda_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / name).write_bytes(content)
+    return name
+
+
+def photo_path(media_dir: Path, funda_id: str, name: str) -> Path | None:
+    if not funda_id.isdigit() or not _PHOTO_NAME.match(name):
+        return None
+    path = _photo_dir(media_dir, funda_id) / name
+    return path if path.is_file() else None
 
 
 def save_buyer_profile(database_path: Path, profile: dict) -> dict:

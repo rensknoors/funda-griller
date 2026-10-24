@@ -8,6 +8,7 @@ dependencies = [
   "pydantic-settings==2.14.0",
   "pyfunda==3.1.5",
   "tls-client<2.0",
+  "python-multipart==0.0.32",
 ]
 
 [dependency-groups]
@@ -33,11 +34,13 @@ forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.m
 [[tool.importlinter.contracts]]
 name = "Case builder is pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
 type = "forbidden"
-source_modules = ["app.case", "app.affordability"]
+source_modules = ["app.case", "app.affordability", "app.flags"]
 forbidden_modules = [
   "app.ports",
   "app.production_ports",
   "app.pyfunda_provider",
+  "app.source_clients",
+  "app.source_runner",
   "app.store",
   "app.settings",
   "app.rules_loader",
