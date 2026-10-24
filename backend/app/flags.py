@@ -77,6 +77,13 @@ def _below(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
     return [(None, [fact, threshold])]
 
 
+def _above(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
+    fact, threshold = _first_fact(facts, rule["fact"]), _threshold(rule, facts)
+    if fact is None or threshold is None or not fact["value"] > threshold["value"]:
+        return []
+    return [(None, [fact, threshold])]
+
+
 def _ratio_above(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
     fact, of = _first_fact(facts, rule["fact"]), _first_fact(facts, rule["of"])
     threshold = _threshold(rule, facts)
@@ -139,6 +146,7 @@ _CONDITIONS: dict[str, Condition] = {
     "label_worse_than": _label_worse_than,
     "label_at_least": _label_at_least,
     "below": _below,
+    "above": _above,
     "ratio_above": _ratio_above,
     "must_have_missing": _must_have_missing,
     "deal_breaker_mentioned": _deal_breaker_mentioned,
