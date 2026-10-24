@@ -22,8 +22,15 @@ LISTING_FACTS = (
 )
 
 # How far a Source's facts can be trusted. WOZ comes from a third-party price-history service,
-# not from an official register. Unknown Sources are treated as third-party.
-SOURCE_TRUST = {"energielabel": "official", "woz": "third_party"}
+# not from an official register. Flood and soil risk (Klimaateffectatlas, publishing LIWO and
+# Deltares maps for the national government) and noise (RIVM) are official public maps. Unknown
+# Sources are treated as third-party.
+SOURCE_TRUST = {
+    "energielabel": "official",
+    "woz": "third_party",
+    "flood_soil": "official",
+    "noise": "official",
+}
 
 
 def build_case(

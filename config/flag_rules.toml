@@ -11,7 +11,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker containing one of these
 # words is hit when the rule raises a Flag.
-version = 1
+version = 2
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -53,6 +53,52 @@ fact = "asking_price"
 of = "woz.woz_value"
 ratio_name = "asking_vs_woz"
 threshold = 1.15
+
+# Klimaateffectatlas flood depth, small-chance scenario (LIWO, about 1 in 1,000 a year): more
+# than 0.5 m of water at the address.
+[[rules]]
+id = "flood_depth_high"
+version = 1
+class = "risk"
+title = "Overstromingsrisico: meer dan 0,5 m water bij een overstroming met kleine kans"
+kind = "above"
+fact = "flood_soil.flood_depth_m"
+threshold = 0.5
+deal_breaker_aliases = ["overstroming"]
+
+# Klimaateffectatlas foundation risk map: share of buildings in the buurt at risk of pile rot,
+# current climate. Above 6% is "hoog" in its legend.
+[[rules]]
+id = "pile_rot_risk_high"
+version = 1
+class = "risk"
+title = "Funderingsrisico: veel panden in de buurt met risico op paalrot"
+kind = "above"
+fact = "flood_soil.pile_rot_risk_pct"
+threshold = 6
+deal_breaker_aliases = ["fundering", "paalrot"]
+
+# Klimaateffectatlas subsidence map: more than 5 mm a year is "significant" in its legend.
+[[rules]]
+id = "subsidence_significant"
+version = 1
+class = "risk"
+title = "Bodemdaling: meer dan 5 mm per jaar"
+kind = "above"
+fact = "flood_soil.subsidence_mm_per_year"
+threshold = 5
+deal_breaker_aliases = ["bodemdaling", "verzakking"]
+
+# RIVM noise map (Lden, all sources): 61 dB and up is "tamelijk slecht" in its legend.
+[[rules]]
+id = "noise_high"
+version = 1
+class = "con"
+title = "Veel geluid: meer dan 60 dB (alle bronnen)"
+kind = "above"
+fact = "noise.lden_all_sources_db"
+threshold = 60
+deal_breaker_aliases = ["geluid", "lawaai", "drukke weg"]
 
 # One Flag per Buyer Profile must-have that names a feature below and that the Listing does not
 # mention. Must-haves naming no feature are not checked.
