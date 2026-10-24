@@ -53,6 +53,7 @@ def test_typical_household_affordability(client, listing_provider):
         "mortgage_needed": 384_950,
         "monthly_cost": 1_838,
         "headroom": 109_519,
+        "max_price": 704_519,
     }
     assert case["rules"]["year"] == 2026
 

@@ -26,6 +26,38 @@ _source_clients["woz"].facts = [
 ]
 _source_clients["noise"].error = SourceSkipped("no_coordinates")
 
+
+def _rate(case: dict, _profile: dict) -> dict:
+    """A plausible Verdict derived from the Case, so it always passes validation."""
+    asking = next(f["value"] for f in case["facts"] if f["key"] == "asking_price")
+    affordable = case["affordability"]["max_price"]
+    cited = [flag["id"] for flag in case["flags"]]
+    if affordable < asking:
+        return {
+            "tier": "skip",
+            "summary": "Buiten je betaalruimte.",
+            "reasoning": "De vraagprijs ligt boven wat jullie kunnen betalen.",
+            "cited_flags": cited,
+            "bid_advice": None,
+        }
+    walk_away = min(affordable, asking + 20_000)
+    return {
+        "tier": "consider",
+        "summary": "Degelijke woning, de vraagprijs is aan de hoge kant.",
+        "reasoning": "De woning past bij jullie wensen, maar de vraagprijs ligt ver boven de "
+        "WOZ-waarde. Die WOZ komt van een derde partij en is onofficieel.",
+        "cited_flags": cited,
+        "bid_advice": {
+            "opening_bid": min(walk_away, asking - 15_000),
+            "walk_away_maximum": walk_away,
+            "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
+        },
+    }
+
+
+_llm_client = FakeLlmClient()
+_llm_client.verdict = _rate
+
 app = create_app(
     Settings(
         _env_file=None,
@@ -35,6 +67,6 @@ app = create_app(
     Ports(
         listing_provider=_listing_provider,
         source_clients=_source_clients,
-        llm_client=FakeLlmClient(),
+        llm_client=_llm_client,
     ),
 )

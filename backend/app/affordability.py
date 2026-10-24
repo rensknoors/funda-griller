@@ -22,6 +22,8 @@ class Affordability:
     mortgage_needed: int | None
     monthly_cost: int | None
     headroom: int | None
+    # Highest purchase price the household can pay, kosten koper included.
+    max_price: int
 
 
 @dataclass(frozen=True)
@@ -93,7 +95,7 @@ def compute(
     max_price = max(0, int(max_price))
 
     if asking_price is None:
-        return Affordability(max_mortgage, bonus, equity, None, None, None, None)
+        return Affordability(max_mortgage, bonus, equity, None, None, None, None, max_price)
     exempt = starter and asking_price <= rules.starter_price_limit
     tax = 0 if exempt else round(asking_price * rules.transfer_tax_rate)
     needed = max(0, asking_price + tax + rules.fixed_costs - equity - own_funds)
@@ -105,4 +107,5 @@ def compute(
         mortgage_needed=needed,
         monthly_cost=round(needed / _annuity_factor(rules.mortgage_rate, rules.term_months)),
         headroom=max_price - asking_price,
+        max_price=max_price,
     )

@@ -146,6 +146,8 @@ export type Affordability = {
   mortgage_needed: number | null;
   monthly_cost: number | null;
   headroom: number | null;
+  /** Highest purchase price the household can pay, kosten koper included. */
+  max_price: number;
   provenance: "computed";
   computed_on: string;
 };
@@ -194,5 +196,90 @@ export async function refetchSource(fundaId: string, source: string): Promise<Ca
     method: "POST",
   });
   if (!response.ok) throw new Error("source refetch unavailable");
+  return response.json();
+}
+
+export type Tier = "must_buy" | "consider" | "skip" | "hard_no";
+
+/** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
+export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
+
+export type BidAdvice = {
+  opening_bid: number;
+  walk_away_maximum: number;
+  conditions: string[];
+  affordable_maximum: number;
+  asking_price: number | null;
+  monthly_cost_at_asking_price: number | null;
+  monthly_cost_at_walk_away_maximum: number | null;
+};
+
+export type Verdict = {
+  id: number;
+  version: number;
+  created_at: string;
+  tier: Tier;
+  summary: string;
+  reasoning: string;
+  deal_breaker: string | null;
+  cited_flags: { id: string; title: string; class: FlagClass }[];
+  bid_advice: BidAdvice | null;
+  deterministic: boolean;
+  built_from: {
+    snapshot_id: number;
+    profile_version: number | null;
+    flag_rules_version: number;
+    rules_year: number;
+    source_fetches: Record<string, string>;
+    model: string | null;
+  };
+};
+
+export type VerdictState = {
+  /** Newest first. */
+  verdicts: Verdict[];
+  out_of_date: boolean;
+  changed: VerdictInput[];
+};
+
+export type VerdictError =
+  | { kind: "no_buyer_profile" }
+  | { kind: "invalid_verdict"; problems: string[] }
+  | { kind: "llm_unavailable" }
+  | { kind: "unknown" };
+
+export async function fetchVerdicts(fundaId: string): Promise<VerdictState> {
+  const response = await fetch(`/api/listings/${fundaId}/verdict`);
+  if (!response.ok) throw new Error("verdict unavailable");
+  return response.json();
+}
+
+/** Ask for a new Verdict version. Never happens by itself. */
+export async function runVerdict(fundaId: string): Promise<Verdict | VerdictError> {
+  try {
+    const response = await fetch(`/api/listings/${fundaId}/verdict`, { method: "POST" });
+    const payload = await response.json();
+    if (response.ok) return payload as Verdict;
+    if (payload.code === "invalid_verdict") return { kind: "invalid_verdict", problems: payload.problems };
+    if (payload.code === "no_buyer_profile" || payload.code === "llm_unavailable") return { kind: payload.code };
+  } catch {
+    // fall through to unknown
+  }
+  return { kind: "unknown" };
+}
+
+export function isVerdictError(result: Verdict | VerdictError): result is VerdictError {
+  return "kind" in result;
+}
+
+export type OutOfDateVerdicts = {
+  count: number;
+  verdicts: { funda_id: string; verdict_id: number; tier: Tier; changed: VerdictInput[] }[];
+};
+
+/** Listings whose newest Verdict is Achterhaald, e.g. for "Dit verandert N oordelen" after a profile save. */
+export async function fetchOutOfDateVerdicts(): Promise<OutOfDateVerdicts> {
+  const response = await fetch("/api/verdicts/out-of-date");
+  if (!response.ok) throw new Error("out-of-date verdicts unavailable");
   return response.json();
 }
