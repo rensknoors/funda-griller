@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { BuyerProfileForm } from "./BuyerProfileForm";
 import {
   captureListing,
   fetchListings,
@@ -8,7 +9,6 @@ import {
   type CaptureError,
   type Listing,
 } from "./api";
-import "./styles.css";
 
 type ApiState = "checking" | "reachable" | "unreachable";
 type ListState = "laden" | "klaar" | "fout";
@@ -95,9 +95,9 @@ export function App() {
   return (
     <main>
       <h1>Funda Griller</h1>
-      <form className="vak" onSubmit={handleCapture}>
+      <form className="capture" onSubmit={handleCapture}>
         <label htmlFor="listing-url">Funda-link</label>
-        <div className="vak-row">
+        <div className="capture-row">
           <input
             id="listing-url"
             type="url"
@@ -108,7 +108,7 @@ export function App() {
             aria-describedby={error ? "capture-error" : undefined}
             aria-invalid={error ? true : undefined}
           />
-          <button type="submit" className="primary" disabled={busy}>
+          <button type="submit" disabled={busy}>
             Ophalen
           </button>
         </div>
@@ -130,7 +130,8 @@ export function App() {
 
       <h2>Woningen</h2>
       {listState === "laden" && (
-        <div className="skeleton" role="status" aria-label="Woningen laden">
+        <div className="skeleton" aria-busy="true">
+          <span className="visually-hidden">Woningen laden</span>
           <div className="skeleton-row" />
           <div className="skeleton-row" />
           <div className="skeleton-row" />
@@ -178,6 +179,9 @@ export function App() {
       <p role="status" className="api-state">
         API: {apiState}
       </p>
+      <div className="profile">
+        <BuyerProfileForm />
+      </div>
     </main>
   );
 }
