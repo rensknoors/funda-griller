@@ -16,7 +16,6 @@ class Settings(BaseSettings):
 
     database_path: Path = Path("data/funda-griller.sqlite")
     media_dir: Path = Path("data/media")
-    cors_origins: list[str] = ["http://localhost:5173"]
 
     gemini_api_key: str | None = None
     vision_model: str | None = None
