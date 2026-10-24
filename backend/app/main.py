@@ -1,15 +1,16 @@
 from contextlib import asynccontextmanager
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, date, datetime
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app import store
+from app.affordability import consequences
 from app.case import build_case
-from app.buyer_profile import BuyerProfile, describe_errors, reduce_profile
+from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, reduce_profile
 from app.listing_url import funda_id_from_url
 from app.ports import (
     InvalidListingUrl,
@@ -124,6 +125,23 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
     @app.get("/api/buyer-profile/versions")
     def list_buyer_profile_versions() -> list[dict]:
         return store.buyer_profile_versions(settings.database_path)
+
+    @app.post("/api/buyer-profile/validation")
+    def check_buyer_profile(draft: dict = Body()) -> dict:
+        try:
+            BuyerProfile.model_validate(draft)
+        except ValidationError as error:
+            return {"errors": describe_errors(list(error.errors()))}
+        return {"errors": []}
+
+    @app.post("/api/buyer-profile/consequences")
+    def work_out_consequences(draft: FinanceDraft) -> dict:
+        today = date.today()
+        rules = load_rules(settings.affordability_rules_path, today.year)
+        return {
+            **asdict(consequences(draft, rules, today)),
+            "rules": {"year": rules.year, "is_current_year": rules.year == today.year},
+        }
 
     @app.get("/api/buyer-profile/reduced")
     def read_reduced_buyer_profile() -> dict:

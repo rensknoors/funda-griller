@@ -1,3 +1,4 @@
+import "@fontsource-variable/source-sans-3";
 import "./styles.css";
 import { createRoot } from "react-dom/client";
 
