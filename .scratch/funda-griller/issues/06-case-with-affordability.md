@@ -19,7 +19,7 @@
 
 - Case is built on read from the latest snapshot and latest profile (`GET /api/listings/{id}/case`); nothing is stored, so it is never out of date. `built_from` records snapshot id and profile version.
 - Rules: `config/affordability.toml`, one `[years.N]` table; the loader picks the current year or the latest earlier one, and the Case reports `rules.year` / `is_current_year`.
-- **The 2026 figures (housing ratios, test rate, energielabel bonuses, starter limit, fixed costs) are modelling assumptions, not verified against Nibud/Rijksoverheid.** Verify before relying on them.
+- **2026 figures checked 2026-10-24** (status per figure in `config/affordability.toml`): energielabel bonuses and the starter limit (EUR 555,000) are verified and were corrected; fixed kosten koper are lender-average estimates; **test rate, term, mortgage rate and the housing-ratio bands are still unverified** (a third-party table shows woonquotes of 19.3% to 26.5% for 3-3.5% rates, well below ours).
 - The Case exposes derived figures only (no income or balances), since it later reaches the LLM.
 - Dossier screen built: header, Betaalruimte, Kenmerken on the four-track grid with ADV stamps, rules year. Deferred to the tickets that bring the data: Brondekking bar, Signalen, group index/filters, stamp Popover, Documenten, Prijsverloop, header tier mark and WOZ/comparable deltas (07, 08, 09, 14, 18).
 - Review follow-ups fixed: typed affordability result, open-ended top income band, empty-household starter guard, `mortgage_needed` with an over-maximum note, header key figures and Opnieuw ophalen, collapsible Kenmerken.
