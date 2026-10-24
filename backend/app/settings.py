@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     database_path: Path = Path("data/funda-griller.sqlite")
     media_dir: Path = Path("data/media")
     affordability_rules_path: Path = CONFIG_DIR / "affordability.toml"
+    flag_rules_path: Path = CONFIG_DIR / "flag_rules.toml"
 
     gemini_api_key: str | None = None
     # RVO EP-Online API key for the energielabel register; without it that Source is skipped.
