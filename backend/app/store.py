@@ -38,19 +38,17 @@ def initialise(database_path: Path) -> None:
         connection.close()
 
 
-def add_snapshot(
-    database_path: Path, funda_id: str, url: str, listing: Listing, fetched_at: str, status: str
-) -> None:
-    data = {**dataclasses.asdict(listing), "funda_id": funda_id, "status": status}
+def add_snapshot(database_path: Path, listing: Listing, fetched_at: str, status: str) -> None:
+    data = {**dataclasses.asdict(listing), "status": status}
     connection = connect(database_path)
     try:
         connection.execute(
             "INSERT OR IGNORE INTO listings (funda_id, url) VALUES (?, ?)",
-            (funda_id, url),
+            (listing.funda_id, listing.url),
         )
         connection.execute(
             "INSERT INTO listing_snapshots (funda_id, fetched_at, data) VALUES (?, ?, ?)",
-            (funda_id, fetched_at, json.dumps(data)),
+            (listing.funda_id, fetched_at, json.dumps(data)),
         )
         connection.commit()
     finally:
@@ -60,18 +58,21 @@ def add_snapshot(
 def get_listing(database_path: Path, funda_id: str) -> dict | None:
     connection = connect(database_path)
     try:
-        row = connection.execute(
-            "SELECT funda_id, url FROM listings WHERE funda_id = ?", (funda_id,)
-        ).fetchone()
-        if row is None:
-            return None
-        snapshots = connection.execute(
-            "SELECT id, fetched_at, data FROM listing_snapshots "
-            "WHERE funda_id = ? ORDER BY id DESC",
-            (funda_id,),
-        ).fetchall()
+        return _read_listing(connection, funda_id)
     finally:
         connection.close()
+
+
+def _read_listing(connection: sqlite3.Connection, funda_id: str) -> dict | None:
+    row = connection.execute(
+        "SELECT funda_id, url FROM listings WHERE funda_id = ?", (funda_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    snapshots = connection.execute(
+        "SELECT id, fetched_at, data FROM listing_snapshots WHERE funda_id = ? ORDER BY id DESC",
+        (funda_id,),
+    ).fetchall()
     return {
         "funda_id": row["funda_id"],
         "url": row["url"],
@@ -87,10 +88,8 @@ def list_listings(database_path: Path) -> list[dict]:
     try:
         ids = [
             row["funda_id"]
-            for row in connection.execute(
-                "SELECT funda_id FROM listings ORDER BY rowid DESC"
-            )
+            for row in connection.execute("SELECT funda_id FROM listings ORDER BY rowid DESC")
         ]
+        return [_read_listing(connection, funda_id) for funda_id in ids]
     finally:
         connection.close()
-    return [get_listing(database_path, funda_id) for funda_id in ids]

@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
@@ -45,9 +46,7 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
         status = settings.listing_status_map.get(listing.raw_status.casefold(), "unknown")
         store.add_snapshot(
             settings.database_path,
-            funda_id,
-            url,
-            listing,
+            replace(listing, funda_id=funda_id, url=url),
             datetime.now(UTC).isoformat(),
             status,
         )
@@ -55,11 +54,11 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
 
     @app.exception_handler(ListingError)
     def listing_error(_: Request, error: ListingError) -> JSONResponse:
-        status_code, code = _ERROR_RESPONSES[type(error)]
+        status_code, code = _ERROR_RESPONSES.get(type(error), (502, "provider_error"))
         return JSONResponse({"code": code}, status_code=status_code)
 
-    @app.post("/api/listings", status_code=201)
-    def capture_listing(request: CaptureRequest) -> dict:
+    @app.post("/api/listings", status_code=201, response_model=None)
+    def capture_listing(request: CaptureRequest) -> dict | JSONResponse:
         funda_id = funda_id_from_url(request.url)
         if store.get_listing(settings.database_path, funda_id) is not None:
             return JSONResponse(
@@ -67,8 +66,8 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
             )
         return capture(funda_id, request.url.strip())
 
-    @app.post("/api/listings/{funda_id}/refetch")
-    def refetch_listing(funda_id: str) -> dict:
+    @app.post("/api/listings/{funda_id}/refetch", response_model=None)
+    def refetch_listing(funda_id: str) -> dict | JSONResponse:
         existing = store.get_listing(settings.database_path, funda_id)
         if existing is None:
             return JSONResponse({"code": "not_found"}, status_code=404)
