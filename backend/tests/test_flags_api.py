@@ -127,10 +127,22 @@ def test_deal_breakers_the_case_does_not_hit_leave_no_hard_no(client, listing_pr
     assert case["flags"] == []
 
 
-@pytest.mark.skip(reason="WOZ facts reach the Case with ticket 07; wire the fake woz Source here")
+def test_the_register_energielabel_outranks_the_listing_claim_in_flags(
+    client, listing_provider, source_clients
+):
+    source_clients["energielabel"].facts = [SourceFact(name="energy_label", value="A")]
+
+    case = case_for(client, listing_provider, typical_profile(), energy_label="E")
+
+    flag = flags_by_rule(case)["energy_label_efficient"]
+    [label] = [item for item in flag["evidence"] if item["key"] == "energy_label"]
+    assert (label["value"], label["provenance"], label["source"]) == ("A", "source", "energielabel")
+
+
 def test_asking_price_far_above_woz_is_a_con(client, listing_provider, source_clients):
     source_clients["woz"].facts = [
-        SourceFact(source="woz", name="woz_value", value=500_000, fetched_at="2026-10-24T10:00:00+00:00")
+        SourceFact(name="woz_value", value=450_000, as_of="2024-01-01"),
+        SourceFact(name="woz_value", value=500_000, as_of="2025-01-01"),
     ]
 
     case = case_for(client, listing_provider, typical_profile(), asking_price=595_000)

@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     flag_rules_path: Path = CONFIG_DIR / "flag_rules.toml"
 
     gemini_api_key: str | None = None
+    # RVO EP-Online API key for the energielabel register; without it that Source is skipped.
+    ep_online_api_key: str | None = None
     vision_model: str | None = None
     verdict_model: str | None = None
 
