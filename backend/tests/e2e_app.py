@@ -4,16 +4,19 @@ import tempfile
 from pathlib import Path
 
 from app.main import create_app
-from app.ports import Ports
+from app.ports import Ports, ProviderBlocked
 from app.settings import Settings
 from tests.conftest import SOURCES
 from tests.fakes import FakeListingProvider, FakeLlmClient, FakeSourceClient
 from tests.listing_fixtures import LIVE_URL, live_listing
 
-_data_dir = Path(tempfile.mkdtemp(prefix="funda-griller-e2e-"))
+BLOCKED_URL = "https://www.funda.nl/detail/koop/utrecht/huis-oudegracht-2/12345678/"
+
+_data_dir =Path(tempfile.mkdtemp(prefix="funda-griller-e2e-"))
 
 _listing_provider = FakeListingProvider()
 _listing_provider.listings[LIVE_URL] = live_listing()
+_listing_provider.listings[BLOCKED_URL] = ProviderBlocked(BLOCKED_URL)
 
 app = create_app(
     Settings(

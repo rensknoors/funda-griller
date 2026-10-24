@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { BuyerProfileForm } from "./BuyerProfileForm";
 import { CaseView } from "./CaseView";
+import { ManualEntryForm } from "./ManualEntryForm";
 import {
   captureListing,
   fetchListings,
@@ -40,6 +41,7 @@ export function App() {
   const [rowErrors, setRowErrors] = useState<Record<string, FetchFailure>>({});
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
   const [openCaseId, setOpenCaseId] = useState<string | null>(null);
+  const [manualUrl, setManualUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/health")
@@ -133,6 +135,14 @@ export function App() {
           <p id="capture-error" role="alert" className="notice error">
             <span aria-hidden="true">! </span>
             {ERROR_COPY[error.kind]}
+            {error.kind === "provider_blocked" && manualUrl === null && (
+              <>
+                {" "}
+                <button type="button" onClick={() => setManualUrl(url)}>
+                  Handmatig invoeren
+                </button>
+              </>
+            )}
           </p>
         )}
         {duplicateId && (
@@ -144,6 +154,23 @@ export function App() {
           </p>
         )}
       </form>
+      {manualUrl !== null && (
+        <ManualEntryForm
+          url={manualUrl}
+          onSaved={(listing) => {
+            upsert(listing);
+            setManualUrl(null);
+            setError(null);
+            setUrl("");
+          }}
+          onDuplicate={(fundaId) => {
+            setManualUrl(null);
+            setError(null);
+            setDuplicateId(fundaId);
+          }}
+          onCancel={() => setManualUrl(null)}
+        />
+      )}
 
       <h2>Woningen</h2>
       {listState === "laden" && (
@@ -227,6 +254,7 @@ function ListingRow({
         </button>
         {latest.city && <span className="muted"> {latest.city}</span>}{" "}
         <span className="chip">{statusLabel(latest.status, latest.raw_status)}</span>
+        {latest.entry === "manual" && <>{" "}<span className="chip">Handmatig ingevoerd</span></>}
         {failure && (
           <span role="alert" className="row-error">
             <span aria-hidden="true">! </span>
