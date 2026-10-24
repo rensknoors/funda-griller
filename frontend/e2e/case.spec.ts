@@ -28,3 +28,20 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();
 });
+
+test("dossier shows bronnen: official energielabel, third-party WOZ, coverage and per-bron refetch", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+
+  await expect(page.getByText(/5 bronnen: 4 gelukt, 0 mislukt, 1 overgeslagen/)).toBeVisible();
+  await expect(page.getByLabel(/Bron: Energielabelregister, opgehaald/)).toBeVisible();
+  await expect(page.getByText("Nee: advertentie B, register A")).toBeVisible();
+  await expect(page.getByText("WOZ-waarde 2025")).toBeVisible();
+  await expect(page.getByLabel(/Bron: WOZ \(prijshistorie\), onofficieel/).first()).toBeVisible();
+  await expect(page.getByText("Vraagprijs t.o.v. WOZ")).toBeVisible();
+
+  await page.getByRole("button", { name: "WOZ (prijshistorie) opnieuw ophalen" }).click();
+  await expect(page.getByText("WOZ-waarde 2024")).toBeVisible();
+});
