@@ -99,7 +99,12 @@ export function App() {
     return (
       <main>
         <h1>Funda Griller</h1>
-        <CaseView listing={openCase} onClose={() => setOpenCaseId(null)} />
+        <CaseView
+          listing={openCase}
+          busy={busy}
+          onClose={() => setOpenCaseId(null)}
+          onRefetch={handleRefetch}
+        />
       </main>
     );
   }

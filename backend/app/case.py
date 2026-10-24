@@ -1,5 +1,6 @@
 """Case builder (Dossier): pure assembly of Listing facts and computed metrics. No I/O, no judgement."""
 
+from dataclasses import asdict
 from datetime import date
 
 from app.affordability import Rules, compute
@@ -30,7 +31,9 @@ def build_case(
 ) -> dict:
     affordability = (
         {
-            **compute(profile, snapshot.get("asking_price"), snapshot.get("energy_label"), rules, today),
+            **asdict(
+                compute(profile, snapshot.get("asking_price"), snapshot.get("energy_label"), rules, today)
+            ),
             "provenance": "computed",
             "computed_on": today.isoformat(),
         }

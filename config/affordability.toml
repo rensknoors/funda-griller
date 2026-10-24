@@ -9,13 +9,14 @@ term_months = 360
 # Rate assumed for the monthly cost of the mortgage actually needed.
 mortgage_rate = 0.04
 
-# Share of gross annual income that may go to housing, by income band (first band that fits).
+# Share of gross annual income that may go to housing, by income band (first band that fits;
+# a band without up_to is open-ended).
 housing_ratio = [
   { up_to = 30000, ratio = 0.20 },
   { up_to = 50000, ratio = 0.26 },
   { up_to = 80000, ratio = 0.30 },
   { up_to = 120000, ratio = 0.33 },
-  { up_to = 100000000, ratio = 0.35 },
+  { ratio = 0.35 },
 ]
 
 # Extra borrowing capacity for an energy-efficient house, by energielabel.

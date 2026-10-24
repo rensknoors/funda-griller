@@ -9,7 +9,8 @@ const euro = new Intl.NumberFormat("nl-NL", {
   currency: "EUR",
   maximumFractionDigits: 0,
 });
-const date = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
+const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
+const shortDate = (iso: string) => dayMonth.format(new Date(iso));
 
 const FACT_LABELS: Record<string, string> = {
   address: "Adres",
@@ -31,7 +32,13 @@ function formatFact(fact: CaseFact): string {
   return String(fact.value);
 }
 
-export function CaseView({ listing, onClose }: { listing: Listing; onClose: () => void }) {
+export function CaseView(props: {
+  listing: Listing;
+  busy: boolean;
+  onClose: () => void;
+  onRefetch: (fundaId: string) => void;
+}) {
+  const { listing, onClose } = props;
   const [state, setState] = useState<LoadState>({ kind: "laden" });
   const latest = listing.snapshots[0];
 
@@ -52,16 +59,22 @@ export function CaseView({ listing, onClose }: { listing: Listing; onClose: () =
         <div>
           <h2 id="case-title">Dossier: {latest.address ?? listing.url}</h2>
           <p className="muted">
-            Advertentie van {date.format(new Date(latest.fetched_at))}
+            Advertentie van {shortDate(latest.fetched_at)}
             {state.kind === "klaar" && state.data.built_from.profile_version !== null && (
               <> · Koperprofiel versie {state.data.built_from.profile_version}</>
             )}
           </p>
         </div>
-        <button type="button" onClick={onClose}>
-          Terug naar woningen
-        </button>
+        <div className="row">
+          <button type="button" disabled={props.busy} onClick={() => props.onRefetch(listing.funda_id)}>
+            Opnieuw ophalen
+          </button>
+          <button type="button" onClick={onClose}>
+            Terug naar woningen
+          </button>
+        </div>
       </header>
+      {state.kind === "klaar" && <KeyFigures askingPrice={latest.asking_price} affordability={state.data.affordability} />}
 
       {state.kind === "laden" && (
         <div className="skeleton" aria-busy="true">
@@ -84,6 +97,28 @@ export function CaseView({ listing, onClose }: { listing: Listing; onClose: () =
         </>
       )}
     </section>
+  );
+}
+
+function KeyFigures({
+  askingPrice,
+  affordability,
+}: {
+  askingPrice: number | null;
+  affordability: Affordability | null;
+}) {
+  return (
+    <dl className="figures key-figures" aria-label="Kerncijfers">
+      <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
+      <Figure
+        label="Ruimte boven vraag"
+        value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
+      />
+      <Figure
+        label="Maandlasten bij vraagprijs"
+        value={affordability?.monthly_cost != null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
+      />
+    </dl>
   );
 }
 
@@ -119,7 +154,11 @@ function Betaalruimte({
           <Figure
             label="Maandlasten bij vraagprijs"
             value={affordability.monthly_cost !== null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
-          />
+          >
+            {affordability.mortgage_needed !== null &&
+              affordability.mortgage_needed > affordability.max_mortgage &&
+              "! hypotheek nodig is hoger dan de maximale hypotheek"}
+          </Figure>
           <Figure
             label="Ruimte boven vraag"
             value={affordability.headroom !== null ? signedEuro(affordability.headroom) : "–"}
@@ -156,21 +195,23 @@ function Figure(props: { label: string; value: string; children?: React.ReactNod
 
 function FactGroup({ facts }: { facts: CaseFact[] }) {
   return (
-    <section aria-labelledby="feiten-title">
-      <h3 id="feiten-title">Kenmerken</h3>
-      <p className="muted">{facts.length} feiten</p>
+    <details open className="fact-group">
+      <summary>
+        <h3 id="feiten-title">Kenmerken</h3>
+        <span className="muted">{facts.length} feiten</span>
+      </summary>
       <ol className="facts">
         {facts.map((fact, index) => (
           <li key={fact.key} className="fact">
             <span className="vak-number">{index + 1}</span>
             <span className="fact-label">{FACT_LABELS[fact.key] ?? fact.key}</span>
             <span className="fact-value">{formatFact(fact)}</span>
-            <span className="stamp" aria-label={`Bron: advertentie, opgehaald ${date.format(new Date(fact.fetched_at))}`}>
-              <span aria-hidden="true">■ ADV</span> Advertentie · {date.format(new Date(fact.fetched_at))}
+            <span className="stamp" aria-label={`Bron: advertentie, opgehaald ${shortDate(fact.fetched_at)}`}>
+              <span aria-hidden="true">■ ADV</span> Advertentie · {shortDate(fact.fetched_at)}
             </span>
           </li>
         ))}
       </ol>
-    </section>
+    </details>
   );
 }

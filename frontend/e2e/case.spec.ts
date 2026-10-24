@@ -21,9 +21,9 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
   await page.getByRole("button", { name: "Buchterweg 15" }).click();
 
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
-  await expect(page.getByText("Maximale hypotheek")).toBeVisible();
+  await expect(page.getByText("Maximale hypotheek", { exact: true })).toBeVisible();
   await expect(page.getByText("€ 486.660")).toBeVisible();
-  await expect(page.getByText("▲ +€ 98.784")).toBeVisible();
+  await expect(page.getByText("▲ +€ 98.784").first()).toBeVisible();
   await expect(page.getByText(/^Regels 2026/)).toBeVisible();
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();

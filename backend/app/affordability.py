@@ -7,12 +7,30 @@ from app.buyer_profile import BuyerProfile, home_equity
 
 
 @dataclass(frozen=True)
+class KostenKoper:
+    transfer_tax: int
+    fixed_costs: int
+    total: int
+
+
+@dataclass(frozen=True)
+class Affordability:
+    max_mortgage: int
+    energy_label_bonus: int
+    equity: int
+    kosten_koper: KostenKoper | None
+    mortgage_needed: int | None
+    monthly_cost: int | None
+    headroom: int | None
+
+
+@dataclass(frozen=True)
 class Rules:
     year: int
     test_rate: float
     term_months: int
     mortgage_rate: float
-    housing_ratio: tuple[tuple[int, float], ...]
+    housing_ratio: tuple[tuple[int | None, float], ...]
     energy_label_bonus: dict[str, int]
     transfer_tax_rate: float
     starter_min_age: int
@@ -28,7 +46,7 @@ class Rules:
             test_rate=table["test_rate"],
             term_months=table["term_months"],
             mortgage_rate=table["mortgage_rate"],
-            housing_ratio=tuple((band["up_to"], band["ratio"]) for band in table["housing_ratio"]),
+            housing_ratio=tuple((band.get("up_to"), band["ratio"]) for band in table["housing_ratio"]),
             energy_label_bonus=table["energy_label_bonus"],
             transfer_tax_rate=tax["rate"],
             starter_min_age=tax["starter_min_age"],
@@ -50,11 +68,11 @@ def _age(born: date, today: date) -> int:
 
 def _is_starter(profile: BuyerProfile, rules: Rules, today: date) -> bool:
     ages = [_age(m.birth_date, today) for m in profile.household if m.role == "adult"]
-    return all(rules.starter_min_age <= age <= rules.starter_max_age for age in ages)
+    return bool(ages) and all(rules.starter_min_age <= age <= rules.starter_max_age for age in ages)
 
 
 def _max_mortgage(income: int, energy_label: str | None, rules: Rules) -> tuple[int, int]:
-    ratio = next(ratio for up_to, ratio in rules.housing_ratio if income <= up_to)
+    ratio = next(ratio for up_to, ratio in rules.housing_ratio if up_to is None or income <= up_to)
     base = int(income * ratio / 12 * _annuity_factor(rules.test_rate, rules.term_months))
     bonus = rules.energy_label_bonus.get((energy_label or "").upper(), 0)
     return base + bonus, bonus
@@ -62,39 +80,29 @@ def _max_mortgage(income: int, energy_label: str | None, rules: Rules) -> tuple[
 
 def compute(
     profile: BuyerProfile, asking_price: int | None, energy_label: str | None, rules: Rules, today: date
-) -> dict:
+) -> Affordability:
     starter = _is_starter(profile, rules, today)
     max_mortgage, bonus = _max_mortgage(profile.gross_annual_income, energy_label, rules)
     equity = home_equity(profile)
     own_funds = profile.assets.savings + profile.assets.investments
     budget = max_mortgage + equity + own_funds - rules.fixed_costs
 
-    def transfer_tax(price: int) -> int:
-        exempt = starter and price <= rules.starter_price_limit
-        return 0 if exempt else round(price * rules.transfer_tax_rate)
-
-    max_price = (budget / (1 + rules.transfer_tax_rate))
+    max_price = budget / (1 + rules.transfer_tax_rate)
     if starter:
         max_price = max(max_price, min(rules.starter_price_limit, budget))
     max_price = max(0, int(max_price))
 
-    result = {
-        "max_mortgage": max_mortgage,
-        "energy_label_bonus": bonus,
-        "equity": equity,
-        "kosten_koper": None,
-        "monthly_cost": None,
-        "headroom": None,
-    }
     if asking_price is None:
-        return result
-    tax = transfer_tax(asking_price)
+        return Affordability(max_mortgage, bonus, equity, None, None, None, None)
+    exempt = starter and asking_price <= rules.starter_price_limit
+    tax = 0 if exempt else round(asking_price * rules.transfer_tax_rate)
     needed = max(0, asking_price + tax + rules.fixed_costs - equity - own_funds)
-    result["kosten_koper"] = {
-        "transfer_tax": tax,
-        "fixed_costs": rules.fixed_costs,
-        "total": tax + rules.fixed_costs,
-    }
-    result["monthly_cost"] = round(needed / _annuity_factor(rules.mortgage_rate, rules.term_months))
-    result["headroom"] = max_price - asking_price
-    return result
+    return Affordability(
+        max_mortgage=max_mortgage,
+        energy_label_bonus=bonus,
+        equity=equity,
+        kosten_koper=KostenKoper(tax, rules.fixed_costs, tax + rules.fixed_costs),
+        mortgage_needed=needed,
+        monthly_cost=round(needed / _annuity_factor(rules.mortgage_rate, rules.term_months)),
+        headroom=max_price - asking_price,
+    )
