@@ -8,8 +8,12 @@ from app.ports import Ports
 from app.settings import Settings
 from tests.conftest import SOURCES
 from tests.fakes import FakeListingProvider, FakeLlmClient, FakeSourceClient
+from tests.listing_fixtures import LIVE_URL, live_listing
 
 _data_dir = Path(tempfile.mkdtemp(prefix="funda-griller-e2e-"))
+
+_listing_provider = FakeListingProvider()
+_listing_provider.listings[LIVE_URL] = live_listing()
 
 app = create_app(
     Settings(
@@ -18,7 +22,7 @@ app = create_app(
         media_dir=_data_dir / "media",
     ),
     Ports(
-        listing_provider=FakeListingProvider(),
+        listing_provider=_listing_provider,
         source_clients={name: FakeSourceClient(name) for name in SOURCES},
         llm_client=FakeLlmClient(),
     ),
