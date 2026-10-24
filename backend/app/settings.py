@@ -1,7 +1,30 @@
+import tomllib
 from pathlib import Path
+from typing import Any
 
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+DEFAULTS_FILE = Path(__file__).resolve().parents[2] / "config" / "defaults.toml"
+
+
+class _DefaultsFileSource(PydanticBaseSettingsSource):
+    """Lowest-priority source: repo-level `config/defaults.toml`."""
+
+    def get_field_value(self, field: Any, field_name: str) -> tuple[Any, str, bool]:
+        return None, field_name, False
+
+    def __call__(self) -> dict[str, Any]:
+        with DEFAULTS_FILE.open("rb") as f:
+            data = tomllib.load(f)
+        return {
+            **data.get("llm", {}),
+            "listing_status_map": data.get("listing_status_map", {}),
+        }
 
 
 class Settings(BaseSettings):
@@ -21,6 +44,9 @@ class Settings(BaseSettings):
     vision_model: str | None = None
     verdict_model: str | None = None
 
+    # Casefolded raw funda status string to normalised status.
+    listing_status_map: dict[str, str] = Field(default_factory=dict)
+
     # Days after which a Source's facts count as Stale.
     source_ttl_days: dict[str, int] = Field(
         default_factory=lambda: {
@@ -31,3 +57,20 @@ class Settings(BaseSettings):
             "comparables": 14,
         }
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_secret_settings,
+            _DefaultsFileSource(settings_cls),
+        )
