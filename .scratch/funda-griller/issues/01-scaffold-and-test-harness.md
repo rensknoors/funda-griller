@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A single documented command starts backend and frontend; the frontend renders a page that confirms it can reach the API
-- [ ] The API test harness boots the app on a temp SQLite file and exposes fakes for Listing provider, Source client and LLM client
-- [ ] A trivial API test passes through the harness without any network access
-- [ ] A Playwright smoke test runs against the API with fakes and passes
-- [ ] Model identifiers, API keys and Source time-to-lives are read from configuration, not code
-- [ ] Python dependencies are pinned, including `tls-client` below 2.0; `.gitignore` covers virtualenvs, local DB files and downloaded media
+- [x] A single documented command starts backend and frontend; the frontend renders a page that confirms it can reach the API
+- [x] The API test harness boots the app on a temp SQLite file and exposes fakes for Listing provider, Source client and LLM client
+- [x] A trivial API test passes through the harness without any network access
+- [x] A Playwright smoke test runs against the API with fakes and passes
+- [x] Model identifiers, API keys and Source time-to-lives are read from configuration, not code
+- [x] Python dependencies are pinned, including `tls-client` below 2.0; `.gitignore` covers virtualenvs, local DB files and downloaded media
