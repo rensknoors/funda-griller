@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app import store
-from app.affordability import consequences
+from app.affordability import compute, consequences
 from app.case import build_case
 from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, reduce_profile
 from app.comparison import summarise
@@ -18,6 +18,7 @@ from app.listing_url import funda_id_from_url
 from app.manual_provider import ManualEntry, ManualListingProvider
 from app.ports import (
     InvalidListingUrl,
+    LlmError,
     ListingError,
     ListingProvider,
     ListingRemoved,
@@ -28,6 +29,7 @@ from app.rules_loader import load_flag_rules, load_rules
 from app.production_ports import build_production_ports
 from app.settings import Settings
 from app.source_runner import run_sources
+from app.verdict import InvalidVerdict, changed_inputs, inputs_of, judge
 
 _ERROR_RESPONSES = {
     InvalidListingUrl: (400, "bad_url"),
@@ -96,9 +98,11 @@ def create_app(
         return with_comparison(store.get_listing(settings.database_path, funda_id))
 
     def with_comparison(listing: dict) -> dict:
-        """The Listing plus its comparison-view row. The tier stays empty until a Verdict exists,
-        except a deal-breaker Hard no, which the Case already decides."""
-        return {**listing, "comparison": summarise(listing["snapshots"], current_case(listing))}
+        """The Listing plus its comparison-view row: the latest Verdict's tier, or none until a
+        Verdict exists. A deal-breaker Hard no in the Case overrides it."""
+        verdicts = store.verdicts(settings.database_path, listing["funda_id"])
+        tier = verdicts[0]["tier"] if verdicts else None
+        return {**listing, "comparison": summarise(listing["snapshots"], current_case(listing), tier)}
 
     def already_captured(funda_id: str) -> JSONResponse | None:
         if store.get_listing(settings.database_path, funda_id) is None:
@@ -185,6 +189,62 @@ def create_app(
             store.source_runs(settings.database_path, funda_id),
             settings.source_ttl_days,
         )
+
+    def verdict_state(funda_id: str, case: dict) -> dict:
+        """A Listing's Verdicts, newest first, and whether the newest is out of date (Achterhaald)."""
+        history = store.verdicts(settings.database_path, funda_id)
+        changed = changed_inputs(history[0], inputs_of(case, settings.verdict_model)) if history else []
+        return {"verdicts": history, "out_of_date": bool(changed), "changed": changed}
+
+    @app.get("/api/listings/{funda_id}/verdict", response_model=None)
+    def read_verdict(funda_id: str) -> dict | JSONResponse:
+        listing = store.get_listing(settings.database_path, funda_id)
+        if listing is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        return verdict_state(funda_id, current_case(listing))
+
+    @app.post("/api/listings/{funda_id}/verdict", status_code=201, response_model=None)
+    def run_verdict(funda_id: str) -> dict | JSONResponse:
+        """Make a new Verdict version from the current Case and Buyer Profile. Never runs by itself."""
+        listing = store.get_listing(settings.database_path, funda_id)
+        if listing is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        latest = store.latest_buyer_profile(settings.database_path)
+        if latest is None:
+            return JSONResponse({"code": "no_buyer_profile"}, status_code=409)
+        if ports.llm_client is None:
+            return JSONResponse({"code": "llm_unavailable"}, status_code=503)
+        profile = BuyerProfile.model_validate(latest["profile"])
+        now = clock()
+        rules = load_rules(settings.affordability_rules_path, now.year)
+        try:
+            verdict = judge(
+                current_case(listing),
+                reduce_profile(latest["version"], profile),
+                ports.llm_client,
+                settings.verdict_model,
+                lambda price: compute(profile, price, None, rules, now.date()).monthly_cost,
+            )
+        except InvalidVerdict as error:
+            return JSONResponse({"code": "invalid_verdict", "problems": error.problems}, status_code=502)
+        except LlmError:
+            return JSONResponse({"code": "llm_unavailable"}, status_code=502)
+        return store.add_verdict(settings.database_path, funda_id, now.isoformat(), verdict)
+
+    @app.get("/api/verdicts/out-of-date")
+    def out_of_date_verdicts() -> dict:
+        """Listings whose newest Verdict is Achterhaald, e.g. to say "Dit verandert N oordelen"
+        after a Buyer Profile edit. Nothing re-runs by itself."""
+        out_of_date = []
+        for funda_id in store.listings_with_verdicts(settings.database_path):
+            listing = store.get_listing(settings.database_path, funda_id)
+            state = verdict_state(funda_id, current_case(listing))
+            if state["out_of_date"]:
+                newest = state["verdicts"][0]
+                out_of_date.append(
+                    {"funda_id": funda_id, "verdict_id": newest["id"], "tier": newest["tier"], "changed": state["changed"]}
+                )
+        return {"count": len(out_of_date), "verdicts": out_of_date}
 
     @app.get("/api/listings")
     def list_listings(include_archived: bool = False) -> list[dict]:

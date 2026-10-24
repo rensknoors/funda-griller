@@ -133,8 +133,11 @@ export function CaseView(props: {
   busy: boolean;
   onClose: () => void;
   onRefetch: (fundaId: string) => void;
+  onOpenVerdict: () => void;
+  /** A Signaal to scroll to and expand once the Dossier has loaded (from an Oordeel chip). */
+  focusFlagId?: string | null;
 }) {
-  const { listing, onClose } = props;
+  const { listing, onClose, focusFlagId } = props;
   const [state, setState] = useState<LoadState>({ kind: "laden" });
   const [refetching, setRefetching] = useState<string | null>(null);
   const [refetchFailed, setRefetchFailed] = useState(false);
@@ -162,6 +165,11 @@ export function CaseView(props: {
       setRefetching(null);
     }
   }
+
+  const loaded = state.kind === "klaar";
+  useEffect(() => {
+    if (loaded && focusFlagId) document.getElementById(signaalAnchor(focusFlagId))?.scrollIntoView();
+  }, [loaded, focusFlagId]);
 
   const sourceFacts =
     state.kind === "klaar"
@@ -191,6 +199,9 @@ export function CaseView(props: {
         <div className="row">
           <button type="button" disabled={props.busy} onClick={() => props.onRefetch(listing.funda_id)}>
             Opnieuw ophalen
+          </button>
+          <button type="button" onClick={props.onOpenVerdict}>
+            Oordeel bekijken
           </button>
           <button type="button" onClick={onClose}>
             Terug naar woningen
@@ -230,7 +241,12 @@ export function CaseView(props: {
             failed={refetchFailed}
             onRefetch={handleSourceRefetch}
           />
-          <Signalen flags={state.data.flags} facts={state.data.facts} rulesVersion={state.data.built_from.flag_rules_version} />
+          <Signalen
+            flags={state.data.flags}
+            facts={state.data.facts}
+            rulesVersion={state.data.built_from.flag_rules_version}
+            focusFlagId={focusFlagId ?? null}
+          />
           <Betaalruimte affordability={state.data.affordability} rules={state.data.rules} />
           <FactGroup
             title="Kenmerken"
@@ -549,7 +565,21 @@ function HardNoBanner({ hardNo, flags }: { hardNo: HardNo; flags: Flag[] }) {
   );
 }
 
-function Signalen({ flags, facts, rulesVersion }: { flags: Flag[]; facts: CaseFact[]; rulesVersion: number }) {
+function signaalAnchor(flagId: string): string {
+  return `signaal-${flagId.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
+function Signalen({
+  flags,
+  facts,
+  rulesVersion,
+  focusFlagId,
+}: {
+  flags: Flag[];
+  facts: CaseFact[];
+  rulesVersion: number;
+  focusFlagId: string | null;
+}) {
   return (
     <section aria-labelledby="signalen-title">
       <h3 id="signalen-title">Signalen</h3>
@@ -564,8 +594,8 @@ function Signalen({ flags, facts, rulesVersion }: { flags: Flag[]; facts: CaseFa
             </h4>
             <ul className="flags">
               {inBand.map((flag) => (
-                <li key={flag.id}>
-                  <details>
+                <li key={flag.id} id={signaalAnchor(flag.id)} className={flag.id === focusFlagId ? "focused" : undefined}>
+                  <details open={flag.id === focusFlagId || undefined}>
                     <summary>{flag.title}</summary>
                     <p className="muted">
                       Regel {flag.rule_id} · versie {flag.rule_version}

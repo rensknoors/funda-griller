@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.ports import Listing, PricePoint
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS source_runs (
     outcome TEXT NOT NULL,
     reason TEXT,
     facts TEXT
+);
+CREATE TABLE IF NOT EXISTS verdicts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    funda_id TEXT NOT NULL REFERENCES listings(funda_id),
+    created_at TEXT NOT NULL,
+    data TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS listing_archive_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -283,3 +289,45 @@ def _version(row: sqlite3.Row) -> dict:
         "created_at": row["created_at"],
         "profile": json.loads(row["profile"]),
     }
+
+
+def add_verdict(database_path: Path, funda_id: str, created_at: str, verdict: dict) -> dict:
+    """Append a Verdict; earlier ones stay as its history. Returns it with id and per-Listing version."""
+    connection = connect(database_path)
+    try:
+        cursor = connection.execute(
+            "INSERT INTO verdicts (funda_id, created_at, data) VALUES (?, ?, ?)",
+            (funda_id, created_at, json.dumps(verdict)),
+        )
+        connection.commit()
+        row_id = cursor.lastrowid
+    finally:
+        connection.close()
+    return next(v for v in verdicts(database_path, funda_id) if v["id"] == row_id)
+
+
+def verdicts(database_path: Path, funda_id: str) -> list[dict]:
+    """A Listing's Verdicts, newest first, each numbered from 1 in the order they were made."""
+    connection = connect(database_path)
+    try:
+        rows = connection.execute(
+            "SELECT id, created_at, data FROM verdicts WHERE funda_id = ? ORDER BY id",
+            (funda_id,),
+        ).fetchall()
+    finally:
+        connection.close()
+    return [
+        {"id": row["id"], "version": number, "created_at": row["created_at"], **json.loads(row["data"])}
+        for number, row in enumerate(rows, start=1)
+    ][::-1]
+
+
+def listings_with_verdicts(database_path: Path) -> list[str]:
+    connection = connect(database_path)
+    try:
+        return [
+            row["funda_id"]
+            for row in connection.execute("SELECT DISTINCT funda_id FROM verdicts ORDER BY funda_id")
+        ]
+    finally:
+        connection.close()
