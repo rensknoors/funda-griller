@@ -71,6 +71,7 @@ export type Affordability = {
   energy_label_bonus: number;
   equity: number;
   kosten_koper: { transfer_tax: number; fixed_costs: number; total: number } | null;
+  mortgage_needed: number | null;
   monthly_cost: number | null;
   headroom: number | null;
   provenance: "computed";

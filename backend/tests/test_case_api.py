@@ -50,6 +50,7 @@ def test_typical_household_affordability(client, listing_provider):
         "energy_label_bonus": 0,
         "kosten_koper": {"transfer_tax": 11_900, "fixed_costs": 6_000, "total": 17_900},
         "equity": 172_000,
+        "mortgage_needed": 385_900,
         "monthly_cost": 1_842,
         "headroom": 98_784,
     }
@@ -190,3 +191,4 @@ def test_rules_come_from_the_table_for_the_year_and_the_year_is_shown(
 
     assert case["rules"] == {"year": 2001, "is_current_year": False}
     assert case["affordability"]["max_mortgage"] == 547_217
+
