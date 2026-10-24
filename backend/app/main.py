@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app import store
-from app.buyer_profile import BuyerProfile, describe_errors, reduce_profile, describe_errors
+from app.buyer_profile import BuyerProfile, describe_errors, reduce_profile
 from app.ports import Ports
 from app.production_ports import build_production_ports
 from app.settings import Settings
@@ -34,22 +34,19 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
             status_code=422, content={"errors": describe_errors(list(error.errors()))}
         )
 
-    @app.exception_handler(RequestValidationError)
-    def invalid_request(_: Request, error: RequestValidationError) -> JSONResponse:
-        return JSONResponse(
-            status_code=422, content={"errors": describe_errors(list(error.errors()))}
-        )
-
     @app.put("/api/buyer-profile")
     def save_buyer_profile(profile: BuyerProfile) -> dict:
         return store.save_buyer_profile(settings.database_path, profile.model_dump(mode="json"))
 
-    @app.get("/api/buyer-profile")
-    def read_buyer_profile() -> dict:
+    def latest_or_404() -> dict:
         latest = store.latest_buyer_profile(settings.database_path)
         if latest is None:
             raise HTTPException(status_code=404, detail="Nog geen koperprofiel")
         return latest
+
+    @app.get("/api/buyer-profile")
+    def read_buyer_profile() -> dict:
+        return latest_or_404()
 
     @app.get("/api/buyer-profile/versions")
     def list_buyer_profile_versions() -> list[dict]:
@@ -57,7 +54,7 @@ def create_app(settings: Settings | None = None, ports: Ports | None = None) -> 
 
     @app.get("/api/buyer-profile/reduced")
     def read_reduced_buyer_profile() -> dict:
-        latest = read_buyer_profile()
+        latest = latest_or_404()
         return reduce_profile(latest["version"], BuyerProfile.model_validate(latest["profile"]))
 
     return app
