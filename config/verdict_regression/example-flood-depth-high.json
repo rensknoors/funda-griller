@@ -1,0 +1,70 @@
+{
+  "expected_tier": "skip",
+  "note": "PLACEHOLDER: fictional Listing and expected tier. Replace with a real Listing you have judged yourself.",
+  "as_of": "2026-10-25T12:00:00+00:00",
+  "snapshot": {
+    "funda_id": "example-3",
+    "url": "https://www.funda.nl/detail/koop/voorbeeld/huis-voorbeelddijk-3/0/",
+    "raw_status": "Beschikbaar",
+    "status": "available",
+    "entry": "manual",
+    "fetched_at": "2026-10-25T09:00:00+00:00",
+    "address": "Voorbeelddijk 3",
+    "city": "Voorbeeld",
+    "asking_price": 450000,
+    "living_area": 110,
+    "plot_area": 300,
+    "rooms": 4,
+    "bedrooms": 3,
+    "construction_year": 1938,
+    "energy_label": "D",
+    "description": "Woning met tuin aan de rivier."
+  },
+  "source_runs": {
+    "flood_soil": {
+      "attempted_at": "2026-10-25T09:00:00+00:00",
+      "outcome": "succeeded",
+      "reason": null,
+      "facts": [
+        {
+          "name": "flood_depth_m",
+          "value": 1.2,
+          "as_of": null
+        }
+      ]
+    }
+  },
+  "buyer_profile": {
+    "household": [
+      {
+        "role": "adult",
+        "birth_date": "1988-04-12"
+      },
+      {
+        "role": "adult",
+        "birth_date": "1990-09-30"
+      },
+      {
+        "role": "child",
+        "birth_date": "2020-01-15"
+      }
+    ],
+    "gross_annual_income": 95000,
+    "assets": {
+      "savings": 40000,
+      "investments": 15000
+    },
+    "current_home": {
+      "value": 400000,
+      "outstanding_mortgage": 220000,
+      "selling_costs": 8000
+    },
+    "must_haves": [
+      "tuin"
+    ],
+    "nice_to_haves": [],
+    "deal_breakers": [],
+    "commute_destinations": [],
+    "renovation_tolerance": 3
+  }
+}
