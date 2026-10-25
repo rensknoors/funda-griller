@@ -32,7 +32,7 @@ test("dossier shows the reistijd per pendelbestemming and a minpunt when it is t
 
   const signalen = page.getByRole("region", { name: "Signalen" });
   await signalen.getByText("Reistijd boven je maximum: Werk").click();
-  await expect(signalen.getByText("Regel commute_too_long · versie 1")).toBeVisible();
+  await expect(signalen.getByText("Regel commute_too_long · versie 2")).toBeVisible();
   await expect(signalen.locator("li", { hasText: /^Maximale reistijd: 45 min/ })).toBeVisible();
   await expect(signalen.locator("li", { hasText: /^Reistijd naar Werk: 52 min met de auto/ })).toBeVisible();
 });
