@@ -368,19 +368,22 @@ def create_app(
         latest = store.latest_buyer_profile(settings.database_path)
         if latest is None:
             return JSONResponse({"code": "no_buyer_profile"}, status_code=409)
-        if ports.llm_client is None:
+        case = current_case(listing)
+        # A deal-breaker Hard no is decided without the model, so it needs no LLM client.
+        if ports.llm_client is None and case["hard_no"] is None:
             return JSONResponse({"code": "llm_unavailable"}, status_code=503)
         profile = BuyerProfile.model_validate(latest["profile"])
         now = clock()
         rules = load_rules(settings.affordability_rules_path, now.year)
+        energy_label = case["affordability"]["energy_label"]
         try:
             verdict = judge(
-                current_case(listing),
+                case,
                 reduce_profile(latest["version"], profile),
                 ports.llm_client,
                 settings.verdict_model,
                 settings.walk_away_comparables_premium,
-                lambda price: compute(profile, price, None, rules, now.date()).monthly_cost,
+                lambda price: compute(profile, price, energy_label, rules, now.date()).monthly_cost,
             )
         except InvalidVerdict as error:
             return JSONResponse({"code": "invalid_verdict", "problems": error.problems}, status_code=502)

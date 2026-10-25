@@ -1,6 +1,8 @@
 import pytest
+from fastapi.testclient import TestClient
 
-from app.ports import LlmError, SourceFact
+from app.main import create_app
+from app.ports import LlmError, Ports, SourceFact
 
 from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
@@ -126,6 +128,33 @@ def test_a_deal_breaker_hard_no_never_calls_the_llm(client, listing_provider, ll
     assert verdict["bid_advice"] is None
     assert verdict["built_from"]["model"] is None
     assert [flag["id"] for flag in verdict["cited_flags"]] == ["deal_breaker_mentioned:Geen erfpacht"]
+
+
+@pytest.fixture
+def client_without_llm(settings, listing_provider, clock):
+    """The app as run without a Gemini key: no LLM client at all."""
+    with TestClient(create_app(settings, Ports(listing_provider=listing_provider), clock)) as test_client:
+        yield test_client
+
+
+def test_a_deal_breaker_hard_no_is_recorded_without_an_llm_configured(client_without_llm, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Geen erfpacht"]}
+    prepare(client_without_llm, listing_provider, profile, description="Appartement op erfpacht.")
+
+    response = client_without_llm.post(VERDICT)
+
+    assert response.status_code == 201, response.text
+    assert response.json()["tier"] == "hard_no"
+    assert client_without_llm.get(VERDICT).json()["verdicts"] == [response.json()]
+
+
+def test_without_an_llm_a_verdict_that_needs_the_model_is_unavailable(client_without_llm, listing_provider):
+    prepare(client_without_llm, listing_provider)
+
+    response = client_without_llm.post(VERDICT)
+
+    assert response.status_code == 503
+    assert response.json() == {"code": "llm_unavailable"}
 
 
 def test_the_model_sees_the_case_and_reduced_profile_but_no_raw_finances_or_address(

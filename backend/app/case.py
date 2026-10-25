@@ -65,6 +65,9 @@ def build_case(
     affordability = (
         {
             **asdict(compute(profile, snapshot.get("asking_price"), energy_label, rules, today)),
+            # The label the borrowing capacity was computed with, so figures at other prices (the
+            # Walk-away Maximum) rest on the same assumption.
+            "energy_label": energy_label,
             "provenance": "computed",
             "computed_on": today.isoformat(),
         }
