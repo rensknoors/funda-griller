@@ -103,6 +103,12 @@ class LlmClient(Protocol):
         ...
 
 
+class PhotoDownloader(Protocol):
+    def download(self, url: str) -> bytes:
+        """One Listing photo's bytes. Any exception means that photo is unavailable."""
+        ...
+
+
 class DocumentDownloader(Protocol):
     def download(self, url: str) -> bytes:
         """The file at `url` (the funda brochure). Raises DownloadFailed."""
@@ -114,4 +120,5 @@ class Ports:
     listing_provider: ListingProvider
     source_clients: dict[str, SourceClient] = field(default_factory=dict)
     llm_client: LlmClient | None = None
+    photo_downloader: PhotoDownloader | None = None
     document_downloader: DocumentDownloader | None = None

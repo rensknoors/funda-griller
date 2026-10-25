@@ -13,6 +13,7 @@ import {
   isVerdictError,
   runVerdict,
 } from "./api";
+import { coverageNote } from "./Vergelijkbaar";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: VerdictState };
 
@@ -257,7 +258,20 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
                 <span className="muted">(koperprofiel en regels {rulesYear}, incl. kosten koper)</span>
               </li>
               <li>
-                Vergelijkbare verkopen: <span className="muted">nog niet beschikbaar</span>
+                Vergelijkbare woningen:{" "}
+                {advice.comparables ? (
+                  <>
+                    {advice.comparables.comparables_value !== null &&
+                      `waarde ${euro.format(advice.comparables.comparables_value)}`}
+                    {advice.comparables.maximum !== null && `, Maximumbod tot ${euro.format(advice.comparables.maximum)}`}{" "}
+                    <span className="muted">
+                      ({coverageNote(advice.comparables)}
+                      {advice.comparables.maximum === null && "; Maximumbod alleen begrensd door betaalruimte"})
+                    </span>
+                  </>
+                ) : (
+                  <span className="muted">niet meegenomen in dit oordeel</span>
+                )}
               </li>
             </ul>
           </details>

@@ -12,6 +12,7 @@ from tests.fakes import (
     FakeDocumentDownloader,
     FakeListingProvider,
     FakeLlmClient,
+    FakePhotoDownloader,
     FakeSourceClient,
 )
 from tests.pdf_fixtures import make_pdf
@@ -44,6 +45,11 @@ def llm_client():
 
 
 @pytest.fixture
+def photo_downloader():
+    return FakePhotoDownloader()
+
+
+@pytest.fixture
 def document_downloader():
     return FakeDocumentDownloader(make_pdf(["Brochure", "Ligging en indeling"]))
 
@@ -54,11 +60,14 @@ def clock():
 
 
 @pytest.fixture
-def client(settings, listing_provider, source_clients, llm_client, document_downloader, clock):
+def client(
+    settings, listing_provider, source_clients, llm_client, photo_downloader, document_downloader, clock
+):
     ports = Ports(
         listing_provider=listing_provider,
         source_clients=source_clients,
         llm_client=llm_client,
+        photo_downloader=photo_downloader,
         document_downloader=document_downloader,
     )
     with TestClient(create_app(settings, ports, clock)) as test_client:
