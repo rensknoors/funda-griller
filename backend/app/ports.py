@@ -2,7 +2,7 @@
 downloaders. Everything that touches the network sits behind one."""
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Literal, Protocol
 
 
 class ListingError(Exception):
@@ -118,10 +118,20 @@ class Geocoder(Protocol):
         ...
 
 
+CommuteMode = Literal["car", "bike"]
+
+
 class TravelTimeRouter(Protocol):
-    def travel_minutes(self, origin: Coordinates, destinations: list[Coordinates], mode: str) -> list[float | None]:
-        """Minutes from `origin` to each destination by `mode` ("car" or "bike"), None where there
-        is no route. Raises SourceSkipped (e.g. no API key) or SourceFailed."""
+    def check_available(self) -> None:
+        """Raises SourceSkipped when the router cannot be used (e.g. no API key). Called before any
+        address is geocoded, so a skipped commute Source sends no address anywhere."""
+        ...
+
+    def travel_minutes(
+        self, origin: Coordinates, destinations: list[Coordinates], mode: CommuteMode
+    ) -> list[float | None]:
+        """Minutes from `origin` to each destination by `mode`, None where there is no route.
+        Raises SourceSkipped (e.g. no API key) or SourceFailed."""
         ...
 
 

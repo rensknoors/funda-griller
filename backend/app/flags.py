@@ -243,7 +243,7 @@ def _over_max_minutes(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hi
         travel = facts.get(f"{rule['fact']}:{label}")
         if limit is None or travel is None or travel["value"] <= limit:
             continue
-        threshold = {"key": "max_minutes", "value": limit, "provenance": "buyer_profile", "destination": label}
+        threshold = {"key": "max_minutes", "value": limit, "provenance": "buyer_profile"}
         hits.append((label, [travel, threshold]))
     return hits
 

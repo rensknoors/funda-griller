@@ -1,5 +1,6 @@
 """Buyer Profile (Koperprofiel): the household's finances and preferences, stored locally and versioned."""
 
+import hashlib
 import re
 from datetime import date
 from typing import Annotated, Literal
@@ -69,6 +70,12 @@ class CommuteDestination(BaseModel):
     label: PreferenceText
     address: Text
     max_minutes: Annotated[int, Field(ge=1, le=300)] | None = None
+
+    @property
+    def address_ref(self) -> str:
+        """A fingerprint of the address, ignoring case and spacing. A travel time carries it, so the
+        Case can tell whether it was computed for this address without holding the address."""
+        return hashlib.sha256(" ".join(self.address.casefold().split()).encode()).hexdigest()[:16]
 
 
 class BuyerProfile(BaseModel):

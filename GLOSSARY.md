@@ -65,7 +65,7 @@ _Dutch UI_: **Biedadvies**; its parts are **Openingsbod**, **Maximumbod** and **
 _Avoid_: Bid strategy, offer
 
 **Walk-away Maximum**:
-The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at plus a configured premium. With thin or missing comparables it rests on the asking price plus a configured margin instead, and the Bid Advice says plainly that it is weakly grounded.
+The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at plus a configured premium. With thin or missing comparables it rests on the asking price plus a configured margin instead, and the Bid Advice says plainly that it is weakly grounded. With neither sufficient comparables nor an asking price it is the affordable maximum alone, also weakly grounded.
 _Dutch UI_: **Maximumbod**
 _Avoid_: Max price, ceiling
 

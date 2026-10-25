@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from app.ports import DownloadFailed, Listing, SourceFact
+from app.ports import CommuteMode, Coordinates, DownloadFailed, Listing, SourceFact
 
 
 class FakeListingProvider:
@@ -127,11 +127,11 @@ class FakeGeocoder:
     `error` is raised when set. Every lookup is recorded."""
 
     def __init__(self) -> None:
-        self.places: dict[str, tuple[float, float]] = {}
+        self.places: dict[str, Coordinates] = {}
         self.error: Exception | None = None
         self.calls: list[str] = []
 
-    def geocode(self, address: str) -> tuple[float, float] | None:
+    def geocode(self, address: str) -> Coordinates | None:
         self.calls.append(address)
         if self.error is not None:
             raise self.error
@@ -140,16 +140,23 @@ class FakeGeocoder:
 
 class FakeTravelTimeRouter:
     """`minutes` maps (mode, destination) to the travel minutes from any origin; an unlisted pair
-    is unroutable. `error` is raised when set. Every request is recorded."""
+    is unroutable. `error` is raised by a request when set, `unavailable` by the availability
+    check (e.g. SourceSkipped("no_api_key")). Every request is recorded."""
 
     def __init__(self) -> None:
-        self.minutes: dict[tuple[str, tuple[float, float]], float] = {}
+        self.minutes: dict[tuple[CommuteMode, Coordinates], float] = {}
         self.error: Exception | None = None
-        self.calls: list[tuple[tuple[float, float], list[tuple[float, float]], str]] = []
+        self.unavailable: Exception | None = None
+        self.calls: list[tuple[Coordinates, list[Coordinates], CommuteMode]] = []
+
+    def check_available(self) -> None:
+        if self.unavailable is not None:
+            raise self.unavailable
 
     def travel_minutes(
-        self, origin: tuple[float, float], destinations: list[tuple[float, float]], mode: str
+        self, origin: Coordinates, destinations: list[Coordinates], mode: CommuteMode
     ) -> list[float | None]:
+        self.check_available()
         self.calls.append((origin, list(destinations), mode))
         if self.error is not None:
             raise self.error

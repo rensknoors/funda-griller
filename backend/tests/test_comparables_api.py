@@ -214,6 +214,26 @@ def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_th
     }
 
 
+def test_with_neither_comparables_nor_an_asking_price_only_affordability_bounds_the_walk_away_maximum(
+    client, listing_provider, llm_client
+):
+    listing_provider.listings[LIVE_URL] = live_listing(asking_price=None)
+    client.post("/api/listings", json={"url": LIVE_URL})
+    client.put("/api/buyer-profile", json=typical_profile())
+    llm_client.verdict = bid()
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["walk_away_maximum"] == AFFORDABLE_MAXIMUM
+    assert advice["derivation"] == {
+        "basis": "affordability",
+        "margin": None,
+        "basis_maximum": None,
+        "binding": "affordability",
+        "weakly_grounded": True,
+    }
+
+
 def test_the_asking_price_margin_comes_from_configuration(
     client, listing_provider, source_clients, settings, llm_client
 ):

@@ -279,7 +279,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
                 </>
               ) : (
                 <li>
-                  <ModelBindingLimit advice={advice} />
+                  <LegacyBindingLimit advice={advice} />
                 </li>
               )}
             </ul>
@@ -318,34 +318,62 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
 
 const percent = (share: number) => `${(Math.round(share * 1000) / 10).toLocaleString("nl-NL")}%`;
 
+/** Per basis of the Walk-away Maximum: its name in a calculation line and mid-sentence, the figure
+ * it rests on, and the note shown next to a weakly grounded Maximumbod. */
+type BasisLabels = {
+  line: string;
+  noun: string;
+  value: (advice: BidAdvice) => number | null | undefined;
+  weak: string;
+};
+
+const BASIS_LABELS: Record<WalkAwayDerivation["basis"], BasisLabels> = {
+  comparables: {
+    line: "Vergelijkbare woningen",
+    noun: "vergelijkbare woningen",
+    value: (advice) => advice.comparables?.comparables_value,
+    weak: "",
+  },
+  asking_price: {
+    line: "Vraagprijs",
+    noun: "vraagprijs",
+    value: (advice) => advice.asking_price,
+    weak: "Zwak onderbouwd: te weinig vergelijkbare woningen, dus gebaseerd op de vraagprijs in plaats van op wat de woning waard is.",
+  },
+  affordability: {
+    line: "Betaalruimte",
+    noun: "betaalruimte",
+    value: (advice) => advice.affordable_maximum,
+    weak: "Zwak onderbouwd: geen vergelijkbare woningen en geen vraagprijs, dus alleen begrensd door je betaalruimte.",
+  },
+};
+
 /** Said next to the Maximumbod, not tucked into "Hoe berekend": without comparables it is a guess. */
 function weakGroundingNote(derivation: WalkAwayDerivation): string {
-  return derivation.basis === "asking_price"
-    ? "Zwak onderbouwd: te weinig vergelijkbare woningen, dus gebaseerd op de vraagprijs in plaats van op wat de woning waard is."
-    : "Zwak onderbouwd: geen vergelijkbare woningen en geen vraagprijs, dus alleen begrensd door je betaalruimte.";
+  return BASIS_LABELS[derivation.basis].weak;
 }
 
 /** "Vraagprijs € 595.000 + 5%: € 624.750": the basis and its margin. */
 function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | null {
   if (derivation.basis_maximum === null || derivation.margin === null) return null;
-  const value = derivation.basis === "comparables" ? advice.comparables?.comparables_value : advice.asking_price;
+  const basis = BASIS_LABELS[derivation.basis];
+  const value = basis.value(advice);
   if (value == null) return null;
-  const label = derivation.basis === "comparables" ? "Vergelijkbare woningen" : "Vraagprijs";
-  return `${label} ${euro.format(value)} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
+  return `${basis.line} ${euro.format(value)} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
 }
 
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */
 function bindingLine(advice: BidAdvice, derivation: WalkAwayDerivation): string {
   const maximum = euro.format(advice.walk_away_maximum);
   if (derivation.basis === "affordability") return `Maximumbod: de betaalruimte, ${maximum}.`;
-  const basis = derivation.basis === "comparables" ? "vergelijkbare woningen" : "vraagprijs";
+  const basis = BASIS_LABELS[derivation.basis].noun;
   return derivation.binding === "basis"
     ? `Maximumbod: de ${basis} plus marge, ${maximum}, onder de betaalruimte.`
     : `Maximumbod: de betaalruimte, ${maximum}, lager dan de ${basis} plus marge.`;
 }
 
 /** For older Verdicts whose model proposed the Maximumbod: names the lowest limit it stayed under. */
-function ModelBindingLimit({ advice }: { advice: BidAdvice }) {
+function LegacyBindingLimit({ advice }: { advice: BidAdvice }) {
   const comparables = advice.comparables?.maximum ?? null;
   const byComparables = comparables !== null && comparables < advice.affordable_maximum;
   const limit = byComparables ? comparables : advice.affordable_maximum;
