@@ -3,7 +3,7 @@ Profile commute destination, by car and by bike, against the destination's `max_
 
 import pytest
 
-from app.ports import SourceFailed
+from app.ports import SourceFailed, SourceSkipped
 from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
@@ -206,3 +206,14 @@ def test_commute_facts_turn_stale_after_their_time_to_live(client, listing_provi
     [fact] = commute_facts(client.get(CASE).json())
 
     assert (fact["stale"], fact["ttl_days"], fact["fetched_at"]) == (True, 180, CAPTURED_AT)
+
+
+def test_without_a_routing_key_the_source_is_skipped_before_any_address_leaves_the_machine(
+    client, listing_provider, geocoder, router
+):
+    router.unavailable = SourceSkipped("no_api_key")
+
+    case = capture(client, listing_provider, commuting(("Werk", OFFICE, 45)))
+
+    assert (commute_status(case)["status"], commute_status(case)["reason"]) == ("skipped", "no_api_key")
+    assert geocoder.calls == []
