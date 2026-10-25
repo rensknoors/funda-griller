@@ -277,7 +277,7 @@ export type Affordability = {
 
 export type Evidence = {
   key: string;
-  value: string | number | boolean | null;
+  value: string | number | boolean | string[] | null;
   provenance: string;
   fetched_at?: string | null;
   /** Findings only: the Document and page the evidence is on. */

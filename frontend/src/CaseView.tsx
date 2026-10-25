@@ -83,6 +83,7 @@ const EVIDENCE_LABELS: Record<string, string> = {
   must_have: "Must-have",
   ...OBSERVATION_LABELS,
   deal_breaker: "Deal-breaker",
+  named_energy_labels: "Genoemde energielabels",
 };
 
 const PROVENANCE_LABELS: Record<string, string> = {
@@ -752,6 +753,7 @@ function evidenceValue(item: Evidence): string {
   if (item.provenance === "observation") return observationValue(item.key, item.value);
   if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
   if (item.value === null) return "–";
+  if (Array.isArray(item.value)) return item.value.join(", ");
   if (typeof item.value === "number") return formatNumber(item.key, item.value);
   return String(item.value);
 }
