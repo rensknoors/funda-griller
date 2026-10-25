@@ -96,6 +96,14 @@ def _ratio_above(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
     return [(None, [fact, of, ratio_fact, threshold])]
 
 
+def _equals(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
+    """The fact's value is one of the rule's `values` (e.g. an Observation's `poor` or `true`)."""
+    fact = _first_fact(facts, rule["fact"])
+    if fact is None or fact["value"] not in rule["values"]:
+        return []
+    return [(None, [fact])]
+
+
 def matching_feature(preference: str, rule_set: RuleSet) -> dict | None:
     """The feature a free-text preference names, by alias, or None when none matches."""
     text = preference.casefold()
@@ -148,6 +156,7 @@ _CONDITIONS: dict[str, Condition] = {
     "below": _below,
     "above": _above,
     "ratio_above": _ratio_above,
+    "equals": _equals,
     "must_have_missing": _must_have_missing,
     "deal_breaker_mentioned": _deal_breaker_mentioned,
 }

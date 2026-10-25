@@ -4,14 +4,15 @@
 #
 # Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
 # facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
-# affordability) and `renovation_tolerance` (Buyer Profile). A list of
+# affordability), `renovation_tolerance` (Buyer Profile) and Observations from the Listing photos
+# as `observation.<key>` (estimated by the vision model; keys in app/observations.py). A list of
 # keys means "first one present", so an official register value wins over the Listing's claim.
 # A rule whose facts are absent raises nothing.
 #
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker containing one of these
 # words is hit when the rule raises a Flag.
-version = 2
+version = 3
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -99,6 +100,66 @@ kind = "above"
 fact = "noise.lden_all_sources_db"
 threshold = 60
 deal_breaker_aliases = ["geluid", "lawaai", "drukke weg"]
+
+# Observations: estimated by the vision model from the Listing photos, so each Flag below rests on
+# an estimate and cites the photos. `equals` raises when the Observation's value is in `values`.
+[[rules]]
+id = "damp_or_mould_visible"
+version = 1
+class = "risk"
+title = "Vocht of schimmel zichtbaar op de foto's (geschat)"
+kind = "equals"
+fact = "observation.damp_or_mould"
+values = [true]
+deal_breaker_aliases = ["vocht", "schimmel"]
+
+[[rules]]
+id = "roof_poor"
+version = 1
+class = "risk"
+title = "Dak lijkt in slechte staat (geschat)"
+kind = "equals"
+fact = "observation.roof_condition"
+values = ["poor"]
+deal_breaker_aliases = ["dak"]
+
+[[rules]]
+id = "facade_poor"
+version = 1
+class = "risk"
+title = "Gevel lijkt in slechte staat (geschat)"
+kind = "equals"
+fact = "observation.facade_condition"
+values = ["poor"]
+deal_breaker_aliases = ["gevel"]
+
+[[rules]]
+id = "kitchen_dated"
+version = 1
+class = "con"
+title = "Keuken lijkt meer dan 20 jaar oud (geschat)"
+kind = "above"
+fact = "observation.kitchen_age_years"
+threshold = 20
+
+[[rules]]
+id = "bathroom_dated"
+version = 1
+class = "con"
+title = "Badkamer lijkt meer dan 20 jaar oud (geschat)"
+kind = "above"
+fact = "observation.bathroom_age_years"
+threshold = 20
+
+[[rules]]
+id = "full_renovation_needed"
+version = 1
+class = "con"
+title = "Woning lijkt een volledige renovatie nodig te hebben (geschat)"
+kind = "equals"
+fact = "observation.renovation_needed"
+values = ["full"]
+deal_breaker_aliases = ["opknapper", "renovatie"]
 
 # One Flag per Buyer Profile must-have that names a feature below and that the Listing does not
 # mention. Must-haves naming no feature are not checked.
