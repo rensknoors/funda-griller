@@ -52,6 +52,7 @@ def test_typical_household_affordability(client, listing_provider):
     affordability = case["affordability"]
     assert affordability.pop("provenance") == "computed"
     assert affordability.pop("computed_on")
+    assert affordability.pop("computed_at") == "2026-10-24T12:00:00+00:00"
     assert affordability == {
         "max_mortgage": 496_660,
         "energy_label_bonus": 10_000,

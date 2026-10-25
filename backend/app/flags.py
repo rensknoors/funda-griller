@@ -283,12 +283,24 @@ def hard_no(rule_set: RuleSet, deal_breakers: list[str], flags: list[dict]) -> d
     return None
 
 
-def evaluate(rule_set: RuleSet, facts: dict[str, dict]) -> list[dict]:
-    """Flags raised by every rule whose condition holds, in rule-file order."""
+# Provenance classes of derived evidence (not fetched or extracted): stamped with the time the Case
+# derived them (CODING_STANDARDS, Evidence).
+DERIVED = frozenset({"computed", "buyer_profile", "rule"})
+
+
+def evaluate(rule_set: RuleSet, facts: dict[str, dict], computed_at: str) -> list[dict]:
+    """Flags raised by every rule whose condition holds, in rule-file order. Derived evidence
+    carries `computed_at`."""
     flags = []
     for rule in rule_set.rules:
-        for subject, evidence in _CONDITIONS[rule["kind"]](rule, facts, rule_set):
+        for subject, found in _CONDITIONS[rule["kind"]](rule, facts, rule_set):
             cited = [facts[key] for key in rule.get("cite", ()) if key in facts]
+            evidence = [
+                {**item, "computed_at": computed_at}
+                if item["provenance"] in DERIVED and "computed_at" not in item
+                else item
+                for item in found + cited
+            ]
             flags.append(
                 {
                     "id": f"{rule['id']}:{subject}" if subject else rule["id"],
@@ -296,7 +308,7 @@ def evaluate(rule_set: RuleSet, facts: dict[str, dict]) -> list[dict]:
                     "rule_version": rule["version"],
                     "class": rule["class"],
                     "title": f"{rule['title']}: {subject}" if subject else rule["title"],
-                    "evidence": evidence + cited,
+                    "evidence": evidence,
                 }
             )
     return flags
