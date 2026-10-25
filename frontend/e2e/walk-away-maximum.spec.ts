@@ -34,7 +34,8 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
   await page.getByRole("button", { name: "Oordeel opvragen" }).click();
   const advies = page.getByRole("region", { name: "Biedadvies" });
   await advies.getByText("Hoe berekend").click();
-  await expect(advies.getByText(/waarde €\s638\.400, Maximumbod tot €\s702\.240/)).toBeVisible();
+  await expect(advies.getByText(/Vergelijkbare woningen €\s638\.400 \+ 10%: €\s702\.240/)).toBeVisible();
+  await expect(advies.getByText(/Zwak onderbouwd/)).toBeHidden();
 
   await page.getByRole("button", { name: "Terug naar dossier" }).click();
   await page.getByRole("button", { name: "Terug naar woningen" }).click();
