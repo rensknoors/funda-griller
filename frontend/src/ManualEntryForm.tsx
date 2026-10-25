@@ -57,13 +57,13 @@ export function ManualEntryForm(props: {
       </p>
       <div className="manual-grid">
         <Vak number={next()} label="Funda-link" error={errors.url}>
-          {({ id, describedBy, invalid }) => (
-            <input id={id} name="url" type="url" required defaultValue={props.url} aria-describedby={describedBy} aria-invalid={invalid} />
+          {(input) => (
+            <input {...input} name="url" type="url" required defaultValue={props.url} />
           )}
         </Vak>
         <Vak number={next()} label="Status" error={errors.raw_status}>
-          {({ id, describedBy, invalid }) => (
-            <select id={id} name="raw_status" required defaultValue="Beschikbaar" aria-describedby={describedBy} aria-invalid={invalid}>
+          {(input) => (
+            <select {...input} name="raw_status" required defaultValue="Beschikbaar">
               {STATUSES.map((status) => (
                 <option key={status}>{status}</option>
               ))}
@@ -71,21 +71,21 @@ export function ManualEntryForm(props: {
           )}
         </Vak>
         <Vak number={next()} label="Adres" error={errors.address}>
-          {({ id, describedBy, invalid }) => <input id={id} name="address" aria-describedby={describedBy} aria-invalid={invalid} />}
+          {(input) => <input {...input} name="address" />}
         </Vak>
         <Vak number={next()} label="Plaats" error={errors.city}>
-          {({ id, describedBy, invalid }) => <input id={id} name="city" aria-describedby={describedBy} aria-invalid={invalid} />}
+          {(input) => <input {...input} name="city" />}
         </Vak>
         {NUMBER_FIELDS.map(([name, label]) => (
           <Vak key={name} number={next()} label={label} error={errors[name]}>
-            {({ id, describedBy, invalid }) => (
-              <input id={id} name={name} inputMode="numeric" aria-describedby={describedBy} aria-invalid={invalid} />
+            {(input) => (
+              <input {...input} name={name} inputMode="numeric" />
             )}
           </Vak>
         ))}
         <Vak number={next()} label="Energielabel" error={errors.energy_label}>
-          {({ id, describedBy, invalid }) => (
-            <select id={id} name="energy_label" defaultValue="" aria-describedby={describedBy} aria-invalid={invalid}>
+          {(input) => (
+            <select {...input} name="energy_label" defaultValue="">
               <option value="">Onbekend</option>
               {ENERGY_LABELS.map((label) => (
                 <option key={label}>{label}</option>
@@ -94,20 +94,20 @@ export function ManualEntryForm(props: {
           )}
         </Vak>
         <Vak number={next()} label="Verwarming" error={errors.heating}>
-          {({ id, describedBy, invalid }) => <input id={id} name="heating" aria-describedby={describedBy} aria-invalid={invalid} />}
+          {(input) => <input {...input} name="heating" />}
         </Vak>
         <Vak number={next()} label="Eigendomssituatie" error={errors.ownership_situation}>
-          {({ id, describedBy, invalid }) => (
-            <input id={id} name="ownership_situation" placeholder="Volle eigendom" aria-describedby={describedBy} aria-invalid={invalid} />
+          {(input) => (
+            <input {...input} name="ownership_situation" placeholder="Volle eigendom" />
           )}
         </Vak>
       </div>
       <Vak number={next()} label="Omschrijving" error={errors.description}>
-        {({ id, describedBy, invalid }) => <textarea id={id} name="description" rows={4} aria-describedby={describedBy} aria-invalid={invalid} />}
+        {(input) => <textarea {...input} name="description" rows={4} />}
       </Vak>
       <Vak number={next()} label="Foto's" error={errors.photos}>
-        {({ id, describedBy, invalid }) => (
-          <input id={id} name="photos" type="file" accept="image/*" multiple aria-describedby={describedBy} aria-invalid={invalid} />
+        {(input) => (
+          <input {...input} name="photos" type="file" accept="image/*" multiple />
         )}
       </Vak>
       <footer>
