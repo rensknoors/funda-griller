@@ -36,7 +36,7 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
     assert built_from | {"documents": None} == {
         "snapshot_id": snapshot["id"],
         "profile_version": 1,
-        "flag_rules_version": 4,
+        "flag_rules_version": 5,
         "observation_run": 1,
         "documents": None,
     }

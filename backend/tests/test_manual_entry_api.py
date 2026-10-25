@@ -119,7 +119,7 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
     assert case["built_from"] == {
         "snapshot_id": snapshot["id"],
         "profile_version": 1,
-        "flag_rules_version": 4,
+        "flag_rules_version": 5,
         "observation_run": None,
         "documents": [],
     }
