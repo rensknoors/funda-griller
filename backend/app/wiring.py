@@ -9,10 +9,11 @@ from app import documents, store
 from app.assembly import assemble_case
 from app.buyer_profile import BuyerProfile
 from app.case import VersionedProfile
+from app.commute import CommuteSource
 from app.comparison import summarise
 from app.observations import observe
 from app.photos import keep_photos, photo_set
-from app.ports import ListingProvider, Ports
+from app.ports import ListingProvider, Ports, SourceClient
 from app.settings import Settings
 from app.source_runner import run_sources
 
@@ -53,6 +54,18 @@ class Wiring:
             raise NotFound()
         return document
 
+    @property
+    def source_clients(self) -> dict[str, SourceClient]:
+        """The configured Source clients, plus the commute Source when a geocoder and a router are
+        configured. The commute Source reads the latest Buyer Profile's destinations."""
+        ports = self.ports
+        if ports.geocoder is None or ports.router is None:
+            return dict(ports.source_clients)
+        latest = store.latest_buyer_profile(self.settings.database_path)
+        destinations = BuyerProfile.model_validate(latest["profile"]).commute_destinations if latest else []
+        commute = CommuteSource(self.settings.database_path, ports.geocoder, ports.router, destinations)
+        return {**ports.source_clients, "commute": commute}
+
     def capture(self, funda_id: str, url: str, provider: ListingProvider | None = None, entry: str = "fetched") -> dict:
         settings, ports = self.settings, self.ports
         listing = replace((provider or ports.listing_provider).fetch(url), funda_id=funda_id, url=url)
@@ -67,7 +80,7 @@ class Wiring:
             existing["snapshots"][0].get("photos", []) if existing else [],
         )
         store.add_snapshot(settings.database_path, listing, fetched_at, status, entry, photos)
-        automatic = {n: c for n, c in ports.source_clients.items() if n not in ON_REQUEST_SOURCES}
+        automatic = {n: c for n, c in self.source_clients.items() if n not in ON_REQUEST_SOURCES}
         run_sources(settings.database_path, automatic, listing, fetched_at)
         self.observe(funda_id, photos, fetched_at)
         self._attach_brochure(funda_id, listing.brochure_url, fetched_at)
@@ -122,7 +135,7 @@ class Wiring:
             snapshot,
             VersionedProfile(latest["version"], BuyerProfile.model_validate(latest["profile"])) if latest else None,
             self.clock(),
-            list(self.ports.source_clients),
+            list(self.source_clients),
             store.source_runs(settings.database_path, funda_id),
             store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
             store.documents(settings.database_path, funda_id),

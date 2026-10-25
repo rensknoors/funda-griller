@@ -9,6 +9,8 @@ from app.settings import Settings
 from app.source_clients import (
     EpOnlineEnergielabelSource,
     KlimaateffectatlasFloodSoilSource,
+    OpenRouteServiceRouter,
+    PdokGeocoder,
     PyfundaComparablesSource,
     PyfundaWozSource,
     RivmNoiseSource,
@@ -31,4 +33,6 @@ def build_production_ports(settings: Settings) -> Ports:
         ),
         photo_downloader=HttpPhotoDownloader(),
         document_downloader=HttpDocumentDownloader(),
+        geocoder=PdokGeocoder(),
+        router=OpenRouteServiceRouter(settings.openrouteservice_api_key),
     )
