@@ -51,38 +51,26 @@ def _threshold(rule: dict, facts: dict[str, dict]) -> dict | None:
     return {"key": threshold["name"], "value": value, "provenance": "buyer_profile"}
 
 
-def _label_worse_than(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
-    fact, threshold = _first_fact(facts, rule["fact"]), _threshold(rule, facts)
-    if fact is None or threshold is None:
-        return []
-    rank, limit = _label_rank(fact["value"]), _label_rank(threshold["value"])
-    if rank is None or limit is None or rank <= limit:
-        return []
-    return [(None, [fact, threshold])]
+def _compared(holds: Callable[[object, object], bool], rank: Callable[[object], object] | None = None) -> Condition:
+    """A condition comparing the rule's fact with its threshold, optionally after ranking both
+    (energielabels rank A++++ best, G worst). Unrankable values raise nothing."""
+
+    def condition(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
+        fact, threshold = _first_fact(facts, rule["fact"]), _threshold(rule, facts)
+        if fact is None or threshold is None:
+            return []
+        value, limit = (rank(fact["value"]), rank(threshold["value"])) if rank else (fact["value"], threshold["value"])
+        if value is None or limit is None or not holds(value, limit):
+            return []
+        return [(None, [fact, threshold])]
+
+    return condition
 
 
-def _label_at_least(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
-    fact, threshold = _first_fact(facts, rule["fact"]), _threshold(rule, facts)
-    if fact is None or threshold is None:
-        return []
-    rank, limit = _label_rank(fact["value"]), _label_rank(threshold["value"])
-    if rank is None or limit is None or rank > limit:
-        return []
-    return [(None, [fact, threshold])]
-
-
-def _below(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
-    fact, threshold = _first_fact(facts, rule["fact"]), _threshold(rule, facts)
-    if fact is None or threshold is None or not fact["value"] < threshold["value"]:
-        return []
-    return [(None, [fact, threshold])]
-
-
-def _above(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
-    fact, threshold = _first_fact(facts, rule["fact"]), _threshold(rule, facts)
-    if fact is None or threshold is None or not fact["value"] > threshold["value"]:
-        return []
-    return [(None, [fact, threshold])]
+_label_worse_than = _compared(lambda rank, limit: rank > limit, _label_rank)
+_label_at_least = _compared(lambda rank, limit: rank <= limit, _label_rank)
+_below = _compared(lambda value, limit: value < limit)
+_above = _compared(lambda value, limit: value > limit)
 
 
 def _ratio_above(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
