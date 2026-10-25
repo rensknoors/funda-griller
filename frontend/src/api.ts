@@ -404,6 +404,19 @@ export async function rerunObservations(fundaId: string): Promise<Case> {
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
 export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
 
+/**
+ * The Walk-away Maximum is the lower of the betaalruimte and its basis plus a margin. The basis is
+ * the comparables value when they are sufficient, else the asking price; with neither, the
+ * betaalruimte alone. Anything but comparables is weakly grounded.
+ */
+export type WalkAwayDerivation = {
+  basis: "comparables" | "asking_price" | "affordability";
+  margin: number | null;
+  basis_maximum: number | null;
+  binding: "basis" | "affordability";
+  weakly_grounded: boolean;
+};
+
 export type BidAdvice = {
   opening_bid: number;
   walk_away_maximum: number;
@@ -416,6 +429,8 @@ export type BidAdvice = {
     comparables_value: number | null;
     maximum: number | null;
   };
+  /** How the Walk-away Maximum was derived; absent on Verdicts whose model proposed it. */
+  derivation?: WalkAwayDerivation;
   asking_price: number | null;
   monthly_cost_at_asking_price: number | null;
   monthly_cost_at_walk_away_maximum: number | null;
