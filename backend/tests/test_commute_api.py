@@ -138,6 +138,19 @@ def test_a_deal_breaker_naming_the_commute_is_hit_by_it(client, listing_provider
     }
 
 
+def test_a_deal_breaker_that_only_mentions_commuting_is_not_hit(client, listing_provider, router):
+    router.minutes = {("car", OFFICE_AT): 52.0}
+
+    case = capture(
+        client,
+        listing_provider,
+        commuting(("Werk", OFFICE, 45), deal_breakers=["Pendelen met de trein"]),
+    )
+
+    assert [flag["id"] for flag in commute_flags(case)] == ["commute_too_long:Werk"]
+    assert case["hard_no"] is None
+
+
 def test_no_coordinates_skips_the_commute_source(client, listing_provider, router):
     case = capture(
         client, listing_provider, commuting(("Werk", OFFICE, 45)), latitude=None, longitude=None

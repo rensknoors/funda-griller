@@ -15,7 +15,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 8
+version = 9
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -120,12 +120,12 @@ deal_breaker_aliases = ["geluid", "lawaai", "drukke weg"]
 # is not included. Destinations without a maximum raise nothing.
 [[rules]]
 id = "commute_too_long"
-version = 1
+version = 2
 class = "con"
 title = "Reistijd boven je maximum"
 kind = "over_max_minutes"
 fact = "commute.travel_minutes"
-deal_breaker_aliases = ["te ver", "reistijd", "woon-werk", "woon-werkverkeer", "pendelen", "forenzen"]
+deal_breaker_aliases = ["te ver", "reistijd"]
 
 # Findings: what the seller states in a Document (Vragenlijst, Lijst van zaken, brochure). The
 # Flag cites the Finding with its Document and page.
