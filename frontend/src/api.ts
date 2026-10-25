@@ -192,7 +192,7 @@ export type DocumentStatus = "pending" | "analysed" | "unreadable" | "not_analys
 export type CaseDocument = {
   id: number;
   name: string;
-  kind: "upload" | "brochure";
+  kind: "user" | "brochure";
   status: DocumentStatus;
   reason: string | null;
   page_count: number | null;
@@ -274,7 +274,7 @@ export type Affordability = {
   monthly_cost: number | null;
   headroom: number | null;
   /** Highest purchase price the household can pay, kosten koper included. */
-  max_price: number;
+  affordable_maximum: number;
   /** The energielabel the borrowing capacity was computed with (register over Listing). */
   energy_label: string | null;
   provenance: "computed";

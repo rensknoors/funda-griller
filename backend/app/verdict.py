@@ -68,7 +68,7 @@ def bid_limits(case: dict, comparables_premium: float) -> dict:
     comparables = case["metrics"]["asking_vs_comparables"]
     value = comparables["comparables_value"]
     return {
-        "affordable_maximum": case["affordability"]["max_price"] if case["affordability"] else None,
+        "affordable_maximum": case["affordability"]["affordable_maximum"] if case["affordability"] else None,
         "comparables_maximum": (
             round(value * (1 + comparables_premium))
             if comparables["coverage"] == "sufficient" and value is not None
@@ -189,7 +189,7 @@ def _bid_advice(
     problems = []
     if opening > walk_away:
         problems.append("opening_bid_above_walk_away_maximum")
-    if walk_away > affordability["max_price"]:
+    if walk_away > affordability["affordable_maximum"]:
         problems.append("walk_away_maximum_above_affordability")
     elif limits["comparables_maximum"] is not None and walk_away > limits["comparables_maximum"]:
         problems.append("walk_away_maximum_above_comparables")
@@ -198,7 +198,7 @@ def _bid_advice(
         "opening_bid": opening,
         "walk_away_maximum": walk_away,
         "conditions": [condition.strip() for condition in conditions],
-        "affordable_maximum": affordability["max_price"],
+        "affordable_maximum": affordability["affordable_maximum"],
         "comparables": {
             "coverage": comparables["coverage"],
             "count": comparables["count"],

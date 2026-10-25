@@ -198,7 +198,7 @@ def test_the_shipped_set_is_well_formed(settings, llm_client):
 
 ERFPACHT_DOCUMENT = {
     "id": 1,
-    "kind": "upload",
+    "kind": "user",
     "name": "Vragenlijst.pdf",
     "sha256": "abc",
     "status": "analysed",

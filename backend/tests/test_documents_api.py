@@ -43,7 +43,7 @@ def test_an_uploaded_document_is_listed_and_its_findings_enter_the_case(client, 
     assert response.status_code == 201
     document = response.json()
     assert document["name"] == "Vragenlijst.pdf"
-    assert document["kind"] == "upload"
+    assert document["kind"] == "user"
     assert document["status"] == "analysed"
     assert document["page_count"] == 3
     [listed] = client.get("/api/listings/80907644/documents").json()

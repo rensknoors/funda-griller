@@ -9,7 +9,7 @@ from app import documents, store
 from app.wiring import NotFound, Wiring
 
 # The kind of a Document the user added themselves (the other kind is the funda brochure).
-USER_KIND = "upload"
+USER_KIND = "user"
 
 
 def routes(w: Wiring) -> APIRouter:

@@ -93,7 +93,7 @@ _source_clients["comparables"].facts = [
 def _rate(case: dict, _profile: dict) -> dict:
     """A plausible Verdict derived from the Case, so it always passes validation."""
     asking = next(f["value"] for f in case["facts"] if f["key"] == "asking_price")
-    affordable = case["affordability"]["max_price"]
+    affordable = case["affordability"]["affordable_maximum"]
     cited = [flag["id"] for flag in case["flags"]]
     if affordable < asking:
         return {
