@@ -5,10 +5,14 @@ call goes through `transport` so tests can replace it; the default uses the stan
 """
 
 import base64
+import io
 import json
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
+
+from pypdf import PdfReader, PdfWriter
+from pypdf.errors import PyPdfError
 
 from app.findings import TOPICS
 from app.ports import LlmError
@@ -159,8 +163,10 @@ For each Finding give:
 - `present`: true when the seller states it applies to the house, false when the seller states it
   does not (e.g. "Asbest aanwezig? Nee").
 - `statement`: one short sentence in Dutch saying what the seller states, close to their words.
-- `page`: the 1-based page number of the PDF file the statement is on (count the PDF's pages, not
-  the numbers printed on them).
+- `quote`: the words on the page the Finding rests on, copied exactly (a few words to one
+  sentence). It is checked against the page's text; a Finding whose quote is not there is dropped.
+- `page`: the number from the `[PAGE n]` label in front of the page the quote is on (not the
+  number printed on the page).
 
 Only report what the Document says. Never guess, and leave out marketing language.
 """
@@ -176,14 +182,31 @@ _FINDINGS_SCHEMA = {
                     "topic": {"type": "STRING", "enum": list(TOPICS)},
                     "present": {"type": "BOOLEAN"},
                     "statement": {"type": "STRING"},
+                    "quote": {"type": "STRING"},
                     "page": {"type": "INTEGER"},
                 },
-                "required": ["topic", "present", "statement", "page"],
+                "required": ["topic", "present", "statement", "quote", "page"],
             },
         }
     },
     "required": ["findings"],
 }
+
+
+def _pages(content: bytes) -> list[bytes]:
+    """Each page of the PDF as a PDF of its own."""
+    try:
+        reader = PdfReader(io.BytesIO(content))
+        pages = []
+        for page in reader.pages:
+            writer = PdfWriter()
+            writer.add_page(page)
+            out = io.BytesIO()
+            writer.write(out)
+            pages.append(out.getvalue())
+    except (PyPdfError, ValueError, KeyError, TypeError, OSError) as error:
+        raise LlmError("Document cannot be split into pages") from error
+    return pages
 
 
 def _urllib_transport(url: str, headers: dict, body: bytes) -> bytes:
@@ -245,7 +268,8 @@ class GeminiLlmClient:
         return [batch for batch in batches if batch]
 
     def extract_findings(self, document_path: str) -> list[dict]:
-        """The whole PDF goes to the vision model; the caller validates the Findings and pages."""
+        """The PDF goes to the vision model split into single pages, each after a `[PAGE n]` label,
+        so a Finding's page is the label it quotes from; the caller verifies quotes and pages."""
         try:
             content = Path(document_path).read_bytes()
         except OSError as error:
@@ -253,10 +277,14 @@ class GeminiLlmClient:
         if len(content) > self.inline_limit_bytes:
             # Larger Documents need the Files API, which is not built yet.
             raise LlmError("Document too large to send inline")
-        parts = [
-            {"inlineData": {"mimeType": "application/pdf", "data": base64.b64encode(content).decode()}},
-            {"text": "Extract the Findings from this Document, each with its PDF page number."},
-        ]
+        pages = _pages(content)
+        if sum(len(page) for page in pages) > self.inline_limit_bytes:
+            raise LlmError("Document too large to send inline")
+        parts: list[dict] = []
+        for number, page in enumerate(pages, start=1):
+            parts.append({"text": f"[PAGE {number}]"})
+            parts.append({"inlineData": {"mimeType": "application/pdf", "data": base64.b64encode(page).decode()}})
+        parts.append({"text": "Extract the Findings from this Document, each with its quote and page label."})
         text = self._generate(self.vision_model, FINDINGS_INSTRUCTION, parts, _FINDINGS_SCHEMA)
         try:
             findings = json.loads(text)["findings"]

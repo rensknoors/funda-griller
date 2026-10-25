@@ -18,18 +18,19 @@ from app.findings import validated
 from app.ports import DocumentDownloader, DownloadFailed, LlmClient, LlmError
 
 
-def page_count(content: bytes) -> tuple[int | None, str | None]:
-    """The PDF's page count, or None and why it cannot be read."""
+def page_texts(content: bytes) -> tuple[list[str] | None, str | None]:
+    """The PDF's text, one entry per page (empty for a page without a text layer), or None and
+    why it cannot be read."""
     if not content.lstrip()[:5] == b"%PDF-":
         return None, "not_a_pdf"
     try:
         reader = PdfReader(io.BytesIO(content))
         if reader.is_encrypted:
             return None, "encrypted"
-        pages = len(reader.pages)
+        texts = [page.extract_text() or "" for page in reader.pages]
     except (PyPdfError, ValueError, KeyError, TypeError, OSError):
         return None, "corrupt"
-    return (pages, None) if pages else (None, "corrupt")
+    return (texts, None) if texts else (None, "corrupt")
 
 
 def store_content(
@@ -69,12 +70,15 @@ def analyse(
 ) -> None:
     document = store.get_document(database_path, funda_id, document_id)
     path = store.document_file_path(media_dir, funda_id, document["stored_name"])
-    pages, reason = page_count(path.read_bytes()) if path else (None, "missing")
-    if pages is None:
+    texts, reason = page_texts(path.read_bytes()) if path else (None, "missing")
+    if texts is None:
         store.update_document(database_path, document_id, status="unreadable", reason=reason, page_count=None)
         return
+    pages = len(texts)
     cached = store.cached_extraction(database_path, document["sha256"], model)
-    if cached is not None:
+    # Findings extracted before quotes were checked against their page carry no `verified`; they
+    # are extracted again rather than reused.
+    if cached is not None and all("verified" in finding for finding in cached["findings"]):
         store.update_document(
             database_path,
             document_id,
@@ -95,7 +99,7 @@ def analyse(
     except LlmError:
         store.update_document(database_path, document_id, status="not_analysed", reason="llm_failed", page_count=pages)
         return
-    findings, rejected = validated(raw, pages)
+    findings, rejected = validated(raw, texts)
     store.update_document(
         database_path,
         document_id,
