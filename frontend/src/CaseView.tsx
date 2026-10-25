@@ -265,6 +265,14 @@ export function CaseView(props: {
               facts={sourceFacts.filter((f) => f.source === "commute")}
               sources={state.data.sources}
             >
+              {state.data.metrics.commute_coverage?.not_fetched.map((destination) => (
+                <li key={destination}>
+                  Reistijd naar {destination}: <strong>nog niet opgehaald</strong>{" "}
+                  <span className="muted">
+                    (nieuwe of gewijzigde pendelbestemming in je Koperprofiel; haal Reistijd opnieuw op)
+                  </span>
+                </li>
+              ))}
               <li className="muted">
                 Snelste van auto en fiets; openbaar vervoer niet meegerekend. Routes © openrouteservice.org
                 by HeiGIT, kaartgegevens © OpenStreetMap-bijdragers; adressen via PDOK Locatieserver.

@@ -133,22 +133,14 @@ function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
 
 function evidenceLabel(item: Evidence): string {
   const key = item.key;
-  if (key === "travel_minutes" && item.destination) return `Reistijd naar ${item.destination}`;
+  if (item.commute) return `Reistijd naar ${item.commute.destination}`;
   if (key.endsWith("_mentioned")) return `‘${key.slice(0, -"_mentioned".length)}’ genoemd in advertentie`;
   return EVIDENCE_LABELS[key] ?? key;
 }
 
 function evidenceValue(item: Evidence): string {
   if (item.provenance === "observation") return observationValue(item.key, item.value);
-  if (item.key === "travel_minutes" && typeof item.value === "number" && item.mode && item.minutes_by_mode) {
-    return commuteText({
-      destination: item.destination ?? "",
-      minutes: item.value,
-      mode: item.mode,
-      minutes_by_mode: item.minutes_by_mode,
-      public_transport: false,
-    });
-  }
+  if (item.commute) return commuteText(item.commute);
   if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
   if (item.value === null) return "–";
   if (Array.isArray(item.value)) return item.value.join(", ");

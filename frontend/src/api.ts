@@ -270,6 +270,9 @@ export type Metrics = {
     provenance: "computed";
   } | null;
   asking_vs_comparables: AskingVsComparables;
+  /** Koperprofiel commute destinations with no travel time for their current address (added, or
+   * address changed since the last fetch): not judged until the commute Source is fetched again. */
+  commute_coverage: { not_fetched: string[]; provenance: "computed" } | null;
 };
 
 /** Coverage says plainly whether comparables were fetched and whether there are enough to lean on. */
@@ -315,11 +318,8 @@ export type Evidence = {
   /** Observations only: estimated, with the photos they were read from. */
   estimated?: boolean;
   photos?: CasePhoto[];
-  /** Commute only: the destination, and for a travel time the mode that counts and all modes. */
-  destination?: string;
-  mode?: CommuteMode;
-  minutes_by_mode?: Partial<Record<CommuteMode, number>>;
-  public_transport?: boolean;
+  /** Commute travel time only: the destination and the modes behind `value`. */
+  commute?: CommuteTravel;
 };
 
 export type FlagClass = "pro" | "con" | "risk";
