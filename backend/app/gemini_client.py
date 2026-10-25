@@ -31,8 +31,11 @@ Answer with:
 - `cited_flags`: the `id` of every Flag from `case.flags` the reasoning relies on. Never invent ids.
 - `bid_advice` for must_buy and consider (optional for skip, null for hard_no): `opening_bid` and
   `walk_away_maximum` in whole euros, and `conditions` (e.g. financieringsvoorbehoud, bouwkundige
-  keuring, follow-ups on seller Documents). The walk-away maximum must not exceed
-  `case.affordability.max_price` and the opening bid must not exceed the walk-away maximum.
+  keuring, follow-ups on seller Documents). Derive the walk-away maximum from the comparables
+  (`case.metrics.asking_vs_comparables`) and affordability. It must not exceed
+  `case.bid_limits.affordable_maximum`, nor `case.bid_limits.comparables_maximum` when that is set
+  (it is null when comparables are thin or missing), and the opening bid must not exceed the
+  walk-away maximum.
 
 Write summary, reasoning and conditions in Dutch.
 """

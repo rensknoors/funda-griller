@@ -22,7 +22,7 @@ export const TIER_GLYPH: Record<TierKey, string> = {
   hard_no: "✕",
 };
 
-export type SortKey = "tier" | "price" | "woz" | "area" | "headroom" | "stale";
+export type SortKey = "tier" | "price" | "woz" | "comparables" | "area" | "headroom" | "stale";
 export type Sort = { key: SortKey; direction: "ascending" | "descending" };
 
 export type Filters = {
@@ -47,6 +47,7 @@ const SORT_VALUE: Record<SortKey, (listing: Listing) => number | null> = {
   tier: (l) => TIER_ORDER.indexOf(tierOf(l)),
   price: (l) => l.comparison.asking_price,
   woz: (l) => l.comparison.asking_vs_woz_percent,
+  comparables: (l) => l.comparison.asking_vs_comparables_percent,
   area: (l) => l.comparison.living_area,
   headroom: (l) => l.comparison.headroom,
   stale: (l) => l.comparison.stale_count,

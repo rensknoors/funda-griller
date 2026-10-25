@@ -7,6 +7,7 @@ from app.settings import Settings
 from app.source_clients import (
     EpOnlineEnergielabelSource,
     KlimaateffectatlasFloodSoilSource,
+    PyfundaComparablesSource,
     PyfundaWozSource,
     RivmNoiseSource,
 )
@@ -21,6 +22,7 @@ def build_production_ports(settings: Settings) -> Ports:
             "woz": PyfundaWozSource(funda),
             "flood_soil": KlimaateffectatlasFloodSoilSource(),
             "noise": RivmNoiseSource(),
+            "comparables": PyfundaComparablesSource(funda, settings.comparables_max_fetches),
         },
         llm_client=GeminiLlmClient(
             settings.gemini_api_key, settings.vision_model, settings.verdict_model
