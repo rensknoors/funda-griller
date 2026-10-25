@@ -13,7 +13,7 @@ import {
   refetchSource,
 } from "./api";
 import { Documenten, VerkoperInformatie } from "./Documenten";
-import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteTravel } from "./facts";
+import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
 import { euro, percentChange, signedEuro, signedPercent } from "./format";
 import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
@@ -58,7 +58,7 @@ const REASON_COPY: Record<string, string> = {
 function sourceFactLabel(fact: SourceFact): string {
   if (fact.key === "woz_value") return `WOZ-waarde ${fact.as_of?.slice(0, 4) ?? ""}`.trim();
   if (fact.key === "energy_label") return "Energielabel (register)";
-  if (isCommuteTravel(fact.value)) return `Reistijd naar ${fact.value.destination}`;
+  if (isCommuteFact(fact.value)) return `Reistijd naar ${fact.value.destination}`;
   if (ENVIRONMENT_FACTS[fact.key]) return ENVIRONMENT_FACTS[fact.key].label;
   return FACT_LABELS[fact.key] ?? fact.key;
 }

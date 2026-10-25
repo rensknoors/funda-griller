@@ -196,6 +196,33 @@ def test_an_address_the_geocoder_does_not_find_fails_the_source(client, listing_
     )
 
 
+def test_a_destination_not_found_or_not_routable_is_shown_as_unknown_beside_the_others(
+    client, listing_provider, router
+):
+    router.minutes = {("car", OFFICE_AT): 52.0}
+    lost = "Nergensweg 1, Nergens"
+
+    case = capture(
+        client,
+        listing_provider,
+        commuting(("Werk", OFFICE, 45), ("Sport", lost, 20), ("School", SCHOOL, 20)),
+    )
+
+    assert commute_status(case)["status"] == "succeeded"
+    assert {f["value"]["destination"]: f["value"] for f in commute_facts(case)} == {
+        "Werk": {
+            "destination": "Werk",
+            "minutes": 52,
+            "mode": "car",
+            "minutes_by_mode": {"car": 52},
+            "public_transport": False,
+        },
+        "Sport": {"destination": "Sport", "minutes": None, "unavailable": "destination_not_found"},
+        "School": {"destination": "School", "minutes": None, "unavailable": "no_route"},
+    }
+    assert [flag["id"] for flag in commute_flags(case)] == ["commute_too_long:Werk"]
+
+
 def test_commute_facts_turn_stale_after_their_time_to_live(client, listing_provider, router, clock):
     router.minutes = {("car", OFFICE_AT): 30.0}
     capture(client, listing_provider, commuting(("Werk", OFFICE, 45)))

@@ -141,7 +141,13 @@ function evidenceLabel(item: Evidence): string {
 function evidenceValue(item: Evidence): string {
   if (item.provenance === "observation") return observationValue(item.key, item.value);
   if (item.key === "travel_minutes" && typeof item.value === "number" && item.mode && item.minutes_by_mode) {
-    return commuteText(item.value, item.mode, item.minutes_by_mode);
+    return commuteText({
+      destination: item.destination ?? "",
+      minutes: item.value,
+      mode: item.mode,
+      minutes_by_mode: item.minutes_by_mode,
+      public_transport: false,
+    });
   }
   if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
   if (item.value === null) return "–";
