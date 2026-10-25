@@ -144,7 +144,29 @@ export type SourceFact = {
   stale: boolean;
 };
 
-export type CaseFact = ListingFact | SourceFact;
+/** A Listing photo kept by the app, numbered from 1; `url` is always the app's own. */
+export type CasePhoto = { number: number; url: string };
+
+/** Observation (Waarneming): estimated by the vision model from the cited photos. */
+export type ObservationFact = {
+  key: string;
+  value: string | number | boolean;
+  note: string | null;
+  photos: CasePhoto[];
+  provenance: "observation";
+  estimated: true;
+  extracted_at: string;
+  model: string | null;
+};
+
+export type ObservationStatus = {
+  status: "succeeded" | "failed" | "not_run" | "no_photos";
+  reason: string | null;
+  attempted_at: string | null;
+  model: string | null;
+};
+
+export type CaseFact = ListingFact | SourceFact | ObservationFact;
 
 export type SourceStatus = {
   source: string;
@@ -190,6 +212,9 @@ export type Evidence = {
   value: string | number | boolean | null;
   provenance: string;
   fetched_at?: string | null;
+  /** Observations only: estimated, with the photos they were read from. */
+  estimated?: boolean;
+  photos?: CasePhoto[];
 };
 
 export type FlagClass = "pro" | "con" | "risk";
@@ -207,9 +232,16 @@ export type HardNo = { tier: "hard_no"; deal_breaker: string; flag_id: string };
 
 export type Case = {
   funda_id: string;
-  built_from: { snapshot_id: number; profile_version: number | null; flag_rules_version: number };
+  built_from: {
+    snapshot_id: number;
+    profile_version: number | null;
+    flag_rules_version: number;
+    observation_run: number | null;
+  };
   facts: CaseFact[];
   sources: SourceStatus[];
+  photos: CasePhoto[];
+  observations: ObservationStatus;
   metrics: Metrics;
   affordability: Affordability | null;
   flags: Flag[];
@@ -229,6 +261,13 @@ export async function refetchSource(fundaId: string, source: string): Promise<Ca
     method: "POST",
   });
   if (!response.ok) throw new Error("source refetch unavailable");
+  return response.json();
+}
+
+/** Re-run the vision model over the latest snapshot's photos; returns the rebuilt Case. */
+export async function rerunObservations(fundaId: string): Promise<Case> {
+  const response = await fetch(`/api/listings/${fundaId}/observations`, { method: "POST" });
+  if (!response.ok) throw new Error("observations unavailable");
   return response.json();
 }
 

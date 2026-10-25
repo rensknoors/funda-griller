@@ -25,6 +25,8 @@ from app.ports import (
     Ports,
     ProviderBlocked,
 )
+from app.observations import observe
+from app.photos import keep_photos, photo_set
 from app.rules_loader import load_flag_rules, load_rules
 from app.production_ports import build_production_ports
 from app.settings import Settings
@@ -93,9 +95,30 @@ def create_app(
         listing = replace(provider.fetch(url), funda_id=funda_id, url=url)
         status = settings.listing_status_map.get(listing.raw_status.casefold(), "unknown")
         fetched_at = clock().isoformat()
-        store.add_snapshot(settings.database_path, listing, fetched_at, status, entry)
+        existing = store.get_listing(settings.database_path, funda_id)
+        photos = keep_photos(
+            settings.media_dir,
+            ports.photo_downloader,
+            funda_id,
+            listing.photo_urls,
+            existing["snapshots"][0].get("photos", []) if existing else [],
+        )
+        store.add_snapshot(settings.database_path, listing, fetched_at, status, entry, photos)
         run_sources(settings.database_path, ports.source_clients, listing, fetched_at)
+        observe_photos(funda_id, photos, fetched_at)
         return with_comparison(store.get_listing(settings.database_path, funda_id))
+
+    def observe_photos(funda_id: str, photos: list[dict], at: str, rerun: bool = False) -> str | None:
+        return observe(
+            settings.database_path,
+            settings.media_dir,
+            ports.llm_client,
+            settings.vision_model,
+            funda_id,
+            photos,
+            at,
+            rerun,
+        )
 
     def with_comparison(listing: dict) -> dict:
         """The Listing plus its comparison-view row: the latest Verdict's tier, or none until a
@@ -173,10 +196,26 @@ def create_app(
             return JSONResponse({"code": "not_found"}, status_code=404)
         return current_case(listing)
 
+    @app.post("/api/listings/{funda_id}/observations", response_model=None)
+    def rerun_observations(funda_id: str) -> dict | JSONResponse:
+        """Re-run the vision model over the latest snapshot's photos, e.g. after a model change."""
+        listing = store.get_listing(settings.database_path, funda_id)
+        if listing is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        photos = listing["snapshots"][0].get("photos", [])
+        if not photos:
+            return JSONResponse({"code": "no_photos"}, status_code=409)
+        if ports.llm_client is None:
+            return JSONResponse({"code": "llm_unavailable"}, status_code=503)
+        if observe_photos(funda_id, photos, clock().isoformat(), rerun=True) == "failed":
+            return JSONResponse({"code": "llm_unavailable"}, status_code=502)
+        return current_case(listing)
+
     def current_case(listing: dict) -> dict:
         funda_id = listing["funda_id"]
         latest = store.latest_buyer_profile(settings.database_path)
         now = clock()
+        identity = photo_set(listing["snapshots"][0].get("photos", []))
         return build_case(
             funda_id,
             listing["snapshots"][0],
@@ -188,6 +227,7 @@ def create_app(
             list(ports.source_clients),
             store.source_runs(settings.database_path, funda_id),
             settings.source_ttl_days,
+            store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
         )
 
     def verdict_state(funda_id: str, case: dict) -> dict:
