@@ -11,7 +11,7 @@ from app.case import SourceInputs, VersionedProfile, build_case
 from app.ports import LlmClient
 from app.rules_loader import load_flag_rules, load_rules
 from app.settings import Settings
-from app.verdict import judge
+from app.verdict import WalkAwayMargins, judge
 
 
 def assemble_case(
@@ -51,6 +51,6 @@ def make_verdict(
         reduce_profile(profile.version, profile.profile),
         llm_client,
         settings.verdict_model,
-        settings.walk_away_comparables_premium,
+        WalkAwayMargins(settings.walk_away_comparables_premium, settings.walk_away_asking_price_margin),
         lambda price: compute(profile.profile, price, energy_label, rules, now.date()).monthly_cost,
     )
