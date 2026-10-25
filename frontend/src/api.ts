@@ -145,9 +145,21 @@ export type Comparable = {
   url: string | null;
 };
 
+export type CommuteMode = "car" | "bike";
+
+/** Travel time to one Koperprofiel commute destination: the faster of car and bike counts; public
+ * transport is not included. */
+export type CommuteTravel = {
+  destination: string;
+  minutes: number;
+  mode: CommuteMode;
+  minutes_by_mode: Partial<Record<CommuteMode, number>>;
+  public_transport: false;
+};
+
 export type SourceFact = {
   key: string;
-  value: string | number | Comparable;
+  value: string | number | Comparable | CommuteTravel;
   as_of: string | null;
   provenance: "source";
   source: string;
@@ -294,6 +306,11 @@ export type Evidence = {
   /** Observations only: estimated, with the photos they were read from. */
   estimated?: boolean;
   photos?: CasePhoto[];
+  /** Commute only: the destination, and for a travel time the mode that counts and all modes. */
+  destination?: string;
+  mode?: CommuteMode;
+  minutes_by_mode?: Partial<Record<CommuteMode, number>>;
+  public_transport?: boolean;
 };
 
 export type FlagClass = "pro" | "con" | "risk";

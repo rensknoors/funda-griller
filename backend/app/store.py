@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.ports import Listing, PricePoint
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -68,6 +68,11 @@ CREATE TABLE IF NOT EXISTS listing_archive_events (
     funda_id TEXT NOT NULL REFERENCES listings(funda_id),
     archived INTEGER NOT NULL,
     at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS geocodes (
+    address TEXT PRIMARY KEY,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL
 );
 """
 
@@ -530,6 +535,35 @@ def cached_extraction(database_path: Path, sha256: str, model: str | None) -> di
     finally:
         connection.close()
     return _document(row) if row else None
+
+
+def _address_key(address: str) -> str:
+    return " ".join(address.casefold().split())
+
+
+def cached_geocode(database_path: Path, address: str) -> tuple[float, float] | None:
+    """A commute destination's (latitude, longitude) from an earlier lookup, by address ignoring
+    case and spacing. Kept locally; the address never leaves except to the geocoder."""
+    connection = connect(database_path)
+    try:
+        row = connection.execute(
+            "SELECT latitude, longitude FROM geocodes WHERE address = ?", (_address_key(address),)
+        ).fetchone()
+    finally:
+        connection.close()
+    return (row["latitude"], row["longitude"]) if row else None
+
+
+def cache_geocode(database_path: Path, address: str, place: tuple[float, float]) -> None:
+    connection = connect(database_path)
+    try:
+        connection.execute(
+            "INSERT OR REPLACE INTO geocodes (address, latitude, longitude) VALUES (?, ?, ?)",
+            (_address_key(address), *place),
+        )
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def listings_with_verdicts(database_path: Path) -> list[str]:

@@ -120,3 +120,37 @@ class FakeDocumentDownloader:
         if isinstance(result, Exception):
             raise result
         return result
+
+
+class FakeGeocoder:
+    """`places` maps an address to its (latitude, longitude); an unlisted address is not found.
+    `error` is raised when set. Every lookup is recorded."""
+
+    def __init__(self) -> None:
+        self.places: dict[str, tuple[float, float]] = {}
+        self.error: Exception | None = None
+        self.calls: list[str] = []
+
+    def geocode(self, address: str) -> tuple[float, float] | None:
+        self.calls.append(address)
+        if self.error is not None:
+            raise self.error
+        return self.places.get(address)
+
+
+class FakeTravelTimeRouter:
+    """`minutes` maps (mode, destination) to the travel minutes from any origin; an unlisted pair
+    is unroutable. `error` is raised when set. Every request is recorded."""
+
+    def __init__(self) -> None:
+        self.minutes: dict[tuple[str, tuple[float, float]], float] = {}
+        self.error: Exception | None = None
+        self.calls: list[tuple[tuple[float, float], list[tuple[float, float]], str]] = []
+
+    def travel_minutes(
+        self, origin: tuple[float, float], destinations: list[tuple[float, float]], mode: str
+    ) -> list[float | None]:
+        self.calls.append((origin, list(destinations), mode))
+        if self.error is not None:
+            raise self.error
+        return [self.minutes.get((mode, destination)) for destination in destinations]
