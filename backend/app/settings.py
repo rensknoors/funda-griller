@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     # RVO EP-Online API key for the energielabel register; without it that Source is skipped.
     ep_online_api_key: str | None = None
+    # OpenRouteService API key for commute travel times; without it the commute Source is skipped.
+    openrouteservice_api_key: str | None = None
     vision_model: str | None = None
     verdict_model: str | None = None
 
@@ -70,6 +72,7 @@ class Settings(BaseSettings):
             "flood_soil": 365,
             "noise": 365,
             "comparables": 14,
+            "commute": 180,
         }
     )
 
