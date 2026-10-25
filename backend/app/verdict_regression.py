@@ -7,9 +7,9 @@ part of `pytest`; run it by hand:
     uv run python -m app.verdict_regression run --yes
     uv run python -m app.verdict_regression add <funda_id> --expect consider --name <slug>
 
-Each entry is one JSON file in the set directory: the Listing snapshot, Source runs and Buyer
-Profile frozen at the moment it was added, plus `expected_tier` and `as_of` (the clock the Case is
-built against). See `config/verdict_regression/README.md`.
+Each entry is one JSON file in the set directory: the Listing snapshot, Source runs, photo
+Observation run, Documents and Buyer Profile frozen at the moment it was added, plus
+`expected_tier` and `as_of` (the clock the Case is built against). See `config/verdict_regression/README.md`.
 """
 
 import argparse
@@ -20,14 +20,15 @@ from pathlib import Path
 from typing import TextIO
 
 from app import store
-from app.affordability import compute
-from app.buyer_profile import BuyerProfile, reduce_profile
-from app.case import build_case
+from app.assembly import assemble_case, make_verdict
+from app.buyer_profile import BuyerProfile
+from app.case import VersionedProfile
 from app.gemini_client import VERDICT_PROMPT_VERSION, GeminiLlmClient
+from app.photos import photo_set
 from app.ports import LlmClient, LlmError
-from app.rules_loader import load_flag_rules, load_rules
+from app.rules_loader import load_flag_rules
 from app.settings import CONFIG_DIR, Settings
-from app.verdict import TIERS, InvalidVerdict, judge
+from app.verdict import TIERS, InvalidVerdict
 
 DEFAULT_SET = CONFIG_DIR / "verdict_regression"
 DEFAULT_RESULTS = Path("data/verdict-regression")
@@ -81,7 +82,7 @@ def _run(args: argparse.Namespace, settings: Settings, llm_client: LlmClient | N
     )
     results = []
     for name, data in entries:
-        actual, error, deterministic = _judge(name, data, settings, llm_client, flag_rules)
+        actual, error, deterministic = _judge(name, data, settings, llm_client)
         expected = data["expected_tier"]
         outcome = "ERROR" if error else "OK" if actual == expected else "DIFF"
         results.append(
@@ -116,35 +117,24 @@ def _run(args: argparse.Namespace, settings: Settings, llm_client: LlmClient | N
     return 0 if agreed == len(results) else 1
 
 
-def _judge(
-    name: str, data: dict, settings: Settings, llm_client: LlmClient, flag_rules
-) -> tuple[str | None, str | None, bool]:
+def _judge(name: str, data: dict, settings: Settings, llm_client: LlmClient) -> tuple[str | None, str | None, bool]:
     """(actual tier, error, deterministic) for one entry, built exactly as the app builds a Case."""
     now = datetime.fromisoformat(data["as_of"])
-    rules = load_rules(settings.affordability_rules_path, now.year)
-    profile = BuyerProfile.model_validate(data["buyer_profile"])
-    case = build_case(
+    profile = VersionedProfile(0, BuyerProfile.model_validate(data["buyer_profile"]))
+    observed = data.get("observation_run")
+    case = assemble_case(
+        settings,
         name,
         {**data["snapshot"], "id": name},
-        0,
         profile,
-        rules,
-        flag_rules,
         now,
         list(data["source_runs"]),
         {source: {"latest": run, "last_success": run} for source, run in data["source_runs"].items()},
-        settings.source_ttl_days,
-        settings.comparables_min_count,
+        {"latest": observed, "last_success": observed} if observed else None,
+        data.get("documents", []),
     )
     try:
-        verdict = judge(
-            case,
-            reduce_profile(0, profile),
-            llm_client,
-            settings.verdict_model,
-            settings.walk_away_comparables_premium,
-            lambda price: compute(profile, price, None, rules, now.date()).monthly_cost,
-        )
+        verdict = make_verdict(settings, case, profile, llm_client, now)
     except InvalidVerdict as error:
         return None, f"invalid_verdict: {error}", False
     except LlmError as error:
@@ -172,12 +162,22 @@ def _add(args: argparse.Namespace, settings: Settings, out: TextIO) -> int:
         return 1
     snapshot = {key: value for key, value in listing["snapshots"][0].items() if key != "id"}
     runs = store.source_runs(settings.database_path, args.funda_id)
+    identity = photo_set(snapshot.get("photos", []))
+    observed = store.observation_runs(settings.database_path, args.funda_id, identity) if identity else {}
+    # Where the files live is local to this machine; the Findings are what the Case reads.
+    private = {"stored_name", "funda_id", "source_url"}
+    documents = [
+        {key: value for key, value in document.items() if key not in private}
+        for document in store.documents(settings.database_path, args.funda_id)
+    ]
     entry = {
         "expected_tier": args.expect,
         "note": args.note,
         "as_of": datetime.now(UTC).isoformat(),
         "snapshot": snapshot,
         "source_runs": {source: run["last_success"] for source, run in runs.items() if run["last_success"]},
+        "observation_run": observed.get("last_success"),
+        "documents": documents,
         "buyer_profile": profile["profile"],
     }
     args.set.mkdir(parents=True, exist_ok=True)

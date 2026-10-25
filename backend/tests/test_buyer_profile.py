@@ -229,3 +229,10 @@ def test_profile_endpoints_make_no_llm_call(client, profile, llm_client):
     client.get("/api/buyer-profile/reduced")
 
     assert llm_client.rate_calls == []
+
+
+def test_reading_a_buyer_profile_before_one_is_saved_says_so_in_the_common_error_shape(client):
+    for path in ("/api/buyer-profile", "/api/buyer-profile/reduced"):
+        response = client.get(path)
+
+        assert (response.status_code, response.json()) == (404, {"code": "no_buyer_profile"})

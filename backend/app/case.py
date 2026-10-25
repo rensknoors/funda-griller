@@ -1,7 +1,7 @@
 """Case builder (Dossier): pure assembly of Listing facts and computed metrics. No I/O, no judgement."""
 
 from collections.abc import Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
 from app.affordability import Rules, compute
@@ -37,28 +37,43 @@ SOURCE_TRUST = {
 }
 
 
+@dataclass(frozen=True)
+class VersionedProfile:
+    version: int
+    profile: BuyerProfile
+
+
+@dataclass(frozen=True)
+class SourceInputs:
+    """`names` are the configured Sources; `runs` maps each fetched one to its latest and latest
+    succeeded run. Facts older than their Source's `ttl_days` are Stale; fewer comparables than
+    `comparables_min_count` are thin."""
+
+    names: list[str]
+    runs: dict[str, dict] = field(default_factory=dict)
+    ttl_days: dict[str, int] = field(default_factory=dict)
+    comparables_min_count: int = 3
+
+
 def build_case(
     funda_id: str,
     snapshot: dict,
-    profile_version: int | None,
-    profile: BuyerProfile | None,
+    versioned_profile: VersionedProfile | None,
     rules: Rules,
     flag_rules: RuleSet,
     now: datetime,
-    sources: list[str],
-    source_runs: dict[str, dict],
-    ttl_days: dict[str, int],
-    comparables_min_count: int = 3,
+    sources: SourceInputs,
     observation_runs: dict | None = None,
     documents: Sequence[dict] = (),
 ) -> dict:
-    """`sources` are the configured Source names; `source_runs` maps each to its latest and
-    latest succeeded run. Staleness is computed against `now`, never stored. `observation_runs`
-    holds the latest and latest succeeded vision run over the snapshot's photo set. `documents`
-    are the Listing's stored Documents; analysed ones contribute their Findings."""
+    """Staleness is computed against `now`, never stored. `observation_runs` holds the latest and
+    latest succeeded vision run over the snapshot's photo set. `documents` are the Listing's stored
+    Documents; analysed ones contribute their Findings."""
+    profile = versioned_profile.profile if versioned_profile else None
+    source_runs = sources.runs
     today = now.date()
     computed_at = now.isoformat()
-    source_facts = _source_facts(source_runs, ttl_days, now)
+    source_facts = _source_facts(source_runs, sources.ttl_days, now)
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
     register_label = _value(source_facts, "energielabel", "energy_label")
     # The register's label, when known, outranks the Listing's claim.
@@ -90,7 +105,9 @@ def build_case(
     observed = (observation_runs or {}).get("last_success")
     facts += _observation_facts(observed, photos)
     facts += finding_facts(documents)
-    vs_comparables = _asking_vs_comparables(snapshot, source_facts, comparables_fetched, comparables_min_count)
+    vs_comparables = _asking_vs_comparables(
+        snapshot, source_facts, comparables_fetched, sources.comparables_min_count
+    )
     flags = evaluate(
         flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, profile), computed_at
     )
@@ -98,13 +115,13 @@ def build_case(
         "funda_id": funda_id,
         "built_from": {
             "snapshot_id": snapshot["id"],
-            "profile_version": profile_version,
+            "profile_version": versioned_profile.version if versioned_profile else None,
             "flag_rules_version": flag_rules.version,
             "observation_run": observed["id"] if observed else None,
             "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
         },
         "facts": facts,
-        "sources": [_source_status(name, source_runs.get(name)) for name in sources],
+        "sources": [_source_status(name, source_runs.get(name)) for name in sources.names],
         "photos": photos,
         "observations": _observation_status(photos, observation_runs),
         "documents": document_summaries(documents),

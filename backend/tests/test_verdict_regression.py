@@ -8,6 +8,7 @@ import pytest
 from app.ports import LlmError, SourceFact
 from app.verdict_regression import main
 from tests.listing_fixtures import LIVE_URL, live_listing
+from tests.pdf_fixtures import make_pdf
 from tests.profile_fixtures import typical_profile
 
 SNAPSHOT = {
@@ -193,3 +194,84 @@ def test_the_shipped_set_is_well_formed(settings, llm_client):
     assert "ERROR" not in output
     total = int(output.split("Agreement: ")[1].split("/")[1].split()[0])
     assert total >= 3
+
+
+ERFPACHT_DOCUMENT = {
+    "id": 1,
+    "kind": "upload",
+    "name": "Vragenlijst.pdf",
+    "sha256": "abc",
+    "status": "analysed",
+    "reason": None,
+    "page_count": 1,
+    "findings": [
+        {
+            "topic": "erfpacht",
+            "present": True,
+            "statement": "Erfpacht, canon afgekocht.",
+            "quote": "erfpacht",
+            "page": 1,
+            "verified": True,
+        }
+    ],
+    "rejected_findings": 0,
+    "added_at": "2026-10-20T09:00:00+00:00",
+    "extracted_at": "2026-10-20T09:00:00+00:00",
+}
+
+
+def test_an_entrys_document_findings_count_like_in_the_app(settings, llm_client, regression_set):
+    profile = {**typical_profile(), "deal_breakers": ["Geen erfpacht"]}
+    regression_set("erfpacht", entry("hard_no", buyer_profile=profile, documents=[ERFPACHT_DOCUMENT]))
+
+    code, output = run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
+
+    assert code == 0, output
+    assert llm_client.rate_calls == []
+
+
+def test_an_entrys_observations_count_like_in_the_app(settings, llm_client, regression_set):
+    observed = {
+        "id": 1,
+        "attempted_at": "2026-10-20T09:00:00+00:00",
+        "outcome": "succeeded",
+        "reason": None,
+        "model": "vision",
+        "observations": [{"key": "damp_or_mould", "value": True, "photos": [1], "note": "Schimmel"}],
+    }
+    snapshot = {**SNAPSHOT, "photos": [{"number": 1, "url": "/api/listings/x/photos/a.jpg"}]}
+    regression_set("damp", entry("skip", snapshot=snapshot, observation_run=observed))
+    seen = []
+    llm_client.verdict = lambda case, _profile: seen.append(case) or answer("skip")
+
+    run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
+
+    [case] = seen
+    assert "damp_or_mould_visible" in {flag["rule_id"] for flag in case["flags"]}
+
+
+def test_adding_a_listing_freezes_its_observations_and_documents(
+    client, settings, listing_provider, llm_client, regression_set
+):
+    llm_client.observations = [{"key": "damp_or_mould", "value": True, "photos": [1]}]
+    listing_provider.listings[LIVE_URL] = live_listing(brochure_url=None)
+    client.post("/api/listings", json={"url": LIVE_URL})
+    client.put("/api/buyer-profile", json=typical_profile() | {"deal_breakers": ["Asbest"]})
+    llm_client.findings = [
+        {"topic": "asbestos", "present": True, "statement": "Asbest.", "quote": "asbest aanwezig", "page": 1}
+    ]
+    client.post(
+        "/api/listings/80907644/documents",
+        files={"file": ("Vragenlijst.pdf", make_pdf(["Er is asbest aanwezig."]), "application/pdf")},
+    )
+    directory = str(regression_set.directory)
+    run(settings, llm_client, "add", "80907644", "--expect", "hard_no", "--name", "holtum", "--set", directory)
+    llm_client.findings = []
+
+    code, output = run(settings, llm_client, "run", "--yes", "--set", directory)
+
+    assert code == 0, output
+    assert llm_client.rate_calls == []
+    frozen = json.loads((regression_set.directory / "holtum.json").read_text())
+    assert [o["key"] for o in frozen["observation_run"]["observations"]] == ["damp_or_mould"]
+    assert "stored_name" not in frozen["documents"][0]
