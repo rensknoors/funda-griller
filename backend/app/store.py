@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.ports import Listing, PricePoint
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -35,6 +35,16 @@ CREATE TABLE IF NOT EXISTS verdicts (
     funda_id TEXT NOT NULL REFERENCES listings(funda_id),
     created_at TEXT NOT NULL,
     data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS observation_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    funda_id TEXT NOT NULL REFERENCES listings(funda_id),
+    photo_set TEXT NOT NULL,
+    attempted_at TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    reason TEXT,
+    model TEXT,
+    observations TEXT
 );
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,10 +99,16 @@ def initialise(database_path: Path) -> None:
 
 
 def add_snapshot(
-    database_path: Path, listing: Listing, fetched_at: str, status: str, entry: str = "fetched"
+    database_path: Path,
+    listing: Listing,
+    fetched_at: str,
+    status: str,
+    entry: str = "fetched",
+    photos: list[dict] | None = None,
 ) -> None:
-    """`entry` records how the snapshot came in: fetched by the provider or entered manually."""
-    data = {**dataclasses.asdict(listing), "status": status, "entry": entry}
+    """`entry` records how the snapshot came in: fetched by the provider or entered manually.
+    `photos` are the snapshot's photos as kept on disk."""
+    data = {**dataclasses.asdict(listing), "status": status, "entry": entry, "photos": photos or []}
     connection = connect(database_path)
     try:
         connection.execute(
@@ -175,6 +191,65 @@ def source_runs(database_path: Path, funda_id: str) -> dict[str, dict]:
         entry["latest"] = run
         if run["outcome"] == "succeeded":
             entry["last_success"] = run
+    return runs
+
+
+def add_observation_run(
+    database_path: Path,
+    funda_id: str,
+    photo_set: str,
+    attempted_at: str,
+    outcome: str,
+    model: str | None,
+    reason: str | None = None,
+    observations: list[dict] | None = None,
+) -> None:
+    """Append one vision-model run over a photo set. A failed run never erases earlier Observations."""
+    connection = connect(database_path)
+    try:
+        connection.execute(
+            "INSERT INTO observation_runs "
+            "(funda_id, photo_set, attempted_at, outcome, reason, model, observations) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                funda_id,
+                photo_set,
+                attempted_at,
+                outcome,
+                reason,
+                model,
+                json.dumps(observations) if observations is not None else None,
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def observation_runs(database_path: Path, funda_id: str, photo_set: str) -> dict:
+    """For one photo set: its latest run, and its latest succeeded run (whose Observations count)."""
+    connection = connect(database_path)
+    try:
+        rows = connection.execute(
+            "SELECT id, attempted_at, outcome, reason, model, observations FROM observation_runs "
+            "WHERE funda_id = ? AND photo_set = ? ORDER BY id",
+            (funda_id, photo_set),
+        ).fetchall()
+    finally:
+        connection.close()
+    runs: dict = {"latest": None, "last_success": None}
+    for row in rows:
+        run = {
+            "id": row["id"],
+            "attempted_at": row["attempted_at"],
+            "outcome": row["outcome"],
+            "reason": row["reason"],
+            "model": row["model"],
+            "observations": json.loads(row["observations"]) if row["observations"] else [],
+        }
+        runs["latest"] = run
+        if run["outcome"] == "succeeded":
+            runs["last_success"] = run
     return runs
 
 

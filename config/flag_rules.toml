@@ -4,15 +4,17 @@
 #
 # Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
 # facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
-# affordability), `renovation_tolerance` (Buyer Profile) and Findings from Documents as
-# `finding.<topic>` (true when the seller states it applies; a disclosure wins over a denial). A
-# list of keys means "first one present", so an official register value wins over the Listing's
-# claim. A rule whose facts are absent raises nothing.
+# affordability), `renovation_tolerance` (Buyer Profile), Observations from the Listing photos
+# as `observation.<key>` (estimated by the vision model; keys in app/observations.py) and Findings
+# from Documents as `finding.<topic>` (true when the seller states it applies; a disclosure wins
+# over a denial; topics in app/findings.py). A list of keys means "first one present", so an
+# official register value wins over the Listing's claim. A rule whose facts are absent raises
+# nothing.
 #
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker containing one of these
 # words is hit when the rule raises a Flag.
-version = 3
+version = 4
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -108,7 +110,8 @@ id = "finding_asbestos"
 version = 1
 class = "risk"
 title = "Asbest aanwezig volgens de verkoper"
-kind = "is_true"
+kind = "equals"
+values = [true]
 fact = "finding.asbestos"
 deal_breaker_aliases = ["asbest"]
 
@@ -117,7 +120,8 @@ id = "finding_leak"
 version = 1
 class = "risk"
 title = "Lekkage gemeld door de verkoper"
-kind = "is_true"
+kind = "equals"
+values = [true]
 fact = "finding.leak"
 deal_breaker_aliases = ["lekkage"]
 
@@ -126,7 +130,8 @@ id = "finding_foundation"
 version = 1
 class = "risk"
 title = "Funderingsproblemen gemeld door de verkoper"
-kind = "is_true"
+kind = "equals"
+values = [true]
 fact = "finding.foundation"
 deal_breaker_aliases = ["fundering"]
 
@@ -135,7 +140,8 @@ id = "finding_solar_lease"
 version = 1
 class = "con"
 title = "Zonnepanelen geleased: contract gaat mogelijk over"
-kind = "is_true"
+kind = "equals"
+values = [true]
 fact = "finding.solar_lease"
 deal_breaker_aliases = ["lease"]
 
@@ -146,9 +152,70 @@ id = "finding_erfpacht"
 version = 1
 class = "risk"
 title = "Erfpacht volgens de verkoper"
-kind = "is_true"
+kind = "equals"
+values = [true]
 fact = "finding.erfpacht"
 deal_breaker_aliases = ["erfpacht"]
+
+# Observations: estimated by the vision model from the Listing photos, so each Flag below rests on
+# an estimate and cites the photos. `equals` raises when the Observation's value is in `values`.
+[[rules]]
+id = "damp_or_mould_visible"
+version = 1
+class = "risk"
+title = "Vocht of schimmel zichtbaar op de foto's (geschat)"
+kind = "equals"
+fact = "observation.damp_or_mould"
+values = [true]
+deal_breaker_aliases = ["vocht", "schimmel"]
+
+[[rules]]
+id = "roof_poor"
+version = 1
+class = "risk"
+title = "Dak lijkt in slechte staat (geschat)"
+kind = "equals"
+fact = "observation.roof_condition"
+values = ["poor"]
+deal_breaker_aliases = ["dak"]
+
+[[rules]]
+id = "facade_poor"
+version = 1
+class = "risk"
+title = "Gevel lijkt in slechte staat (geschat)"
+kind = "equals"
+fact = "observation.facade_condition"
+values = ["poor"]
+deal_breaker_aliases = ["gevel"]
+
+[[rules]]
+id = "kitchen_dated"
+version = 1
+class = "con"
+title = "Keuken lijkt meer dan 20 jaar oud (geschat)"
+kind = "above"
+fact = "observation.kitchen_age_years"
+threshold = 20
+
+[[rules]]
+id = "bathroom_dated"
+version = 1
+class = "con"
+title = "Badkamer lijkt meer dan 20 jaar oud (geschat)"
+kind = "above"
+fact = "observation.bathroom_age_years"
+threshold = 20
+
+[[rules]]
+id = "full_renovation_needed"
+version = 1
+class = "con"
+title = "Woning lijkt een volledige renovatie nodig te hebben (geschat)"
+kind = "equals"
+fact = "observation.renovation_needed"
+values = ["full"]
+deal_breaker_aliases = ["opknapper", "renovatie"]
 
 # One Flag per Buyer Profile must-have that names a feature below and that the Listing does not
 # mention. Must-haves naming no feature are not checked.

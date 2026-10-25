@@ -10,7 +10,7 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlencode
 
-from funda.exceptions import FundaRequestError, PriceHistoryError
+from funda.exceptions import FundaRequestError, ListingNotFound, PriceHistoryError
 
 from app.ports import Listing, SourceFact, SourceFailed, SourceSkipped
 
@@ -202,3 +202,45 @@ class PyfundaWozSource:
             SourceFact(name="woz_value", value=change.price, as_of=change.date)
             for change in sorted(points, key=lambda change: change.date or "")
         ]
+
+
+class PyfundaComparablesSource:
+    """Nearby comparable Listings from the provider's similar-listings ids. Ids only come back, so
+    each comparable is a follow-up fetch: recently sold first, then recently listed, and never more
+    than `max_fetches`. Runs only when the user asks; nothing searches or bulk-fetches funda."""
+
+    def __init__(self, client: Any, max_fetches: int) -> None:
+        self._client = client
+        self._max_fetches = max_fetches
+
+    def fetch(self, listing: Listing) -> list[SourceFact]:
+        try:
+            similar = self._client.similar_listings(listing.funda_id)
+        except (FundaRequestError, ListingNotFound, ValueError) as error:
+            raise SourceFailed("similar_listings_unavailable") from error
+        candidates = [(gid, True) for gid in similar.get("recently_sold") or ()] + [
+            (gid, False) for gid in similar.get("recently_listed") or ()
+        ]
+        facts = []
+        for global_id, recently_sold in candidates[: self._max_fetches]:
+            try:
+                found = self._client.listing(global_id)
+            except (FundaRequestError, ListingNotFound):
+                continue
+            facts.append(SourceFact(name="comparable", value=_comparable(found, global_id, recently_sold)))
+        return facts
+
+
+def _comparable(found: Any, global_id: object, recently_sold: bool) -> dict:
+    address = getattr(found, "address", None)
+    details = getattr(found, "property_details", None)
+    return {
+        "funda_id": str(global_id),
+        "address": getattr(address, "title", None),
+        "city": getattr(address, "city", None),
+        "asking_price": getattr(getattr(found, "price", None), "amount", None),
+        "living_area": getattr(getattr(found, "areas", None), "living", None),
+        "raw_status": getattr(details, "raw_status", None) or getattr(details, "status", None),
+        "recently_sold": recently_sold,
+        "url": getattr(getattr(found, "urls", None), "full", None),
+    }

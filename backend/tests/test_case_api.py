@@ -34,7 +34,11 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
     built_from = client.get("/api/listings/80907644/case").json()["built_from"]
 
     assert built_from | {"documents": None} == {
-        "snapshot_id": snapshot["id"], "profile_version": 1, "flag_rules_version": 3, "documents": None
+        "snapshot_id": snapshot["id"],
+        "profile_version": 1,
+        "flag_rules_version": 4,
+        "observation_run": 1,
+        "documents": None,
     }
 
 

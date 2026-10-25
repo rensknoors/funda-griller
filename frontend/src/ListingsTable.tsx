@@ -162,9 +162,12 @@ export function ListingsTable(props: {
             <th scope="col">Adres</th>
             {header("price", "Vraagprijs", "num")}
             {header("woz", "t.o.v. WOZ", "num", "Vraagprijs boven (▲) of onder (▼) de laatste WOZ-waarde")}
-            <th scope="col" className="num col-detail" title="Vraagprijs t.o.v. vergelijkbare verkopen">
-              t.o.v. vergelijkbaar
-            </th>
+            {header(
+              "comparables",
+              "t.o.v. vergelijkbaar",
+              "num col-detail",
+              "Vraagprijs per m² boven (▲) of onder (▼) de mediaan van vergelijkbare woningen",
+            )}
             {header("area", "m² woon / perceel", "num col-detail")}
             <th scope="col" className="col-detail">Label</th>
             {header("headroom", "Ruimte boven vraag", "num", "Betaalruimte boven (▲) of tekort onder (▼) de vraagprijs")}
@@ -326,7 +329,7 @@ function ListingRow(props: {
         )}
       </td>
       <td className="num">{signedPercent(row.asking_vs_woz_percent)}</td>
-      <td className="num col-detail" title="Nog niet beschikbaar">–</td>
+      <td className="num col-detail">{signedPercent(row.asking_vs_comparables_percent)}</td>
       <td className="num col-detail">
         {row.living_area ?? "–"} / {row.plot_area ?? "–"}
       </td>

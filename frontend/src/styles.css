@@ -251,3 +251,12 @@ button.primary { background: var(--form-blue); color: #fff; }
 label.button { display: inline-block; position: relative; font: inherit; border: 1px solid var(--form-blue); border-radius: 2px; background: var(--surface); color: var(--form-blue); padding: 6px 12px; cursor: pointer; }
 label.button.small { padding: 2px 8px; font-size: 12px; }
 label.button:focus-within { outline: 2px solid var(--form-blue); outline-offset: 2px; }
+
+/* Foto-waarnemingen (ticket 11): Observation stamp is dashed, per the provenance table. */
+.stamp-observation { border-style: dashed; }
+.photo-strip-row { align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.photo-strip { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; }
+button.photo-thumb { padding: 0; border-color: var(--rule); width: 64px; height: 48px; overflow: hidden; }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-dialog { top: 5%; max-width: min(960px, 92vw); }
+.photo-dialog img { display: block; max-width: 100%; max-height: 75vh; margin-bottom: 12px; }

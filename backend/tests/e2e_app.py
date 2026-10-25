@@ -1,5 +1,6 @@
 """App wired to fakes and a temp SQLite file, served to the Playwright smoke test."""
 
+import base64
 import tempfile
 from pathlib import Path
 
@@ -7,7 +8,13 @@ from app.main import create_app
 from app.ports import Ports, ProviderBlocked, SourceFact, SourceSkipped
 from app.settings import Settings
 from tests.conftest import SOURCES
-from tests.fakes import FakeDocumentDownloader, FakeListingProvider, FakeLlmClient, FakeSourceClient
+from tests.fakes import (
+    FakeDocumentDownloader,
+    FakeListingProvider,
+    FakeLlmClient,
+    FakePhotoDownloader,
+    FakeSourceClient,
+)
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.pdf_fixtures import make_pdf
 
@@ -20,6 +27,11 @@ _data_dir = Path(tempfile.mkdtemp(prefix="funda-griller-e2e-"))
 _listing_provider = FakeListingProvider()
 _listing_provider.listings[LIVE_URL] = live_listing()
 _listing_provider.listings[BLOCKED_URL] = ProviderBlocked(BLOCKED_URL)
+# Its own woning, so fetching comparables and an Oordeel here leaves the other specs' woning alone.
+COMPARABLES_URL = "https://www.funda.nl/detail/koop/holtum/huis-dorpsstraat-40/80907650/"
+_listing_provider.listings[COMPARABLES_URL] = live_listing(
+    funda_id="80907650", provider_id="17270380", url=COMPARABLES_URL, address="Dorpsstraat 40"
+)
 _markt = dict(
     funda_id="55500001",
     provider_id="55500001",
@@ -55,6 +67,27 @@ _source_clients["flood_soil"].facts = [
     SourceFact("pile_rot_risk_pct", 2.1),
 ]
 _source_clients["noise"].error = SourceSkipped("no_coordinates")
+# Fetched only when the user asks. Per m²: 4000, 4200, 4400 -> median 4200.
+_source_clients["comparables"].facts = [
+    SourceFact(
+        "comparable",
+        {
+            "funda_id": funda_id,
+            "address": address,
+            "city": "Holtum",
+            "asking_price": price,
+            "living_area": area,
+            "raw_status": "Verkocht",
+            "recently_sold": True,
+            "url": f"https://www.funda.nl/detail/koop/holtum/huis/{funda_id}/",
+        },
+    )
+    for funda_id, address, price, area in (
+        ("80900001", "Dorpsstraat 3", 500_000, 125),
+        ("80900002", "Kerkstraat 8", 630_000, 150),
+        ("80900003", "Molenweg 21", 550_000, 125),
+    )
+]
 
 
 def _rate(case: dict, _profile: dict) -> dict:
@@ -70,7 +103,8 @@ def _rate(case: dict, _profile: dict) -> dict:
             "cited_flags": cited,
             "bid_advice": None,
         }
-    walk_away = min(affordable, asking + 20_000)
+    limits = case["bid_limits"]
+    walk_away = min(affordable, limits["comparables_maximum"] or affordable, asking + 20_000)
     return {
         "tier": "consider",
         "summary": "Degelijke woning, de vraagprijs is aan de hoge kant.",
@@ -100,6 +134,18 @@ _llm_client = FakeLlmClient()
 _llm_client.verdict = _rate
 _llm_client.findings = _findings
 _document_downloader = FakeDocumentDownloader(make_pdf(["Brochure Buchterweg 15", "De gordijnen blijven achter."]))
+# Observations that raise no Flag, so the other specs' Signaal counts stay as they are.
+_llm_client.observations = [
+    {"key": "kitchen_age_years", "value": 12, "photos": [2], "note": "Lichte keuken met moderne fronten"},
+    {"key": "roof_condition", "value": "fair", "photos": [1], "note": "Dakpannen deels verkleurd"},
+]
+
+# A 1x1 PNG for every Listing photo, so the browser renders real images.
+_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+_photo_downloader = FakePhotoDownloader()
+_photo_downloader.photos = {url: _PNG for url in live_listing().photo_urls}
 
 app = create_app(
     Settings(
@@ -111,6 +157,7 @@ app = create_app(
         listing_provider=_listing_provider,
         source_clients=_source_clients,
         llm_client=_llm_client,
+        photo_downloader=_photo_downloader,
         document_downloader=_document_downloader,
     ),
 )
