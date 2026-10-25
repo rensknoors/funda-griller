@@ -239,3 +239,29 @@ def test_an_energielabel_deal_breaker_is_not_hit_by_a_better_label(client, listi
     case = case_for(client, listing_provider, profile, energy_label="B")
 
     assert case["hard_no"] is None
+
+
+@pytest.mark.parametrize("ownership", ["Erfpacht", "Eeuwigdurend recht van erfpacht", "Appartementsrecht"])
+def test_any_ownership_situation_other_than_volle_eigendom_is_a_risk(client, listing_provider, ownership):
+    case = case_for(client, listing_provider, typical_profile(), ownership_situation=ownership)
+
+    flag = flags_by_rule(case)["ownership_not_full"]
+    assert flag["class"] == "risk"
+    assert evidence(flag) == {"ownership_situation": ownership}
+
+
+@pytest.mark.parametrize("ownership", ["Volle eigendom", "volle eigendom ", None])
+def test_volle_eigendom_or_an_unknown_ownership_situation_raises_nothing(client, listing_provider, ownership):
+    case = case_for(client, listing_provider, typical_profile(), ownership_situation=ownership)
+
+    assert "ownership_not_full" not in flags_by_rule(case)
+
+
+def test_an_erfpacht_deal_breaker_is_hit_by_the_kadaster_ownership_situation(client, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Geen erfpacht"]}
+
+    case = case_for(
+        client, listing_provider, profile, ownership_situation="Erfpacht", description="Ruime woning."
+    )
+
+    assert case["hard_no"] == {"tier": "hard_no", "deal_breaker": "Geen erfpacht", "flag_id": "ownership_not_full"}

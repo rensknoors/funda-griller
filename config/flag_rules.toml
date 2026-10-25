@@ -14,7 +14,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 5
+version = 6
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -143,6 +143,19 @@ kind = "equals"
 values = [true]
 fact = "finding.solar_lease"
 deal_breaker_aliases = ["lease"]
+
+# Kadaster Eigendomssituatie from the Listing (ticket 02): anything but full ownership (erfpacht,
+# opstalrecht, appartementsrecht, ...) is a risk. Matches on "not Volle eigendom", never on the word
+# erfpacht. Canon and term come from the description and Documents.
+[[rules]]
+id = "ownership_not_full"
+version = 1
+class = "risk"
+title = "Geen volle eigendom volgens het Kadaster"
+kind = "not_one_of"
+fact = "ownership_situation"
+values = ["Volle eigendom"]
+deal_breaker_aliases = ["erfpacht", "opstalrecht"]
 
 # Erfpacht from the seller's papers, where canon and term are stated. Complements the Listing
 # description alias under `[[features]]`.

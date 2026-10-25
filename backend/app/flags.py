@@ -105,6 +105,16 @@ def _equals(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
     return [(None, [fact])]
 
 
+def _not_one_of(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
+    """The fact is present and its value is none of the rule's `values`, ignoring case and spacing
+    (e.g. an Eigendomssituatie other than "Volle eigendom")."""
+    fact = _first_fact(facts, rule["fact"])
+    allowed = {str(value).strip().casefold() for value in rule["values"]}
+    if fact is None or str(fact["value"]).strip().casefold() in allowed:
+        return []
+    return [(None, [fact])]
+
+
 _WORD = re.compile(r"[\w+]+")
 _CLAUSE_BREAK = re.compile(r"[.,;:!?()\n]")
 # Words that negate the feature named shortly after them in a Listing description ("geen garage",
@@ -242,6 +252,7 @@ _CONDITIONS: dict[str, Condition] = {
     "above": _above,
     "ratio_above": _ratio_above,
     "equals": _equals,
+    "not_one_of": _not_one_of,
     "must_have_missing": _must_have_missing,
     "deal_breaker_mentioned": _deal_breaker_mentioned,
     "deal_breaker_energy_label": _deal_breaker_energy_label,

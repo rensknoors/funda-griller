@@ -108,3 +108,28 @@ def test_listing_with_empty_floorplans_videos_and_360_photos_parses():
     assert listing.photo_urls == ()
     assert listing.brochure_url is None
     assert listing.asking_price == 595000
+
+
+def test_ownership_situation_is_read_verbatim_from_the_kadaster_items():
+    client = fx.FakePyfundaClient(fx.live_listing(), fx.live_price_history())
+
+    listing = PyfundaListingProvider(client).fetch(fx.LIVE_URL)
+
+    assert listing.ownership_situation == "Volle eigendom"
+
+
+def test_every_distinct_ownership_situation_across_parcels_is_kept():
+    on_erfpacht = dataclasses.replace(
+        fx.live_listing(), characteristics=(fx.kadaster("Volle eigendom", "Erfpacht", "Volle eigendom"),)
+    )
+    client = fx.FakePyfundaClient(on_erfpacht, fx.live_price_history())
+
+    listing = PyfundaListingProvider(client).fetch(fx.LIVE_URL)
+
+    assert listing.ownership_situation == "Volle eigendom; Erfpacht"
+
+
+def test_a_listing_without_kadaster_items_has_no_ownership_situation():
+    client = fx.FakePyfundaClient(fx.sold_listing(), history_error=PriceHistoryError())
+
+    assert PyfundaListingProvider(client).fetch(fx.SOLD_URL).ownership_situation is None

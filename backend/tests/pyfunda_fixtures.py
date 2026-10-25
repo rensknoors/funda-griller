@@ -57,6 +57,26 @@ def live_listing() -> Listing:
                 title="Energie",
                 items=(Characteristic(label="Verwarming", value="Warmtepomp"),),
             ),
+            kadaster("Volle eigendom"),
+        ),
+    )
+
+
+def kadaster(*ownership: str) -> CharacteristicSection:
+    """The `Kadastrale gegevens` section as seen on the prototype listings: one parcel item per
+    parcel, with the ownership situation as a child item."""
+    return CharacteristicSection(
+        title="Kadastrale gegevens",
+        items=tuple(
+            Characteristic(
+                id="cadastral-parcel",
+                label=f"HOLTUM A {100 + n}",
+                children=(
+                    Characteristic(id="cadastral-area", label="Oppervlakte", value="410 m²"),
+                    Characteristic(id="cadastral-ownershipsituation", label="Eigendomssituatie", value=value),
+                ),
+            )
+            for n, value in enumerate(ownership)
         ),
     )
 
