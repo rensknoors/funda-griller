@@ -8,6 +8,8 @@ dependencies = [
   "pydantic-settings==2.14.0",
   "pyfunda==3.1.5",
   "tls-client<2.0",
+  "python-multipart==0.0.32",
+  "pypdf==6.1.1",
 ]
 
 [dependency-groups]
@@ -28,18 +30,54 @@ root_package = "app"
 name = "Ports are pure types: no adapters, storage, settings or app wiring"
 type = "forbidden"
 source_modules = ["app.ports"]
-forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main"]
+forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main", "app.wiring", "app.routes", "app.assembly"]
 
 [[tool.importlinter.contracts]]
-name = "Case builder is pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
+name = "Case builder and Findings are pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
 type = "forbidden"
-source_modules = ["app.case", "app.affordability"]
+source_modules = ["app.case", "app.affordability", "app.flags", "app.comparison", "app.findings"]
 forbidden_modules = [
   "app.ports",
   "app.production_ports",
   "app.pyfunda_provider",
+  "app.gemini_client",
+  "app.source_clients",
+  "app.source_runner",
   "app.store",
   "app.settings",
   "app.rules_loader",
   "app.main",
+  "app.wiring",
+  "app.routes",
+  "app.assembly",
+]
+
+[[tool.importlinter.contracts]]
+name = "Photos and Observations reach the outside world only through ports: no adapters, settings or app wiring"
+type = "forbidden"
+source_modules = ["app.photos", "app.observations"]
+forbidden_modules = [
+  "app.gemini_client",
+  "app.photo_downloader",
+  "app.production_ports",
+  "app.settings",
+  "app.main",
+  "app.wiring",
+  "app.routes",
+  "app.assembly",
+]
+
+[[tool.importlinter.contracts]]
+name = "Verdict service reaches the LLM only through the port: no adapters, storage, settings or app wiring"
+type = "forbidden"
+source_modules = ["app.verdict"]
+forbidden_modules = [
+  "app.gemini_client",
+  "app.production_ports",
+  "app.store",
+  "app.settings",
+  "app.main",
+  "app.wiring",
+  "app.routes",
+  "app.assembly",
 ]

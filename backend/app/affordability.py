@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import date
 
-from app.buyer_profile import BuyerProfile, home_equity
+from app.buyer_profile import BuyerProfile, FinanceDraft, home_equity
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,9 @@ class Affordability:
     mortgage_needed: int | None
     monthly_cost: int | None
     headroom: int | None
+    # Highest purchase price the household can pay, kosten koper included (not the Walk-away
+    # Maximum, which also weighs what the house is worth).
+    affordable_maximum: int
 
 
 @dataclass(frozen=True)
@@ -66,7 +69,16 @@ def _age(born: date, today: date) -> int:
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
-def _is_starter(profile: BuyerProfile, rules: Rules, today: date) -> bool:
+@dataclass(frozen=True)
+class Consequences:
+    """What a Buyer Profile can buy before any Listing is involved (the Gevolgen panel)."""
+
+    max_mortgage: int
+    equity: int
+    budget: int  # highest purchase price payable, after kosten koper
+
+
+def _is_starter(profile: BuyerProfile | FinanceDraft, rules: Rules, today: date) -> bool:
     ages = [_age(m.birth_date, today) for m in profile.household if m.role == "adult"]
     return bool(ages) and all(rules.starter_min_age <= age <= rules.starter_max_age for age in ages)
 
@@ -78,22 +90,37 @@ def _max_mortgage(income: int, energy_label: str | None, rules: Rules) -> tuple[
     return base + bonus, bonus
 
 
+def _own_funds(profile: BuyerProfile | FinanceDraft) -> int:
+    return profile.assets.savings + profile.assets.investments
+
+
+def _budget(
+    profile: BuyerProfile | FinanceDraft, max_mortgage: int, equity: int, rules: Rules, today: date
+) -> int:
+    available = max_mortgage + equity + _own_funds(profile) - rules.fixed_costs
+    affordable_maximum = available / (1 + rules.transfer_tax_rate)
+    if _is_starter(profile, rules, today):
+        affordable_maximum = max(affordable_maximum, min(rules.starter_price_limit, available))
+    return max(0, int(affordable_maximum))
+
+
+def consequences(draft: FinanceDraft, rules: Rules, today: date) -> Consequences:
+    max_mortgage, _ = _max_mortgage(draft.gross_annual_income, None, rules)
+    equity = home_equity(draft)
+    return Consequences(max_mortgage, equity, _budget(draft, max_mortgage, equity, rules, today))
+
+
 def compute(
     profile: BuyerProfile, asking_price: int | None, energy_label: str | None, rules: Rules, today: date
 ) -> Affordability:
     starter = _is_starter(profile, rules, today)
     max_mortgage, bonus = _max_mortgage(profile.gross_annual_income, energy_label, rules)
     equity = home_equity(profile)
-    own_funds = profile.assets.savings + profile.assets.investments
-    budget = max_mortgage + equity + own_funds - rules.fixed_costs
-
-    max_price = budget / (1 + rules.transfer_tax_rate)
-    if starter:
-        max_price = max(max_price, min(rules.starter_price_limit, budget))
-    max_price = max(0, int(max_price))
+    own_funds = _own_funds(profile)
+    affordable_maximum = _budget(profile, max_mortgage, equity, rules, today)
 
     if asking_price is None:
-        return Affordability(max_mortgage, bonus, equity, None, None, None, None)
+        return Affordability(max_mortgage, bonus, equity, None, None, None, None, affordable_maximum)
     exempt = starter and asking_price <= rules.starter_price_limit
     tax = 0 if exempt else round(asking_price * rules.transfer_tax_rate)
     needed = max(0, asking_price + tax + rules.fixed_costs - equity - own_funds)
@@ -104,5 +131,6 @@ def compute(
         kosten_koper=KostenKoper(tax, rules.fixed_costs, tax + rules.fixed_costs),
         mortgage_needed=needed,
         monthly_cost=round(needed / _annuity_factor(rules.mortgage_rate, rules.term_months)),
-        headroom=max_price - asking_price,
+        headroom=affordable_maximum - asking_price,
+        affordable_maximum=affordable_maximum,
     )

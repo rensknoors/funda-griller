@@ -28,3 +28,42 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();
 });
+
+test("dossier shows bronnen: official energielabel, third-party WOZ, coverage and per-bron refetch", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+
+  await expect(page.getByText(/5 bronnen: 3 gelukt, 0 mislukt, 2 overgeslagen/)).toBeVisible();
+  await expect(page.getByLabel(/Bron: Energielabelregister, opgehaald/)).toBeVisible();
+  await expect(page.getByText("Nee: advertentie B, register A")).toBeVisible();
+  await expect(page.getByText("WOZ-waarde 2025")).toBeVisible();
+  await expect(page.getByLabel(/Bron: WOZ \(prijshistorie\), onofficieel/).first()).toBeVisible();
+  await expect(page.getByText("Vraagprijs t.o.v. WOZ")).toBeVisible();
+
+  await page.getByRole("button", { name: "WOZ (prijshistorie) opnieuw ophalen" }).click();
+  await expect(page.getByText("WOZ-waarde 2024")).toBeVisible();
+});
+
+test("dossier shows flood and soil risk under omgeving, its risico signaal, and skipped geluid", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+
+  const omgeving = page.locator("details", { has: page.getByRole("heading", { name: "Omgeving" }) });
+  await expect(omgeving.getByText("Waterdiepte bij overstroming (kleine kans)")).toBeVisible();
+  await expect(omgeving.getByText("0,88 m")).toBeVisible();
+  await expect(omgeving.getByText("1,5 mm per jaar")).toBeVisible();
+  await expect(omgeving.getByLabel(/Bron: Overstroming en bodem, opgehaald/).first()).toBeVisible();
+  await expect(omgeving.getByText("Bron overgeslagen, geen gegevens van Geluid.")).toBeVisible();
+  await expect(page.getByText(/Geluid: overgeslagen \(geen coördinaten\)/)).toBeVisible();
+
+  const signalen = page.getByRole("region", { name: "Signalen" });
+  await expect(signalen.getByRole("heading", { name: /Risico \(1\)/ })).toBeVisible();
+  await expect(signalen.getByText(/Overstromingsrisico: meer dan 0,5 m water/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Overstroming en bodem opnieuw ophalen" }).click();
+  await expect(omgeving.getByText("0,88 m")).toBeVisible();
+});

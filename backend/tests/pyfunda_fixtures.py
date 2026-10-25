@@ -27,7 +27,13 @@ def live_listing() -> Listing:
         global_id=80907644,
         tiny_id="17270371",
         price=Price(amount=595000),
-        address=Address(title="Buchterweg 15", city="Holtum"),
+        address=Address(
+            title="Buchterweg 15",
+            city="Holtum",
+            house_number="15",
+            house_number_suffix="a",
+            postcode="6118 AB",
+        ),
         areas=Areas(living=152, plot=410),
         rooms=Rooms(total=6, bedrooms=4),
         property_details=PropertyDetails(
@@ -51,6 +57,26 @@ def live_listing() -> Listing:
                 title="Energie",
                 items=(Characteristic(label="Verwarming", value="Warmtepomp"),),
             ),
+            kadaster("Volle eigendom"),
+        ),
+    )
+
+
+def kadaster(*ownership: str) -> CharacteristicSection:
+    """The `Kadastrale gegevens` section as seen on the prototype listings: one parcel item per
+    parcel, with the ownership situation as a child item."""
+    return CharacteristicSection(
+        title="Kadastrale gegevens",
+        items=tuple(
+            Characteristic(
+                id="cadastral-parcel",
+                label=f"HOLTUM A {100 + n}",
+                children=(
+                    Characteristic(id="cadastral-area", label="Oppervlakte", value="410 m²"),
+                    Characteristic(id="cadastral-ownershipsituation", label="Eigendomssituatie", value=value),
+                ),
+            )
+            for n, value in enumerate(ownership)
         ),
     )
 

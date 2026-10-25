@@ -44,6 +44,9 @@ class PyfundaListingProvider:
             raw_status=self._raw_status(found),
             provider_id=_text(_get(found, "tiny_id") or _get(found, "listing_id")),
             address=_get(found, "address", "title"),
+            postcode=_text(_get(found, "address", "postcode")),
+            house_number=_text(_get(found, "address", "house_number")),
+            house_number_suffix=_text(_get(found, "address", "house_number_suffix")),
             city=_get(found, "address", "city"),
             asking_price=_get(found, "price", "amount"),
             living_area=_get(found, "areas", "living"),
@@ -55,6 +58,7 @@ class PyfundaListingProvider:
             latitude=_get(found, "location", "latitude"),
             longitude=_get(found, "location", "longitude"),
             heating=_text(self._characteristic(found, "Verwarming")),
+            ownership_situation=self._ownership_situation(found),
             description=_get(found, "description"),
             price_history=self._price_history(found),
             photo_urls=tuple(_get(found, "media", "photo_urls") or ()),
@@ -73,6 +77,22 @@ class PyfundaListingProvider:
     def _characteristic(found: Any, label: str) -> Any:
         lookup = getattr(found, "characteristic", None)
         return lookup(label) if callable(lookup) else None
+
+    @staticmethod
+    def _ownership_situation(found: Any) -> str | None:
+        """The Kadaster `Eigendomssituatie` of every parcel (item id `cadastral-ownershipsituation`,
+        found in ticket 02), verbatim; distinct values joined so no parcel's erfpacht is hidden."""
+        values: list[str] = []
+        for section in _get(found, "characteristics") or ():
+            for root in getattr(section, "items", ()):
+                for item in root.walk():
+                    is_ownership = item.id == "cadastral-ownershipsituation" or (
+                        item.id is None and (item.label or "").casefold() == "eigendomssituatie"
+                    )
+                    value = _text(item.value) if is_ownership else None
+                    if value and value not in values:
+                        values.append(value)
+        return "; ".join(values) or None
 
     def _price_history(self, found: Any) -> tuple[PricePoint, ...]:
         try:

@@ -1,0 +1,303 @@
+# Flag rules: declarative and versioned. Each rule names a condition kind the engine knows
+# (app/flags.py), the facts it reads and its threshold. Bump a rule's `version` when its meaning
+# changes, and the set `version` on any change to this file: the Case records both.
+#
+# Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
+# facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
+# affordability), `renovation_tolerance` (Buyer Profile), Observations from the Listing photos
+# as `observation.<key>` (estimated by the vision model; keys in app/observations.py) and Findings
+# from Documents as `finding.<topic>` (true when the seller states it applies; a disclosure wins
+# over a denial; topics in app/findings.py). A list of keys means "first one present", so an
+# official register value wins over the Listing's claim. A rule whose facts are absent raises
+# nothing.
+#
+# A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
+# Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
+# words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
+version = 7
+
+[[rules]]
+id = "energy_label_below_tolerance"
+version = 2
+class = "con"
+title = "Energielabel slechter dan je verbouwtolerantie toelaat"
+kind = "label_worse_than"
+fact = ["energielabel.energy_label", "energy_label"]
+threshold = { name = "worst_acceptable_energy_label", from_profile = "renovation_tolerance", table = { 1 = "C", 2 = "D", 3 = "E", 4 = "F", 5 = "G" } }
+
+[[rules]]
+id = "energy_label_efficient"
+version = 1
+class = "pro"
+title = "Energiezuinig: energielabel A of beter"
+kind = "label_at_least"
+fact = ["energielabel.energy_label", "energy_label"]
+threshold = "A"
+
+[[rules]]
+id = "ask_beyond_headroom"
+version = 1
+class = "con"
+title = "Vraagprijs boven je betaalruimte"
+kind = "below"
+fact = "headroom"
+threshold = 0
+cite = ["asking_price"]
+deal_breaker_aliases = ["te duur", "boven budget", "betaalruimte"]
+
+[[rules]]
+id = "ask_far_above_woz"
+version = 1
+class = "con"
+title = "Vraagprijs ver boven de WOZ-waarde"
+kind = "ratio_above"
+fact = "asking_price"
+of = "woz.woz_value"
+ratio_name = "asking_vs_woz"
+threshold = 1.15
+
+# Asking price per m² against the median of the comparables, only when there are enough of them
+# (coverage "sufficient"); thin comparables raise nothing.
+[[rules]]
+id = "ask_far_above_comparables"
+version = 1
+class = "con"
+title = "Vraagprijs per m² ver boven vergelijkbare woningen"
+kind = "above"
+fact = "asking_vs_comparables_percent"
+threshold = 15
+cite = ["asking_price"]
+
+# Klimaateffectatlas flood depth, small-chance scenario (LIWO, about 1 in 1,000 a year): more
+# than 0.5 m of water at the address.
+[[rules]]
+id = "flood_depth_high"
+version = 1
+class = "risk"
+title = "Overstromingsrisico: meer dan 0,5 m water bij een overstroming met kleine kans"
+kind = "above"
+fact = "flood_soil.flood_depth_m"
+threshold = 0.5
+deal_breaker_aliases = ["overstroming"]
+
+# Klimaateffectatlas foundation risk map: share of buildings in the buurt at risk of pile rot,
+# current climate. Above 6% is "hoog" in its legend.
+[[rules]]
+id = "pile_rot_risk_high"
+version = 1
+class = "risk"
+title = "Funderingsrisico: veel panden in de buurt met risico op paalrot"
+kind = "above"
+fact = "flood_soil.pile_rot_risk_pct"
+threshold = 6
+deal_breaker_aliases = ["fundering", "paalrot"]
+
+# Klimaateffectatlas subsidence map: more than 5 mm a year is "significant" in its legend.
+[[rules]]
+id = "subsidence_significant"
+version = 1
+class = "risk"
+title = "Bodemdaling: meer dan 5 mm per jaar"
+kind = "above"
+fact = "flood_soil.subsidence_mm_per_year"
+threshold = 5
+deal_breaker_aliases = ["bodemdaling", "verzakking"]
+
+# RIVM noise map (Lden, all sources): 61 dB and up is "tamelijk slecht" in its legend.
+[[rules]]
+id = "noise_high"
+version = 1
+class = "con"
+title = "Veel geluid: meer dan 60 dB (alle bronnen)"
+kind = "above"
+fact = "noise.lden_all_sources_db"
+threshold = 60
+deal_breaker_aliases = ["geluid", "lawaai", "drukke weg"]
+
+# Findings: what the seller states in a Document (Vragenlijst, Lijst van zaken, brochure). The
+# Flag cites the Finding with its Document and page.
+[[rules]]
+id = "finding_asbestos"
+version = 1
+class = "risk"
+title = "Asbest aanwezig volgens de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.asbestos"
+deal_breaker_aliases = ["asbest"]
+
+[[rules]]
+id = "finding_leak"
+version = 1
+class = "risk"
+title = "Lekkage gemeld door de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.leak"
+deal_breaker_aliases = ["lekkage"]
+
+[[rules]]
+id = "finding_foundation"
+version = 1
+class = "risk"
+title = "Funderingsproblemen gemeld door de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.foundation"
+deal_breaker_aliases = ["fundering"]
+
+[[rules]]
+id = "finding_solar_lease"
+version = 1
+class = "con"
+title = "Zonnepanelen geleased: contract gaat mogelijk over"
+kind = "equals"
+values = [true]
+fact = "finding.solar_lease"
+deal_breaker_aliases = ["lease"]
+
+# Kadaster Eigendomssituatie from the Listing (ticket 02): anything but full ownership (erfpacht,
+# opstalrecht, appartementsrecht, ...) is a risk. Matches on "not Volle eigendom", never on the word
+# erfpacht. Canon and term come from the description and Documents.
+[[rules]]
+id = "ownership_not_full"
+version = 1
+class = "risk"
+title = "Geen volle eigendom volgens het Kadaster"
+kind = "not_one_of"
+fact = "ownership_situation"
+values = ["Volle eigendom"]
+deal_breaker_aliases = ["erfpacht", "opstalrecht"]
+
+# Erfpacht from the seller's papers, where canon and term are stated. Complements the Listing
+# description alias under `[[features]]`.
+[[rules]]
+id = "finding_erfpacht"
+version = 1
+class = "risk"
+title = "Erfpacht volgens de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.erfpacht"
+deal_breaker_aliases = ["erfpacht"]
+
+# Observations: estimated by the vision model from the Listing photos, so each Flag below rests on
+# an estimate and cites the photos. `equals` raises when the Observation's value is in `values`.
+[[rules]]
+id = "damp_or_mould_visible"
+version = 1
+class = "risk"
+title = "Vocht of schimmel zichtbaar op de foto's (geschat)"
+kind = "equals"
+fact = "observation.damp_or_mould"
+values = [true]
+deal_breaker_aliases = ["vocht", "schimmel"]
+
+[[rules]]
+id = "roof_poor"
+version = 1
+class = "risk"
+title = "Dak lijkt in slechte staat (geschat)"
+kind = "equals"
+fact = "observation.roof_condition"
+values = ["poor"]
+deal_breaker_aliases = ["dak"]
+
+[[rules]]
+id = "facade_poor"
+version = 1
+class = "risk"
+title = "Gevel lijkt in slechte staat (geschat)"
+kind = "equals"
+fact = "observation.facade_condition"
+values = ["poor"]
+deal_breaker_aliases = ["gevel"]
+
+[[rules]]
+id = "kitchen_dated"
+version = 1
+class = "con"
+title = "Keuken lijkt meer dan 20 jaar oud (geschat)"
+kind = "above"
+fact = "observation.kitchen_age_years"
+threshold = 20
+
+[[rules]]
+id = "bathroom_dated"
+version = 1
+class = "con"
+title = "Badkamer lijkt meer dan 20 jaar oud (geschat)"
+kind = "above"
+fact = "observation.bathroom_age_years"
+threshold = 20
+
+[[rules]]
+id = "full_renovation_needed"
+version = 1
+class = "con"
+title = "Woning lijkt een volledige renovatie nodig te hebben (geschat)"
+kind = "equals"
+fact = "observation.renovation_needed"
+values = ["full"]
+deal_breaker_aliases = ["opknapper", "renovatie"]
+
+# One Flag per Buyer Profile must-have that names a feature below and that the Listing does not
+# say it has. Must-haves naming no feature are not checked.
+[[rules]]
+id = "must_have_missing"
+version = 2
+class = "con"
+title = "Must-have ontbreekt"
+kind = "must_have_missing"
+
+# One Flag per Buyer Profile deal-breaker that names a feature below the Listing mentions. Such a
+# Flag forces a Hard no.
+[[rules]]
+id = "deal_breaker_mentioned"
+version = 2
+class = "con"
+title = "Deal-breaker"
+kind = "deal_breaker_mentioned"
+
+# One Flag per Buyer Profile deal-breaker naming energielabels ("Energielabel F of G", "slechter
+# dan C") that the house's label is one of; one about the energielabel naming none ("Slecht
+# energielabel") is hit by a label worse than the threshold. The register's label outranks the
+# Listing's claim.
+[[rules]]
+id = "deal_breaker_energy_label"
+version = 1
+class = "con"
+title = "Deal-breaker"
+kind = "deal_breaker_energy_label"
+fact = ["energielabel.energy_label", "energy_label"]
+threshold = { name = "worst_acceptable_energy_label", from_profile = "renovation_tolerance", table = { 1 = "C", 2 = "D", 3 = "E", 4 = "F", 5 = "G" } }
+
+# Features a must-have or deal-breaker can name. `aliases`: words that identify the feature in the
+# Buyer Profile's free text, as whole words; a negation there ("Geen garage") does not change the
+# feature. `mentioned`: words that show the Listing description has it, as a whole word or the head
+# of a compound ("achtertuin"), unless negated shortly before in the same clause ("geen garage",
+# "zonder tuin").
+[[features]]
+id = "garage"
+aliases = ["garage"]
+mentioned = ["garage"]
+
+[[features]]
+id = "tuin"
+aliases = ["tuin"]
+mentioned = ["tuin"]
+
+[[features]]
+id = "balkon"
+aliases = ["balkon"]
+mentioned = ["balkon", "dakterras"]
+
+[[features]]
+id = "zonnepanelen"
+aliases = ["zonnepanelen"]
+mentioned = ["zonnepanelen", "zonnepaneel"]
+
+[[features]]
+id = "erfpacht"
+aliases = ["erfpacht"]
+mentioned = ["erfpacht"]
