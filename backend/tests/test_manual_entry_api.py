@@ -1,3 +1,4 @@
+from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
@@ -119,7 +120,7 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
     assert case["built_from"] == {
         "snapshot_id": snapshot["id"],
         "profile_version": 1,
-        "flag_rules_version": 4,
+        "flag_rules_version": FLAG_RULES_VERSION,
         "observation_run": None,
         "documents": [],
     }
@@ -139,3 +140,11 @@ def test_refetch_after_manual_entry_uses_the_provider(client, listing_provider):
         ("fetched", 570000),
         ("manual", 595000),
     ]
+
+
+def test_a_manually_entered_ownership_situation_other_than_volle_eigendom_is_a_risk(client):
+    enter(client, {**FORM, "ownership_situation": "Erfpacht"})
+
+    case = client.get("/api/listings/80907644/case").json()
+
+    assert "ownership_not_full" in {flag["rule_id"] for flag in case["flags"]}

@@ -3,11 +3,11 @@ import { Menu } from "@base-ui/react/menu";
 import { useState } from "react";
 
 import type { Listing } from "./api";
+import { euro, signedEuro, signedPercent } from "./format";
 import { plural } from "./plural";
+import { TierMark } from "./TierMark";
 import {
   NO_FILTERS,
-  TIER_GLYPH,
-  TIER_LABEL,
   TIER_ORDER,
   tierOf,
   visibleListings,
@@ -17,16 +17,6 @@ import {
   type TierKey,
 } from "./comparison";
 
-const euro = new Intl.NumberFormat("nl-NL", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
-const percent = new Intl.NumberFormat("nl-NL", {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-  signDisplay: "always",
-});
 const dateTime = new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium", timeStyle: "short" });
 
 const DEFAULT_SORT: Sort = { key: "tier", direction: "ascending" };
@@ -96,7 +86,7 @@ export function ListingsTable(props: {
                 checked={filters.tiers.includes(tier)}
                 onChange={(event) => toggleTier(tier, event.target.checked)}
               />{" "}
-              <TierMark tier={tier} compact />
+              <TierMark tier={tier} size="compact" />
             </label>
           ))}
         </fieldset>
@@ -246,17 +236,6 @@ function PriceInput({ value, onChange }: { value: number | null; onChange: (valu
   );
 }
 
-export function TierMark({ tier, compact }: { tier: TierKey; compact?: boolean }) {
-  return (
-    <span className={`tier tier-${tier}${compact ? " compact" : ""}`}>
-      <span aria-hidden="true" className="tier-glyph">
-        {TIER_GLYPH[tier]}
-      </span>{" "}
-      {TIER_LABEL[tier]}
-    </span>
-  );
-}
-
 function ListingRow(props: {
   listing: Listing;
   busy: boolean;
@@ -391,15 +370,6 @@ function ListingRow(props: {
 
 function addressOf(listing: Listing): string {
   return listing.snapshots[0].address ?? listing.url;
-}
-
-function signedPercent(value: number | null): string {
-  if (value === null) return "–";
-  return `${value > 0 ? "▲" : value < 0 ? "▼" : "="} ${percent.format(value)}%`;
-}
-
-function signedEuro(amount: number): string {
-  return `${amount >= 0 ? "▲ +" : "▼ −"}${euro.format(Math.abs(amount))}`;
 }
 
 export function statusLabel(status: string, raw: string): string {

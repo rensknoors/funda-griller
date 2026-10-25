@@ -1,4 +1,4 @@
-"""Test doubles for the three outside-world ports, plus a controllable clock. They never touch the network."""
+"""Test doubles for the outside-world ports, plus a controllable clock. They never touch the network."""
 
 from collections.abc import Callable
 from datetime import datetime, timedelta

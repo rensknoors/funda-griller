@@ -1,5 +1,9 @@
 """Documents and Findings through the HTTP API, with the fake LLM client and document downloader."""
 
+import io
+
+from pypdf import PdfReader
+
 from app.ports import DownloadFailed, LlmError
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.pdf_fixtures import BROCHURE_PAGES, VRAGENLIJST, make_pdf, real_brochure
@@ -9,6 +13,7 @@ ASBESTOS = {
     "topic": "asbestos",
     "present": True,
     "statement": "Asbest in de dakplaten van de schuur.",
+    "quote": "Ja, in de dakplaten van de schuur.",
     "page": 2,
 }
 
@@ -38,7 +43,7 @@ def test_an_uploaded_document_is_listed_and_its_findings_enter_the_case(client, 
     assert response.status_code == 201
     document = response.json()
     assert document["name"] == "Vragenlijst.pdf"
-    assert document["kind"] == "upload"
+    assert document["kind"] == "user"
     assert document["status"] == "analysed"
     assert document["page_count"] == 3
     [listed] = client.get("/api/listings/80907644/documents").json()
@@ -75,7 +80,7 @@ def test_a_seller_stated_asbestos_finding_raises_a_risk_flag_citing_its_page(cli
 
 def test_a_finding_the_seller_denies_raises_no_flag(client, listing_provider, llm_client):
     capture(client, listing_provider)
-    llm_client.findings = [{"topic": "leak", "present": False, "statement": "Geen lekkages.", "page": 3}]
+    llm_client.findings = [{"topic": "leak", "present": False, "statement": "Geen lekkages.", "quote": "lekkages geweest? Nee", "page": 3}]
 
     upload(client)
 
@@ -103,7 +108,9 @@ def test_re_uploading_a_document_replaces_its_findings(client, listing_provider,
     capture(client, listing_provider)
     llm_client.findings = [ASBESTOS]
     document = upload(client).json()
-    llm_client.findings = [{"topic": "leak", "present": True, "statement": "Lekkage dakkapel 2023.", "page": 1}]
+    llm_client.findings = [
+        {"topic": "leak", "present": True, "statement": "Lekkage dakkapel 2023.", "quote": "Lekkage dakkapel", "page": 1}
+    ]
 
     response = client.put(
         f"/api/listings/80907644/documents/{document['id']}",
@@ -218,10 +225,12 @@ BROCHURE_URL = "https://cloud.funda.nl/brochure.pdf"
 def test_the_funda_brochure_is_downloaded_and_attached_as_a_document(
     client, listing_provider, llm_client, document_downloader
 ):
-    document_downloader.documents[BROCHURE_URL] = real_brochure()
+    brochure = real_brochure()
+    document_downloader.documents[BROCHURE_URL] = brochure
+    page_6 = " ".join(PdfReader(io.BytesIO(brochure)).pages[5].extract_text().split()[:4])
     llm_client.findings = [
-        {"topic": "stays_or_goes", "present": True, "statement": "Zonnepanelen blijven achter.", "page": 6},
-        {"topic": "other", "present": True, "statement": "Bestaat niet.", "page": 33},
+        {"topic": "stays_or_goes", "present": True, "statement": "Zonnepanelen blijven achter.", "quote": page_6, "page": 6},
+        {"topic": "other", "present": True, "statement": "Bestaat niet.", "quote": page_6, "page": 33},
     ]
 
     capture(client, listing_provider, brochure_url=BROCHURE_URL)
@@ -284,13 +293,62 @@ def test_erfpacht_in_a_document_forces_a_hard_no_for_an_erfpacht_deal_breaker(cl
     capture(client, listing_provider)
     client.put("/api/buyer-profile", json=typical_profile() | {"deal_breakers": ["Geen erfpacht"]})
     llm_client.findings = [
-        {"topic": "erfpacht", "present": True, "statement": "Eeuwigdurende erfpacht, canon afgekocht.", "page": 1}
+        {
+            "topic": "erfpacht",
+            "present": True,
+            "statement": "Eeuwigdurende erfpacht, canon afgekocht.",
+            "quote": "eeuwigdurende erfpacht",
+            "page": 1,
+        }
     ]
 
-    upload(client)
+    upload(client, make_pdf(["De woning staat op eeuwigdurende erfpacht, canon afgekocht."]))
 
     case = client.get("/api/listings/80907644/case").json()
     assert case["hard_no"]["deal_breaker"] == "Geen erfpacht"
     assert case["hard_no"]["flag_id"] == "finding_erfpacht"
     assert client.post("/api/listings/80907644/verdict").json()["tier"] == "hard_no"
     assert llm_client.rate_calls == []
+
+
+def test_a_finding_is_kept_only_when_its_quote_is_on_the_page_it_cites(client, listing_provider, llm_client):
+    capture(client, listing_provider)
+    llm_client.findings = [
+        ASBESTOS,
+        ASBESTOS | {"page": 3},
+        ASBESTOS | {"quote": "Asbest is verwijderd in 2019."},
+        {key: value for key, value in ASBESTOS.items() if key != "quote"},
+    ]
+
+    document = upload(client).json()
+
+    assert document["rejected_findings"] == 3
+    [finding] = findings_in(client.get("/api/listings/80907644/case").json())
+    assert (finding["page"], finding["quote"], finding["verified"]) == (2, "Ja, in de dakplaten van de schuur.", True)
+
+
+def test_a_quote_matches_regardless_of_case_and_line_breaks(client, listing_provider, llm_client):
+    capture(client, listing_provider)
+    llm_client.findings = [ASBESTOS | {"quote": "JA, IN DE\n dakplaten  van de schuur"}]
+
+    document = upload(client).json()
+
+    assert document["rejected_findings"] == 0
+
+
+def test_a_finding_on_a_page_without_text_is_kept_but_marked_unverified(client, listing_provider, llm_client):
+    capture(client, listing_provider)
+    llm_client.findings = [ASBESTOS | {"page": 1}]
+
+    upload(client, make_pdf(["", "Tekst"]))
+
+    [finding] = findings_in(client.get("/api/listings/80907644/case").json())
+    assert finding["verified"] is False
+
+
+def test_an_unknown_document_is_not_found_in_the_common_error_shape(client, listing_provider):
+    capture(client, listing_provider)
+
+    response = client.delete("/api/listings/80907644/documents/999")
+
+    assert (response.status_code, response.json()) == (404, {"code": "not_found"})

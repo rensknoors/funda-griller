@@ -22,8 +22,9 @@ class Affordability:
     mortgage_needed: int | None
     monthly_cost: int | None
     headroom: int | None
-    # Highest purchase price the household can pay, kosten koper included.
-    max_price: int
+    # Highest purchase price the household can pay, kosten koper included (not the Walk-away
+    # Maximum, which also weighs what the house is worth).
+    affordable_maximum: int
 
 
 @dataclass(frozen=True)
@@ -97,10 +98,10 @@ def _budget(
     profile: BuyerProfile | FinanceDraft, max_mortgage: int, equity: int, rules: Rules, today: date
 ) -> int:
     available = max_mortgage + equity + _own_funds(profile) - rules.fixed_costs
-    max_price = available / (1 + rules.transfer_tax_rate)
+    affordable_maximum = available / (1 + rules.transfer_tax_rate)
     if _is_starter(profile, rules, today):
-        max_price = max(max_price, min(rules.starter_price_limit, available))
-    return max(0, int(max_price))
+        affordable_maximum = max(affordable_maximum, min(rules.starter_price_limit, available))
+    return max(0, int(affordable_maximum))
 
 
 def consequences(draft: FinanceDraft, rules: Rules, today: date) -> Consequences:
@@ -116,10 +117,10 @@ def compute(
     max_mortgage, bonus = _max_mortgage(profile.gross_annual_income, energy_label, rules)
     equity = home_equity(profile)
     own_funds = _own_funds(profile)
-    max_price = _budget(profile, max_mortgage, equity, rules, today)
+    affordable_maximum = _budget(profile, max_mortgage, equity, rules, today)
 
     if asking_price is None:
-        return Affordability(max_mortgage, bonus, equity, None, None, None, None, max_price)
+        return Affordability(max_mortgage, bonus, equity, None, None, None, None, affordable_maximum)
     exempt = starter and asking_price <= rules.starter_price_limit
     tax = 0 if exempt else round(asking_price * rules.transfer_tax_rate)
     needed = max(0, asking_price + tax + rules.fixed_costs - equity - own_funds)
@@ -130,6 +131,6 @@ def compute(
         kosten_koper=KostenKoper(tax, rules.fixed_costs, tax + rules.fixed_costs),
         mortgage_needed=needed,
         monthly_cost=round(needed / _annuity_factor(rules.mortgage_rate, rules.term_months)),
-        headroom=max_price - asking_price,
-        max_price=max_price,
+        headroom=affordable_maximum - asking_price,
+        affordable_maximum=affordable_maximum,
     )

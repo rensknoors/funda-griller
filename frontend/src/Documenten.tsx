@@ -70,6 +70,7 @@ export function VerkoperInformatie({ fundaId, findings }: { fundaId: string; fin
               <span className="fact-value">
                 “{finding.statement}”
                 {!finding.value && <span className="muted"> (niet van toepassing)</span>}
+                {!finding.verified && <span className="muted"> (pagina niet te controleren)</span>}
               </span>
               <FindingStamp fundaId={fundaId} finding={finding} />
             </li>
@@ -163,7 +164,7 @@ export function Documenten(props: {
                   {document.status === "download_failed" ? "Opnieuw downloaden" : "Opnieuw analyseren"}
                 </button>
               )}
-              {document.kind === "upload" && (
+              {document.kind === "user" && (
                 <label className="button small">
                   Opnieuw uploaden
                   <input

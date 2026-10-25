@@ -16,6 +16,8 @@ import {
   vakOrder,
 } from "./profile";
 import { fetchOutOfDateVerdicts } from "./api";
+import { euro } from "./format";
+import { ErrorText, Vak, type VakInputProps } from "./Vak";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; form: FormState; firstRun: boolean };
 
@@ -32,7 +34,6 @@ const TOLERANCE_LABELS = ["Instap-klaar", "Kleine klussen", "Gemiddeld", "Flinke
 const SHARED_TEXT_NOTE = "Deze tekst gaat mee naar het taalmodel; vul geen adres of postcode in.";
 const CHECK_DELAY_MS = 150;
 
-const euro = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
 const toFieldErrors = (errors: { field: string; message: string }[]): FieldErrors =>
   Object.fromEntries(errors.map((error) => [error.field, error.message]));
@@ -197,7 +198,7 @@ function ProfileForm({
 
   const vak = (field: string, label: string) => ({ field, label, number: numberOf(field), error: errorOf(field) });
   const amountInput = (key: "gross_annual_income" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs") =>
-    (props: InputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
+    (props: VakInputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
 
   const sectionBody: Record<SectionId, ReactNode> = {
     huishouden: (
@@ -208,17 +209,17 @@ function ProfileForm({
             set("household", form.household.map((m, i) => (i === index ? { ...m, ...patch } : m)));
           return (
             <div className="row" key={index}>
-              <Vak {...vak(`household.${index}.role`, `Rol lid ${index + 1}`)}>
+              <ProfileVak {...vak(`household.${index}.role`, `Rol lid ${index + 1}`)}>
                 {(props) => (
                   <select {...props} value={member.role} onChange={(event) => update({ role: event.target.value as "adult" | "child" })}>
                     <option value="adult">Volwassene</option>
                     <option value="child">Kind</option>
                   </select>
                 )}
-              </Vak>
-              <Vak {...vak(`household.${index}.birth_date`, `Geboortedatum lid ${index + 1}`)}>
+              </ProfileVak>
+              <ProfileVak {...vak(`household.${index}.birth_date`, `Geboortedatum lid ${index + 1}`)}>
                 {(props) => <input {...props} type="date" value={member.birth_date} onChange={(event) => update({ birth_date: event.target.value })} />}
-              </Vak>
+              </ProfileVak>
               <button type="button" onClick={() => set("household", form.household.filter((_, i) => i !== index))}>
                 Verwijder lid {index + 1}
               </button>
@@ -230,24 +231,24 @@ function ProfileForm({
         </button>
       </>
     ),
-    inkomen: <Vak {...vak("gross_annual_income", "Bruto jaarinkomen huishouden (€)")}>{amountInput("gross_annual_income")}</Vak>,
+    inkomen: <ProfileVak {...vak("gross_annual_income", "Bruto jaarinkomen huishouden (€)")}>{amountInput("gross_annual_income")}</ProfileVak>,
     vermogen: (
       <>
-        <Vak {...vak("assets.savings", "Spaargeld (€)")}>{amountInput("savings")}</Vak>
-        <Vak {...vak("assets.investments", "Beleggingen (€)")}>{amountInput("investments")}</Vak>
+        <ProfileVak {...vak("assets.savings", "Spaargeld (€)")}>{amountInput("savings")}</ProfileVak>
+        <ProfileVak {...vak("assets.investments", "Beleggingen (€)")}>{amountInput("investments")}</ProfileVak>
         <label className="check">
           <input type="checkbox" checked={form.has_home} onChange={(event) => set("has_home", event.target.checked)} /> Ik heb een eigen woning
         </label>
         {form.has_home && (
           <>
-            <Vak {...vak("current_home.value", "Woningwaarde (€)")}>{amountInput("home_value")}</Vak>
-            <Vak {...vak("current_home.outstanding_mortgage", "Openstaande hypotheek (€)")}>
+            <ProfileVak {...vak("current_home.value", "Woningwaarde (€)")}>{amountInput("home_value")}</ProfileVak>
+            <ProfileVak {...vak("current_home.outstanding_mortgage", "Openstaande hypotheek (€)")}>
               {amountInput("outstanding_mortgage")}
-            </Vak>
-            <Vak {...vak("current_home.selling_costs", "Verkoopkosten (€)")}>{amountInput("selling_costs")}</Vak>
-            <Vak {...vak("current_home.address", "Adres eigen woning (blijft op dit apparaat)")}>
+            </ProfileVak>
+            <ProfileVak {...vak("current_home.selling_costs", "Verkoopkosten (€)")}>{amountInput("selling_costs")}</ProfileVak>
+            <ProfileVak {...vak("current_home.address", "Adres eigen woning (blijft op dit apparaat)")}>
               {(props) => <input {...props} value={form.home_address} onChange={(event) => set("home_address", event.target.value)} />}
-            </Vak>
+            </ProfileVak>
           </>
         )}
       </>
@@ -273,15 +274,15 @@ function ProfileForm({
             set("commute_destinations", form.commute_destinations.map((d, i) => (i === index ? { ...d, ...patch } : d)));
           return (
             <div className="row" key={index}>
-              <Vak {...vak(`commute_destinations.${index}.label`, `Pendelbestemming ${index + 1}: naam`)} hint={SHARED_TEXT_NOTE}>
+              <ProfileVak {...vak(`commute_destinations.${index}.label`, `Pendelbestemming ${index + 1}: naam`)} hint={SHARED_TEXT_NOTE}>
                 {(props) => <input {...props} value={destination.label} onChange={(event) => update({ label: event.target.value })} />}
-              </Vak>
-              <Vak {...vak(`commute_destinations.${index}.address`, `Pendelbestemming ${index + 1}: adres`)}>
+              </ProfileVak>
+              <ProfileVak {...vak(`commute_destinations.${index}.address`, `Pendelbestemming ${index + 1}: adres`)}>
                 {(props) => <input {...props} value={destination.address} onChange={(event) => update({ address: event.target.value })} />}
-              </Vak>
-              <Vak {...vak(`commute_destinations.${index}.max_minutes`, `Pendelbestemming ${index + 1}: maximaal aantal minuten`)}>
+              </ProfileVak>
+              <ProfileVak {...vak(`commute_destinations.${index}.max_minutes`, `Pendelbestemming ${index + 1}: maximaal aantal minuten`)}>
                 {(props) => <input {...props} inputMode="numeric" value={destination.max_minutes} onChange={(event) => update({ max_minutes: event.target.value })} />}
-              </Vak>
+              </ProfileVak>
               <button type="button" onClick={() => set("commute_destinations", form.commute_destinations.filter((_, i) => i !== index))}>
                 Verwijder pendelbestemming {index + 1}
               </button>
@@ -512,42 +513,9 @@ function Gevolgen({ state }: { state: GevolgenState | null }) {
   );
 }
 
-type InputProps = {
-  id: string;
-  "data-field": string;
-  "aria-describedby"?: string;
-  "aria-invalid": boolean;
-};
-
-function Vak(props: { field: string; number: number; label: string; error?: string; hint?: string; children: (input: InputProps) => ReactNode }) {
-  const id = fieldId(props.field);
-  const describedBy = [props.error && `${id}-error`, props.hint && `${id}-hint`].filter(Boolean).join(" ") || undefined;
-  return (
-    <div className="vak" data-invalid={props.error ? "" : undefined}>
-      <div className="vak-head">
-        <span className="vak-number" aria-hidden="true">
-          {props.number}
-        </span>
-        <label htmlFor={id}>{props.label}</label>
-      </div>
-      {props.children({ id, "data-field": props.field, "aria-describedby": describedBy, "aria-invalid": Boolean(props.error) })}
-      {props.hint && (
-        <p className="hint" id={`${id}-hint`}>
-          {props.hint}
-        </p>
-      )}
-      {props.error && <ErrorText id={`${id}-error`}>{props.error}</ErrorText>}
-    </div>
-  );
-}
-
-function ErrorText({ id, children }: { id?: string; children: ReactNode }) {
-  return (
-    <p className="vak-error" id={id}>
-      <span aria-hidden="true">! </span>
-      {children}
-    </p>
-  );
+/** A Koperprofiel vak: its id comes from the field, so jump links and focus can find it. */
+function ProfileVak(props: Omit<Parameters<typeof Vak>[0], "id"> & { field: string }) {
+  return <Vak {...props} id={fieldId(props.field)} />;
 }
 
 /** A repeatable Wensen list: add, remove, and reorder with Alt+↑/↓ or the move buttons. */
@@ -575,7 +543,7 @@ function WensList(props: {
         const name = `${props.legend} ${index + 1}`;
         return (
           <div className="row" key={index}>
-            <Vak {...props.vak(`${props.field}.${index}`, name)}>
+            <ProfileVak {...props.vak(`${props.field}.${index}`, name)}>
               {(input) => (
                 <input
                   {...input}
@@ -589,7 +557,7 @@ function WensList(props: {
                   }}
                 />
               )}
-            </Vak>
+            </ProfileVak>
             <button type="button" aria-label={`${name} omhoog`} disabled={index === 0} onClick={() => move(index, index - 1)}>
               ↑
             </button>

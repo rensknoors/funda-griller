@@ -1,7 +1,7 @@
 """Case builder (Dossier): pure assembly of Listing facts and computed metrics. No I/O, no judgement."""
 
 from collections.abc import Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
 from app.affordability import Rules, compute
@@ -21,6 +21,7 @@ LISTING_FACTS = (
     "construction_year",
     "energy_label",
     "heating",
+    "ownership_situation",
 )
 
 # How far a Source's facts can be trusted. WOZ comes from a third-party price-history service,
@@ -36,27 +37,43 @@ SOURCE_TRUST = {
 }
 
 
+@dataclass(frozen=True)
+class VersionedProfile:
+    version: int
+    profile: BuyerProfile
+
+
+@dataclass(frozen=True)
+class SourceInputs:
+    """`names` are the configured Sources; `runs` maps each fetched one to its latest and latest
+    succeeded run. Facts older than their Source's `ttl_days` are Stale; fewer comparables than
+    `comparables_min_count` are thin."""
+
+    names: list[str]
+    runs: dict[str, dict] = field(default_factory=dict)
+    ttl_days: dict[str, int] = field(default_factory=dict)
+    comparables_min_count: int = 3
+
+
 def build_case(
     funda_id: str,
     snapshot: dict,
-    profile_version: int | None,
-    profile: BuyerProfile | None,
+    versioned_profile: VersionedProfile | None,
     rules: Rules,
     flag_rules: RuleSet,
     now: datetime,
-    sources: list[str],
-    source_runs: dict[str, dict],
-    ttl_days: dict[str, int],
-    comparables_min_count: int = 3,
+    sources: SourceInputs,
     observation_runs: dict | None = None,
     documents: Sequence[dict] = (),
 ) -> dict:
-    """`sources` are the configured Source names; `source_runs` maps each to its latest and
-    latest succeeded run. Staleness is computed against `now`, never stored. `observation_runs`
-    holds the latest and latest succeeded vision run over the snapshot's photo set. `documents`
-    are the Listing's stored Documents; analysed ones contribute their Findings."""
+    """Staleness is computed against `now`, never stored. `observation_runs` holds the latest and
+    latest succeeded vision run over the snapshot's photo set. `documents` are the Listing's stored
+    Documents; analysed ones contribute their Findings."""
+    profile = versioned_profile.profile if versioned_profile else None
+    source_runs = sources.runs
     today = now.date()
-    source_facts = _source_facts(source_runs, ttl_days, now)
+    computed_at = now.isoformat()
+    source_facts = _source_facts(source_runs, sources.ttl_days, now)
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
     register_label = _value(source_facts, "energielabel", "energy_label")
     # The register's label, when known, outranks the Listing's claim.
@@ -64,8 +81,12 @@ def build_case(
     affordability = (
         {
             **asdict(compute(profile, snapshot.get("asking_price"), energy_label, rules, today)),
+            # The label the borrowing capacity was computed with, so figures at other prices (the
+            # Walk-away Maximum) rest on the same assumption.
+            "energy_label": energy_label,
             "provenance": "computed",
             "computed_on": today.isoformat(),
+            "computed_at": computed_at,
         }
         if profile
         else None
@@ -84,27 +105,33 @@ def build_case(
     observed = (observation_runs or {}).get("last_success")
     facts += _observation_facts(observed, photos)
     facts += finding_facts(documents)
-    flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, profile))
+    vs_comparables = _asking_vs_comparables(
+        snapshot, source_facts, comparables_fetched, sources.comparables_min_count
+    )
+    flags = evaluate(
+        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, profile), computed_at
+    )
     return {
         "funda_id": funda_id,
         "built_from": {
             "snapshot_id": snapshot["id"],
-            "profile_version": profile_version,
+            "profile_version": versioned_profile.version if versioned_profile else None,
             "flag_rules_version": flag_rules.version,
             "observation_run": observed["id"] if observed else None,
             "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
         },
         "facts": facts,
-        "sources": [_source_status(name, source_runs.get(name)) for name in sources],
+        "sources": [_source_status(name, source_runs.get(name)) for name in sources.names],
         "photos": photos,
         "observations": _observation_status(photos, observation_runs),
         "documents": document_summaries(documents),
         "metrics": {
-            "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
-            "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
-            "asking_vs_comparables": _asking_vs_comparables(
-                snapshot, source_facts, comparables_fetched, comparables_min_count
-            ),
+            name: {**metric, "computed_at": computed_at} if metric else None
+            for name, metric in {
+                "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
+                "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
+                "asking_vs_comparables": vs_comparables,
+            }.items()
         },
         "affordability": affordability,
         "flags": flags,
@@ -254,7 +281,11 @@ def _observation_status(photos: list[dict], runs: dict | None) -> dict:
 
 
 def _rule_inputs(
-    snapshot: dict, facts: list[dict], affordability: dict | None, profile: BuyerProfile | None
+    snapshot: dict,
+    facts: list[dict],
+    affordability: dict | None,
+    vs_comparables: dict,
+    profile: BuyerProfile | None,
 ) -> dict:
     """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values."""
     inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
@@ -283,6 +314,13 @@ def _rule_inputs(
         inputs["headroom"] = {
             "key": "headroom",
             "value": affordability["headroom"],
+            "provenance": "computed",
+        }
+    # Only sufficient comparables may say the ask is high: thin ones are not a market.
+    if vs_comparables["coverage"] == "sufficient" and vs_comparables["percent"] is not None:
+        inputs["asking_vs_comparables_percent"] = {
+            "key": "asking_vs_comparables_percent",
+            "value": vs_comparables["percent"],
             "provenance": "computed",
         }
     if profile:

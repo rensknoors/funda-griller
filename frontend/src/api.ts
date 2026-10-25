@@ -174,7 +174,11 @@ export type FindingFact = {
   /** Whether the seller states it applies. */
   value: boolean;
   statement: string;
+  /** The words on the page the Finding rests on, as the model quoted them. */
+  quote: string | null;
   page: number;
+  /** The quote was found on the cited page; false when the page has no text to check (a scan). */
+  verified: boolean;
   provenance: "finding";
   seller_stated: true;
   document_id: number;
@@ -188,7 +192,7 @@ export type DocumentStatus = "pending" | "analysed" | "unreadable" | "not_analys
 export type CaseDocument = {
   id: number;
   name: string;
-  kind: "upload" | "brochure";
+  kind: "user" | "brochure";
   status: DocumentStatus;
   reason: string | null;
   page_count: number | null;
@@ -270,14 +274,16 @@ export type Affordability = {
   monthly_cost: number | null;
   headroom: number | null;
   /** Highest purchase price the household can pay, kosten koper included. */
-  max_price: number;
+  affordable_maximum: number;
+  /** The energielabel the borrowing capacity was computed with (register over Listing). */
+  energy_label: string | null;
   provenance: "computed";
   computed_on: string;
 };
 
 export type Evidence = {
   key: string;
-  value: string | number | boolean | null;
+  value: string | number | boolean | string[] | null;
   provenance: string;
   fetched_at?: string | null;
   /** Findings only: the Document and page the evidence is on. */

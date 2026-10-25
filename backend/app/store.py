@@ -93,6 +93,8 @@ def initialise(database_path: Path) -> None:
         )
         connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         connection.executescript(_SCHEMA)
+        # Documents the user added were once of kind "upload" (a term GLOSSARY.md avoids).
+        connection.execute("UPDATE documents SET kind = 'user' WHERE kind = 'upload'")
         connection.commit()
     finally:
         connection.close()

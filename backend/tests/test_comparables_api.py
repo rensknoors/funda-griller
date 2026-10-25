@@ -9,6 +9,7 @@ from tests.profile_fixtures import typical_profile
 CASE = "/api/listings/80907644/case"
 FETCH_COMPARABLES = "/api/listings/80907644/sources/comparables/refetch"
 VERDICT = "/api/listings/80907644/verdict"
+NOW = "2026-10-24T12:00:00+00:00"
 
 # The typical household can pay at most 704_519 for the live Listing (asking 595_000, 152 m²).
 AFFORDABLE_MAXIMUM = 704_519
@@ -98,6 +99,7 @@ def test_asking_price_is_compared_to_several_comparables_per_square_metre(
         "percent": -2.1,
         "comparables_value": 608_000,
         "provenance": "computed",
+        "computed_at": NOW,
     }
     listed = [f["value"]["funda_id"] for f in case["facts"] if f.get("source") == "comparables"]
     assert listed == ["101", "102", "103", "104"]
@@ -221,3 +223,35 @@ def test_fetching_comparables_makes_an_earlier_verdict_out_of_date(
     state = client.get(VERDICT).json()
     assert state["out_of_date"] is True
     assert state["changed"] == ["case"]
+
+
+# Price per m² 3000 each: the live Listing asks 595_000 / 152 m² = 3914 per m², 30.5% above.
+CHEAPER = [comparable("201", 300_000, 100), comparable("202", 360_000, 120), comparable("203", 450_000, 150)]
+
+
+def flags_by_rule(case):
+    return {flag["rule_id"]: flag for flag in case["flags"]}
+
+
+def test_asking_far_above_sufficient_comparables_is_a_con(client, listing_provider, source_clients):
+    case = with_comparables(client, listing_provider, source_clients, CHEAPER).json()
+
+    flag = flags_by_rule(case)["ask_far_above_comparables"]
+    assert flag["class"] == "con"
+    assert {item["key"]: item["value"] for item in flag["evidence"]} == {
+        "asking_vs_comparables_percent": 30.5,
+        "threshold": 15,
+        "asking_price": 595_000,
+    }
+
+
+def test_thin_comparables_raise_no_overpricing_flag(client, listing_provider, source_clients):
+    case = with_comparables(client, listing_provider, source_clients, CHEAPER[:2]).json()
+
+    assert "ask_far_above_comparables" not in flags_by_rule(case)
+
+
+def test_asking_in_line_with_comparables_raises_no_overpricing_flag(client, listing_provider, source_clients):
+    case = with_comparables(client, listing_provider, source_clients, SEVERAL).json()
+
+    assert "ask_far_above_comparables" not in flags_by_rule(case)

@@ -1,0 +1,64 @@
+/** How Case facts are labelled and shown: the Dutch label per fact key, the herkomst word per
+ * provenance class, and number formats per kind of fact. */
+
+import type { CaseFact } from "./api";
+import { decimal, euro, percentChange } from "./format";
+import { statusLabel } from "./ListingsTable";
+
+export const FACT_LABELS: Record<string, string> = {
+  address: "Adres",
+  city: "Plaats",
+  status: "Status",
+  asking_price: "Vraagprijs",
+  living_area: "Woonoppervlak (m²)",
+  plot_area: "Perceeloppervlak (m²)",
+  rooms: "Kamers",
+  bedrooms: "Slaapkamers",
+  construction_year: "Bouwjaar",
+  energy_label: "Energielabel",
+  heating: "Verwarming",
+  ownership_situation: "Eigendomssituatie",
+};
+const MONEY_FACTS = new Set(["asking_price", "headroom", "woz_value"]);
+
+// Flood, soil and noise Source facts: label and how to show the number.
+export const ENVIRONMENT_FACTS: Record<string, { label: string; format: (value: number) => string }> = {
+  flood_depth_m: {
+    label: "Waterdiepte bij overstroming (kleine kans)",
+    format: (v) => `${decimal.format(v)} m`,
+  },
+  subsidence_mm_per_year: {
+    label: "Bodemdaling",
+    format: (v) => `${decimal.format(v)} mm per jaar`,
+  },
+  pile_rot_risk_pct: {
+    label: "Risico op paalrot in de buurt",
+    format: (v) => `${decimal.format(v)}% van de panden`,
+  },
+  lden_all_sources_db: { label: "Geluid, alle bronnen (Lden)", format: (v) => `${v} dB` },
+  lden_road_db: { label: "Geluid, wegverkeer (Lden)", format: (v) => `${v} dB` },
+  lden_rail_db: { label: "Geluid, treinverkeer (Lden)", format: (v) => `${v} dB` },
+  lden_air_db: { label: "Geluid, vliegverkeer (Lden)", format: (v) => `${v} dB` },
+};
+
+export const PROVENANCE_LABELS: Record<string, string> = {
+  listing: "Advertentie",
+  source: "Bron",
+  computed: "Berekend",
+  finding: "Bevinding, door verkoper",
+  buyer_profile: "Koperprofiel",
+  rule: "Regel",
+  observation: "Waarneming, geschat",
+};
+
+export function formatNumber(key: string, value: number): string {
+  if (MONEY_FACTS.has(key)) return euro.format(value);
+  if (key === "threshold") return decimal.format(value);
+  if (key === "asking_vs_comparables_percent") return `${percentChange.format(value)}%`;
+  return ENVIRONMENT_FACTS[key]?.format(value) ?? String(value);
+}
+
+export function formatValue(fact: CaseFact): string {
+  if (fact.key === "status" && typeof fact.value === "string") return statusLabel(fact.value, fact.value);
+  return typeof fact.value === "number" ? formatNumber(fact.key, fact.value) : String(fact.value);
+}

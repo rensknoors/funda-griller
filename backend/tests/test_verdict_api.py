@@ -1,7 +1,10 @@
 import pytest
+from fastapi.testclient import TestClient
 
-from app.ports import LlmError, SourceFact
+from app.main import create_app
+from app.ports import LlmError, Ports, SourceFact
 
+from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
@@ -127,6 +130,33 @@ def test_a_deal_breaker_hard_no_never_calls_the_llm(client, listing_provider, ll
     assert [flag["id"] for flag in verdict["cited_flags"]] == ["deal_breaker_mentioned:Geen erfpacht"]
 
 
+@pytest.fixture
+def client_without_llm(settings, listing_provider, clock):
+    """The app as run without a Gemini key: no LLM client at all."""
+    with TestClient(create_app(settings, Ports(listing_provider=listing_provider), clock)) as test_client:
+        yield test_client
+
+
+def test_a_deal_breaker_hard_no_is_recorded_without_an_llm_configured(client_without_llm, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Geen erfpacht"]}
+    prepare(client_without_llm, listing_provider, profile, description="Appartement op erfpacht.")
+
+    response = client_without_llm.post(VERDICT)
+
+    assert response.status_code == 201, response.text
+    assert response.json()["tier"] == "hard_no"
+    assert client_without_llm.get(VERDICT).json()["verdicts"] == [response.json()]
+
+
+def test_without_an_llm_a_verdict_that_needs_the_model_is_unavailable(client_without_llm, listing_provider):
+    prepare(client_without_llm, listing_provider)
+
+    response = client_without_llm.post(VERDICT)
+
+    assert response.status_code == 503
+    assert response.json() == {"code": "llm_unavailable"}
+
+
 def test_the_model_sees_the_case_and_reduced_profile_but_no_raw_finances_or_address(
     client, listing_provider, llm_client
 ):
@@ -147,7 +177,7 @@ def test_the_model_sees_the_case_and_reduced_profile_but_no_raw_finances_or_addr
     for private in ("87654", "43210", "12345", "Geheimstraat", "Kantoorlaan"):
         assert private not in sent
     assert case["funda_id"] == "80907644"
-    assert case["affordability"]["max_price"] > 0
+    assert case["affordability"]["affordable_maximum"] > 0
     assert buyer_profile["must_haves"] == ["Tuin"]
     assert buyer_profile["commute_destinations"] == [{"label": "Werk", "max_minutes": 40}]
 
@@ -197,7 +227,7 @@ def test_a_verdict_is_versioned_against_case_profile_and_model(client, listing_p
 
     assert first["built_from"]["snapshot_id"] == snapshot_id
     assert first["built_from"]["profile_version"] == 1
-    assert first["built_from"]["flag_rules_version"] == 4
+    assert first["built_from"]["flag_rules_version"] == FLAG_RULES_VERSION
     assert first["built_from"]["model"] == settings.verdict_model
     assert (first["version"], second["version"]) == (1, 2)
     state = client.get(VERDICT).json()
@@ -299,7 +329,7 @@ def test_a_manually_entered_listing_gets_a_verdict(client, llm_client):
     assert verdict["tier"] == "consider"
     [(case, _)] = llm_client.rate_calls
     assert {fact["key"]: fact["value"] for fact in case["facts"]}["asking_price"] == 595_000
-    assert verdict["bid_advice"]["affordable_maximum"] == case["affordability"]["max_price"]
+    assert verdict["bid_advice"]["affordable_maximum"] == case["affordability"]["affordable_maximum"]
 
 
 def test_the_comparison_row_shows_the_latest_verdict_tier(client, listing_provider, llm_client):
