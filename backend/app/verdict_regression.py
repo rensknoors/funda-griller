@@ -134,6 +134,7 @@ def _judge(
         list(data["source_runs"]),
         {source: {"latest": run, "last_success": run} for source, run in data["source_runs"].items()},
         settings.source_ttl_days,
+        settings.comparables_min_count,
     )
     try:
         verdict = judge(
@@ -141,6 +142,7 @@ def _judge(
             reduce_profile(0, profile),
             llm_client,
             settings.verdict_model,
+            settings.walk_away_comparables_premium,
             lambda price: compute(profile, price, None, rules, now.date()).monthly_cost,
         )
     except InvalidVerdict as error:
