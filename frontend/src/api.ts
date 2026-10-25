@@ -30,6 +30,7 @@ export type Comparison = {
   plot_area: number | null;
   energy_label: { value: string; official: boolean } | null;
   asking_vs_woz_percent: number | null;
+  asking_vs_comparables_percent: number | null;
   headroom: number | null;
   flag_counts: { pro: number; con: number; risk: number };
   stale_count: number;
@@ -132,9 +133,21 @@ export type ListingFact = {
 
 export type SourceTrust = "official" | "third_party";
 
+/** A nearby Listing from the comparables Source; prices are its (last) asking price. */
+export type Comparable = {
+  funda_id: string;
+  address: string | null;
+  city: string | null;
+  asking_price: number | null;
+  living_area: number | null;
+  raw_status: string | null;
+  recently_sold: boolean;
+  url: string | null;
+};
+
 export type SourceFact = {
   key: string;
-  value: string | number;
+  value: string | number | Comparable;
   as_of: string | null;
   provenance: "source";
   source: string;
@@ -191,6 +204,21 @@ export type Metrics = {
     percent: number;
     provenance: "computed";
   } | null;
+  asking_vs_comparables: AskingVsComparables;
+};
+
+/** Coverage says plainly whether comparables were fetched and whether there are enough to lean on. */
+export type ComparablesCoverage = "not_fetched" | "none" | "thin" | "sufficient";
+
+export type AskingVsComparables = {
+  coverage: ComparablesCoverage;
+  count: number;
+  min_count: number;
+  price_per_m2: number | null;
+  median_price_per_m2: number | null;
+  percent: number | null;
+  comparables_value: number | null;
+  provenance: "computed";
 };
 
 export type Affordability = {
@@ -279,6 +307,13 @@ export type BidAdvice = {
   walk_away_maximum: number;
   conditions: string[];
   affordable_maximum: number;
+  /** Absent on Verdicts made before comparables existed. */
+  comparables?: {
+    coverage: ComparablesCoverage;
+    count: number;
+    comparables_value: number | null;
+    maximum: number | null;
+  };
   asking_price: number | null;
   monthly_cost_at_asking_price: number | null;
   monthly_cost_at_walk_away_maximum: number | null;
