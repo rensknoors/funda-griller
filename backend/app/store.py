@@ -6,7 +6,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.ports import Listing, PricePoint
+from app.ports import Coordinates, Listing, PricePoint
 
 SCHEMA_VERSION = 8
 
@@ -541,7 +541,7 @@ def _address_key(address: str) -> str:
     return " ".join(address.casefold().split())
 
 
-def cached_geocode(database_path: Path, address: str) -> tuple[float, float] | None:
+def cached_geocode(database_path: Path, address: str) -> Coordinates | None:
     """A commute destination's (latitude, longitude) from an earlier lookup, by address ignoring
     case and spacing. Kept locally; the address never leaves except to the geocoder."""
     connection = connect(database_path)
@@ -554,7 +554,7 @@ def cached_geocode(database_path: Path, address: str) -> tuple[float, float] | N
     return (row["latitude"], row["longitude"]) if row else None
 
 
-def cache_geocode(database_path: Path, address: str, place: tuple[float, float]) -> None:
+def cache_geocode(database_path: Path, address: str, place: Coordinates) -> None:
     connection = connect(database_path)
     try:
         connection.execute(
