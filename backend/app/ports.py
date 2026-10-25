@@ -108,6 +108,23 @@ class LlmClient(Protocol):
         ...
 
 
+# (latitude, longitude) in WGS84.
+Coordinates = tuple[float, float]
+
+
+class Geocoder(Protocol):
+    def geocode(self, address: str) -> Coordinates | None:
+        """Where a Dutch address is, or None when it is not found. Raises SourceFailed."""
+        ...
+
+
+class TravelTimeRouter(Protocol):
+    def travel_minutes(self, origin: Coordinates, destinations: list[Coordinates], mode: str) -> list[float | None]:
+        """Minutes from `origin` to each destination by `mode` ("car" or "bike"), None where there
+        is no route. Raises SourceSkipped (e.g. no API key) or SourceFailed."""
+        ...
+
+
 class PhotoDownloader(Protocol):
     def download(self, url: str) -> bytes:
         """One Listing photo's bytes. Any exception means that photo is unavailable."""
@@ -127,3 +144,7 @@ class Ports:
     llm_client: LlmClient | None = None
     photo_downloader: PhotoDownloader | None = None
     document_downloader: DocumentDownloader | None = None
+    # The commute Source runs only with both: the destination address goes to the geocoder alone,
+    # the router sees coordinates only.
+    geocoder: Geocoder | None = None
+    router: TravelTimeRouter | None = None

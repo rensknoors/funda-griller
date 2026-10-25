@@ -34,6 +34,8 @@ SOURCE_TRUST = {
     "flood_soil": "official",
     "noise": "official",
     "comparables": "third_party",
+    # OpenRouteService travel times over OpenStreetMap: a model of the road network, not a register.
+    "commute": "third_party",
 }
 
 
@@ -295,6 +297,19 @@ def _rule_inputs(
         (f for f in facts if f["provenance"] == "source"), key=lambda f: f["as_of"] or ""
     ):
         inputs[f"{fact['source']}.{fact['key']}"] = fact
+    # Commute travel times, one per destination, are keyed `commute.travel_minutes:<label>`, with
+    # the faster mode's minutes as the value and the modes beside it.
+    for fact in facts:
+        if fact["provenance"] == "source" and fact["source"] == "commute" and fact["key"] == "travel_minutes":
+            travel = fact["value"]
+            inputs[f"commute.travel_minutes:{travel['destination']}"] = {
+                **fact,
+                "value": travel["minutes"],
+                "destination": travel["destination"],
+                "mode": travel["mode"],
+                "minutes_by_mode": travel["minutes_by_mode"],
+                "public_transport": travel["public_transport"],
+            }
     # Observations are keyed `observation.<key>` (e.g. `observation.damp_or_mould`).
     for fact in facts:
         if fact["provenance"] == "observation":
@@ -331,4 +346,10 @@ def _rule_inputs(
         }
         for key in ("must_haves", "deal_breakers"):
             inputs[key] = {"key": key, "value": getattr(profile, key), "provenance": "buyer_profile"}
+        # Labels and limits only: the destination address stays out of the Case.
+        inputs["commute_destinations"] = {
+            "key": "commute_destinations",
+            "value": [{"label": d.label, "max_minutes": d.max_minutes} for d in profile.commute_destinations],
+            "provenance": "buyer_profile",
+        }
     return inputs

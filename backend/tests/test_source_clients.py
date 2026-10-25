@@ -17,6 +17,8 @@ from app.ports import SourceFact, SourceFailed, SourceSkipped
 from app.source_clients import (
     EpOnlineEnergielabelSource,
     KlimaateffectatlasFloodSoilSource,
+    OpenRouteServiceRouter,
+    PdokGeocoder,
     PyfundaComparablesSource,
     PyfundaWozSource,
     RivmNoiseSource,
@@ -289,3 +291,80 @@ def test_comparables_fail_when_the_similar_listings_lookup_fails():
 
     with pytest.raises(SourceFailed, match="similar_listings_unavailable"):
         PyfundaComparablesSource(client, max_fetches=3).fetch(live_listing())
+
+
+# Shaped like a PDOK Locatieserver v3.1 `free` answer.
+PDOK_FOUND = {
+    "response": {
+        "numFound": 1,
+        "docs": [{"weergavenaam": "Stationsplein 1, Utrecht", "centroide_ll": "POINT(5.11023493 52.09072777)"}],
+    }
+}
+
+
+def test_pdok_geocodes_an_address_to_latitude_and_longitude():
+    http = FakeHttp(200, PDOK_FOUND)
+
+    place = PdokGeocoder(http).geocode("Stationsplein 1, Utrecht")
+
+    assert place == (52.09072777, 5.11023493)
+    [(url, headers)] = http.requests
+    split = urlsplit(url)
+    assert f"{split.scheme}://{split.netloc}{split.path}" == (
+        "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
+    )
+    assert parse_qs(split.query) == {
+        "q": ["Stationsplein 1, Utrecht"],
+        "fq": ["type:adres"],
+        "rows": ["1"],
+        "fl": ["centroide_ll"],
+    }
+    assert headers == {}
+
+
+def test_pdok_not_finding_an_address_is_none_and_errors_are_failures():
+    assert PdokGeocoder(FakeHttp(200, {"response": {"numFound": 0, "docs": []}})).geocode("x") is None
+    with pytest.raises(SourceFailed, match="http_500"):
+        PdokGeocoder(FakeHttp(500)).geocode("x")
+
+
+class FakePost:
+    def __init__(self, status: int, payload: object = None) -> None:
+        self.status = status
+        self.payload = payload
+        self.requests: list[tuple[str, dict, dict]] = []
+
+    def __call__(self, url: str, headers: dict, body: dict) -> tuple[int, object]:
+        self.requests.append((url, headers, body))
+        return self.status, self.payload
+
+
+def test_openrouteservice_returns_minutes_per_destination_from_one_matrix_request():
+    post = FakePost(200, {"durations": [[1830.0, None]]})
+
+    minutes = OpenRouteServiceRouter("ors-key", post).travel_minutes(
+        (51.0, 5.8), [(52.09, 5.11), (53.2, 6.56)], "bike"
+    )
+
+    assert minutes == [30.5, None]
+    [(url, headers, body)] = post.requests
+    assert url == "https://api.openrouteservice.org/v2/matrix/cycling-regular"
+    assert headers == {"Authorization": "ors-key"}
+    # Longitude first; only coordinates are sent.
+    assert body == {
+        "locations": [[5.8, 51.0], [5.11, 52.09], [6.56, 53.2]],
+        "sources": [0],
+        "destinations": [1, 2],
+        "metrics": ["duration"],
+    }
+
+
+def test_openrouteservice_drives_by_car_and_is_skipped_without_a_key_and_fails_on_errors():
+    post = FakePost(200, {"durations": [[600.0]]})
+    OpenRouteServiceRouter("ors-key", post).travel_minutes((51.0, 5.8), [(52.0, 5.0)], "car")
+    assert post.requests[0][0] == "https://api.openrouteservice.org/v2/matrix/driving-car"
+
+    with pytest.raises(SourceSkipped, match="no_api_key"):
+        OpenRouteServiceRouter(None, FakePost(200)).travel_minutes((51.0, 5.8), [(52.0, 5.0)], "car")
+    with pytest.raises(SourceFailed, match="http_403"):
+        OpenRouteServiceRouter("ors-key", FakePost(403)).travel_minutes((51.0, 5.8), [(52.0, 5.0)], "car")
