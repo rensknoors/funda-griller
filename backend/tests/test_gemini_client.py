@@ -1,5 +1,6 @@
 """The Gemini adapter, driven through a fake HTTP transport: no network."""
 
+import base64
 import json
 
 import pytest
@@ -84,6 +85,71 @@ def test_a_transport_failure_is_an_llm_error():
 
     with pytest.raises(LlmError):
         client.rate(CASE, PROFILE)
+
+
+def photos(tmp_path, *contents: bytes) -> list[str]:
+    paths = []
+    for number, content in enumerate(contents, start=1):
+        path = tmp_path / f"photo{number}.jpg"
+        path.write_bytes(content)
+        paths.append(str(path))
+    return paths
+
+
+def test_observing_sends_every_photo_numbered_to_the_vision_model(tmp_path):
+    reply = {
+        "observations": [
+            {"key": "kitchen_age_years", "years": 25, "photos": [2], "note": "Oude keuken"},
+            {"key": "damp_or_mould", "present": True, "photos": [1]},
+            {"key": "roof_condition", "level": "poor", "photos": [1, 2]},
+        ]
+    }
+    client, transport = client_with(gemini_reply(json.dumps(reply)))
+
+    observations = client.observe_photos(photos(tmp_path, b"gevel", b"keuken"))
+
+    assert observations == [
+        {"key": "kitchen_age_years", "value": 25, "photos": [2], "note": "Oude keuken"},
+        {"key": "damp_or_mould", "value": True, "photos": [1], "note": None},
+        {"key": "roof_condition", "value": "poor", "photos": [1, 2], "note": None},
+    ]
+    [(url, _, body)] = transport.requests
+    assert url.endswith("/models/vision-model:generateContent")
+    parts = body["contents"][0]["parts"]
+    labels = [part["text"] for part in parts if "text" in part]
+    images = [base64.b64decode(part["inlineData"]["data"]) for part in parts if "inlineData" in part]
+    assert labels == ["Foto 1", "Foto 2"]
+    assert images == [b"gevel", b"keuken"]
+    assert all(p["inlineData"]["mimeType"] == "image/jpeg" for p in parts if "inlineData" in p)
+
+
+def test_a_large_photo_set_is_sent_in_batches_and_numbered_as_one_set(tmp_path):
+    first = {"observations": [{"key": "facade_condition", "level": "fair", "photos": [2]}]}
+    second = {"observations": [{"key": "kitchen_age_years", "years": 10, "photos": [1]}]}
+    replies = iter([gemini_reply(json.dumps(first)), gemini_reply(json.dumps(second))])
+    sent: list[list[str]] = []
+
+    def transport(url, headers, body):
+        parts = json.loads(body)["contents"][0]["parts"]
+        sent.append([part["text"] for part in parts if "text" in part])
+        return next(replies)
+
+    client = GeminiLlmClient("key", "vision-model", "verdict-model", transport, inline_limit_bytes=12)
+
+    observations = client.observe_photos(photos(tmp_path, b"123456", b"123456", b"123456"))
+
+    assert sent == [["Foto 1", "Foto 2"], ["Foto 1"]]
+    assert [(o["key"], o["photos"]) for o in observations] == [
+        ("facade_condition", [2]),
+        ("kitchen_age_years", [3]),
+    ]
+
+
+def test_an_unparseable_observation_reply_is_an_llm_error(tmp_path):
+    client, _ = client_with(gemini_reply("not json"))
+
+    with pytest.raises(LlmError):
+        client.observe_photos(photos(tmp_path, b"gevel"))
 
 
 def test_without_an_api_key_nothing_is_sent():

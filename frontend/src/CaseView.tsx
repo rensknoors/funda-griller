@@ -16,6 +16,7 @@ import {
   fetchCase,
   refetchSource,
 } from "./api";
+import { FotoWaarnemingen, OBSERVATION_LABELS, observationValue, photoList } from "./FotoWaarnemingen";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
@@ -75,6 +76,7 @@ const EVIDENCE_LABELS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(ENVIRONMENT_FACTS).map(([key, fact]) => [key, fact.label])),
   threshold: "Drempel",
   must_have: "Must-have",
+  ...OBSERVATION_LABELS,
   deal_breaker: "Deal-breaker",
 };
 
@@ -84,6 +86,7 @@ const PROVENANCE_LABELS: Record<string, string> = {
   computed: "Berekend",
   buyer_profile: "Koperprofiel",
   rule: "Regel",
+  observation: "Waarneming, geschat",
 };
 
 const FLAG_BANDS: { flagClass: FlagClass; glyph: string; label: string }[] = [
@@ -301,6 +304,11 @@ export function CaseView(props: {
             names={["flood_soil", "noise"]}
             facts={sourceFacts.filter((f) => f.source === "flood_soil" || f.source === "noise")}
             sources={state.data.sources}
+          />
+          <FotoWaarnemingen
+            data={state.data}
+            fundaId={listing.funda_id}
+            onCase={(data) => setState({ kind: "klaar", data })}
           />
         </>
       )}
@@ -636,7 +644,10 @@ function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
   return (
     <li>
       {evidenceLabel(item.key)}: <strong>{evidenceValue(item)}</strong>{" "}
-      <span className="muted">({PROVENANCE_LABELS[item.provenance] ?? item.provenance})</span>
+      <span className="muted">
+        ({PROVENANCE_LABELS[item.provenance] ?? item.provenance}
+        {item.photos && item.photos.length > 0 && <>, foto {photoList(item.photos)}</>})
+      </span>
       {vak > 0 && (
         <>
           {" "}
@@ -666,6 +677,7 @@ function evidenceLabel(key: string): string {
 }
 
 function evidenceValue(item: Evidence): string {
+  if (item.provenance === "observation") return observationValue(item.key, item.value);
   if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
   if (item.value === null) return "–";
   if (typeof item.value === "number") return formatNumber(item.key, item.value);

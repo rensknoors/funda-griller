@@ -52,15 +52,15 @@ def test_editing_the_rules_produces_a_new_case_version(client, listing_provider,
     stricter = tmp_path / "flag_rules.toml"
     stricter.write_text(
         settings.flag_rules_path.read_text()
-        .replace("version = 2\n", "version = 3\n", 1)
+        .replace("version = 3\n", "version = 4\n", 1)
         .replace("3 = \"E\"", "3 = \"D\"")
     )
     settings.flag_rules_path = stricter
 
     second = client.get("/api/listings/80907644/case").json()
 
-    assert first["built_from"]["flag_rules_version"] == 2
-    assert second["built_from"]["flag_rules_version"] == 3
+    assert first["built_from"]["flag_rules_version"] == 3
+    assert second["built_from"]["flag_rules_version"] == 4
     assert "energy_label_below_tolerance" in flags_by_rule(second)
 
 

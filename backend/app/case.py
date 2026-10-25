@@ -46,9 +46,11 @@ def build_case(
     source_runs: dict[str, dict],
     ttl_days: dict[str, int],
     comparables_min_count: int = 3,
+    observation_runs: dict | None = None,
 ) -> dict:
     """`sources` are the configured Source names; `source_runs` maps each to its latest and
-    latest succeeded run. Staleness is computed against `now`, never stored."""
+    latest succeeded run. Staleness is computed against `now`, never stored. `observation_runs`
+    holds the latest and latest succeeded vision run over the snapshot's photo set."""
     today = now.date()
     source_facts = _source_facts(source_runs, ttl_days, now)
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
@@ -74,6 +76,9 @@ def build_case(
         for key in LISTING_FACTS
         if snapshot.get(key) is not None
     ] + source_facts
+    photos = [{"number": p["number"], "url": p["url"]} for p in snapshot.get("photos", [])]
+    observed = (observation_runs or {}).get("last_success")
+    facts += _observation_facts(observed, photos)
     flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, profile))
     return {
         "funda_id": funda_id,
@@ -81,9 +86,12 @@ def build_case(
             "snapshot_id": snapshot["id"],
             "profile_version": profile_version,
             "flag_rules_version": flag_rules.version,
+            "observation_run": observed["id"] if observed else None,
         },
         "facts": facts,
         "sources": [_source_status(name, source_runs.get(name)) for name in sources],
+        "photos": photos,
+        "observations": _observation_status(photos, observation_runs),
         "metrics": {
             "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
             "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
@@ -204,6 +212,40 @@ def _source_facts(source_runs: dict[str, dict], ttl_days: dict[str, int], now: d
     return facts
 
 
+def _observation_facts(run: dict | None, photos: list[dict]) -> list[dict]:
+    """Observations as Case facts: estimated, each citing the photos it was read from."""
+    if run is None:
+        return []
+    by_number = {photo["number"]: photo for photo in photos}
+    return [
+        {
+            "key": observation["key"],
+            "value": observation["value"],
+            "note": observation["note"],
+            "photos": [by_number[n] for n in observation["photos"] if n in by_number],
+            "provenance": "observation",
+            "estimated": True,
+            "extracted_at": run["attempted_at"],
+            "model": run["model"],
+        }
+        for observation in run["observations"]
+    ]
+
+
+def _observation_status(photos: list[dict], runs: dict | None) -> dict:
+    latest = (runs or {}).get("latest")
+    if latest:
+        status, reason = latest["outcome"], latest["reason"]
+    else:
+        status, reason = ("not_run", None) if photos else ("no_photos", None)
+    return {
+        "status": status,
+        "reason": reason,
+        "attempted_at": latest["attempted_at"] if latest else None,
+        "model": latest["model"] if latest else None,
+    }
+
+
 def _rule_inputs(
     snapshot: dict, facts: list[dict], affordability: dict | None, profile: BuyerProfile | None
 ) -> dict:
@@ -215,6 +257,10 @@ def _rule_inputs(
         (f for f in facts if f["provenance"] == "source"), key=lambda f: f["as_of"] or ""
     ):
         inputs[f"{fact['source']}.{fact['key']}"] = fact
+    # Observations are keyed `observation.<key>` (e.g. `observation.damp_or_mould`).
+    for fact in facts:
+        if fact["provenance"] == "observation":
+            inputs[f"observation.{fact['key']}"] = fact
     if snapshot.get("description"):
         inputs["description"] = {
             "key": "description",

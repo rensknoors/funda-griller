@@ -1,5 +1,6 @@
 """App wired to fakes and a temp SQLite file, served to the Playwright smoke test."""
 
+import base64
 import tempfile
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from app.main import create_app
 from app.ports import Ports, ProviderBlocked, SourceFact, SourceSkipped
 from app.settings import Settings
 from tests.conftest import SOURCES
-from tests.fakes import FakeListingProvider, FakeLlmClient, FakeSourceClient
+from tests.fakes import FakeListingProvider, FakeLlmClient, FakePhotoDownloader, FakeSourceClient
 from tests.listing_fixtures import LIVE_URL, live_listing
 
 BLOCKED_URL = "https://www.funda.nl/detail/koop/utrecht/huis-oudegracht-2/12345678/"
@@ -113,6 +114,18 @@ def _rate(case: dict, _profile: dict) -> dict:
 
 _llm_client = FakeLlmClient()
 _llm_client.verdict = _rate
+# Observations that raise no Flag, so the other specs' Signaal counts stay as they are.
+_llm_client.observations = [
+    {"key": "kitchen_age_years", "value": 12, "photos": [2], "note": "Lichte keuken met moderne fronten"},
+    {"key": "roof_condition", "value": "fair", "photos": [1], "note": "Dakpannen deels verkleurd"},
+]
+
+# A 1x1 PNG for every Listing photo, so the browser renders real images.
+_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+_photo_downloader = FakePhotoDownloader()
+_photo_downloader.photos = {url: _PNG for url in live_listing().photo_urls}
 
 app = create_app(
     Settings(
@@ -124,5 +137,6 @@ app = create_app(
         listing_provider=_listing_provider,
         source_clients=_source_clients,
         llm_client=_llm_client,
+        photo_downloader=_photo_downloader,
     ),
 )

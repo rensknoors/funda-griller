@@ -49,6 +49,18 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Photos and Observations reach the outside world only through ports: no adapters, settings or app wiring"
+type = "forbidden"
+source_modules = ["app.photos", "app.observations"]
+forbidden_modules = [
+  "app.gemini_client",
+  "app.photo_downloader",
+  "app.production_ports",
+  "app.settings",
+  "app.main",
+]
+
+[[tool.importlinter.contracts]]
 name = "Verdict service reaches the LLM only through the port: no adapters, storage, settings or app wiring"
 type = "forbidden"
 source_modules = ["app.verdict"]
