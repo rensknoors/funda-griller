@@ -8,6 +8,7 @@ import {
   type VerdictError,
   type VerdictInput,
   type VerdictState,
+  type WalkAwayDerivation,
   fetchVerdicts,
   isVerdictError,
   runVerdict,
@@ -249,6 +250,9 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
         <div className="figure">
           <p className="vak-label">Maximumbod</p>
           <p className="bid-amount num">{euro.format(advice.walk_away_maximum)}</p>
+          {advice.derivation?.weakly_grounded && (
+            <p className="weak-grounding">{weakGroundingNote(advice.derivation)}</p>
+          )}
           <details>
             <summary>Hoe berekend</summary>
             <ul className="evidence">
@@ -261,20 +265,23 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
                 {advice.comparables ? (
                   <>
                     {advice.comparables.comparables_value !== null &&
-                      `waarde ${euro.format(advice.comparables.comparables_value)}`}
-                    {advice.comparables.maximum !== null && `, Maximumbod tot ${euro.format(advice.comparables.maximum)}`}{" "}
-                    <span className="muted">
-                      ({coverageNote(advice.comparables)}
-                      {advice.comparables.maximum === null && "; Maximumbod alleen begrensd door betaalruimte"})
-                    </span>
+                      `waarde ${euro.format(advice.comparables.comparables_value)} `}
+                    <span className="muted">({coverageNote(advice.comparables)})</span>
                   </>
                 ) : (
                   <span className="muted">niet meegenomen in dit oordeel</span>
                 )}
               </li>
-              <li>
-                <BindingLimit advice={advice} />
-              </li>
+              {advice.derivation ? (
+                <>
+                  {basisLine(advice, advice.derivation) && <li>{basisLine(advice, advice.derivation)}</li>}
+                  <li>{bindingLine(advice, advice.derivation)}</li>
+                </>
+              ) : (
+                <li>
+                  <ModelBindingLimit advice={advice} />
+                </li>
+              )}
             </ul>
           </details>
         </div>
@@ -309,8 +316,36 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
   );
 }
 
-/** Names the lowest bid limit, so the Maximumbod can be checked against both inputs. */
-function BindingLimit({ advice }: { advice: BidAdvice }) {
+const percent = (share: number) => `${(Math.round(share * 1000) / 10).toLocaleString("nl-NL")}%`;
+
+/** Said next to the Maximumbod, not tucked into "Hoe berekend": without comparables it is a guess. */
+function weakGroundingNote(derivation: WalkAwayDerivation): string {
+  return derivation.basis === "asking_price"
+    ? "Zwak onderbouwd: te weinig vergelijkbare woningen, dus gebaseerd op de vraagprijs in plaats van op wat de woning waard is."
+    : "Zwak onderbouwd: geen vergelijkbare woningen en geen vraagprijs, dus alleen begrensd door je betaalruimte.";
+}
+
+/** "Vraagprijs € 595.000 + 5%: € 624.750": the basis and its margin. */
+function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | null {
+  if (derivation.basis_maximum === null || derivation.margin === null) return null;
+  const value = derivation.basis === "comparables" ? advice.comparables?.comparables_value : advice.asking_price;
+  if (value == null) return null;
+  const label = derivation.basis === "comparables" ? "Vergelijkbare woningen" : "Vraagprijs";
+  return `${label} ${euro.format(value)} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
+}
+
+/** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */
+function bindingLine(advice: BidAdvice, derivation: WalkAwayDerivation): string {
+  const maximum = euro.format(advice.walk_away_maximum);
+  if (derivation.basis === "affordability") return `Maximumbod: de betaalruimte, ${maximum}.`;
+  const basis = derivation.basis === "comparables" ? "vergelijkbare woningen" : "vraagprijs";
+  return derivation.binding === "basis"
+    ? `Maximumbod: de ${basis} plus marge, ${maximum}, onder de betaalruimte.`
+    : `Maximumbod: de betaalruimte, ${maximum}, lager dan de ${basis} plus marge.`;
+}
+
+/** For older Verdicts whose model proposed the Maximumbod: names the lowest limit it stayed under. */
+function ModelBindingLimit({ advice }: { advice: BidAdvice }) {
   const comparables = advice.comparables?.maximum ?? null;
   const byComparables = comparables !== null && comparables < advice.affordable_maximum;
   const limit = byComparables ? comparables : advice.affordable_maximum;

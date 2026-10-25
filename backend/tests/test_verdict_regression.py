@@ -55,7 +55,8 @@ def run(settings, llm_client, *argv):
 
 
 def answer(tier):
-    bid = {"opening_bid": 580_000, "walk_away_maximum": 600_000, "conditions": ["Bouwkundige keuring"]}
+    # Far below any derived Walk-away Maximum in the set; the model gives no Walk-away Maximum.
+    bid = {"opening_bid": 300_000, "conditions": ["Bouwkundige keuring"]}
     return {
         "tier": tier,
         "summary": "Samenvatting.",

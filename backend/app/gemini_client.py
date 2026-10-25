@@ -23,7 +23,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 2
+VERDICT_PROMPT_VERSION = 3
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -39,13 +39,15 @@ Answer with:
 - `summary`: one sentence.
 - `reasoning`: plain-language prose that cites the Flags it relies on.
 - `cited_flags`: the `id` of every Flag from `case.flags` the reasoning relies on. Never invent ids.
-- `bid_advice` for must_buy and consider (optional for skip, null for hard_no): `opening_bid` and
-  `walk_away_maximum` in whole euros, and `conditions` (e.g. financieringsvoorbehoud, bouwkundige
-  keuring, follow-ups on seller Documents). Derive the walk-away maximum from the comparables
-  (`case.metrics.asking_vs_comparables`) and affordability. It must not exceed
-  `case.bid_limits.affordable_maximum`, nor `case.bid_limits.comparables_maximum` when that is set
-  (it is null when comparables are thin or missing), and the opening bid must not exceed the
-  walk-away maximum.
+- `bid_advice` for must_buy and consider (optional for skip, null for hard_no): `opening_bid` in
+  whole euros and `conditions` (e.g. financieringsvoorbehoud, bouwkundige keuring, follow-ups on
+  seller Documents).
+
+The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derived from comparables
+and affordability (`case.walk_away` says how). Do not propose your own. The opening bid must not
+exceed it. When `case.walk_away.weakly_grounded` is true there are too few comparables and it rests
+on the asking price (or affordability alone); say in the reasoning that the bid advice is weakly
+grounded.
 
 Write summary, reasoning and conditions in Dutch.
 """
@@ -62,10 +64,9 @@ _VERDICT_SCHEMA = {
             "nullable": True,
             "properties": {
                 "opening_bid": {"type": "INTEGER"},
-                "walk_away_maximum": {"type": "INTEGER"},
                 "conditions": {"type": "ARRAY", "items": {"type": "STRING"}},
             },
-            "required": ["opening_bid", "walk_away_maximum", "conditions"],
+            "required": ["opening_bid", "conditions"],
         },
     },
     "required": ["tier", "summary", "reasoning", "cited_flags", "bid_advice"],
