@@ -13,9 +13,11 @@ import {
   type Metrics,
   type SourceFact,
   type SourceStatus,
+  type FindingFact,
   fetchCase,
   refetchSource,
 } from "./api";
+import { Documenten, FINDING_LABELS, VerkoperInformatie } from "./Documenten";
 import { FotoWaarnemingen, OBSERVATION_LABELS, observationValue, photoList } from "./FotoWaarnemingen";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 
@@ -84,6 +86,7 @@ const PROVENANCE_LABELS: Record<string, string> = {
   listing: "Advertentie",
   source: "Bron",
   computed: "Berekend",
+  finding: "Bevinding, door verkoper",
   buyer_profile: "Koperprofiel",
   rule: "Regel",
   observation: "Waarneming, geschat",
@@ -168,6 +171,10 @@ export function CaseView(props: {
     } finally {
       setRefetching(null);
     }
+  }
+
+  async function reloadCase() {
+    setState({ kind: "klaar", data: await fetchCase(listing.funda_id) });
   }
 
   const loaded = state.kind === "klaar";
@@ -305,11 +312,16 @@ export function CaseView(props: {
             facts={sourceFacts.filter((f) => f.source === "flood_soil" || f.source === "noise")}
             sources={state.data.sources}
           />
+          <VerkoperInformatie
+            fundaId={listing.funda_id}
+            findings={state.data.facts.filter((f): f is FindingFact => f.provenance === "finding")}
+          />
           <FotoWaarnemingen
             data={state.data}
             fundaId={listing.funda_id}
             onCase={(data) => setState({ kind: "klaar", data })}
           />
+          <Documenten fundaId={listing.funda_id} documents={state.data.documents} onChanged={reloadCase} />
         </>
       )}
     </section>
@@ -636,6 +648,17 @@ function Signalen({
 }
 
 function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
+  if (item.provenance === "finding") {
+    return (
+      <li>
+        {FINDING_LABELS[item.key as FindingFact["key"]] ?? item.key}: <strong>“{item.statement}”</strong>{" "}
+        <span className="muted">
+          ({PROVENANCE_LABELS.finding}, {item.document_name} p. {item.page})
+        </span>{" "}
+        <a href="#verkoper-informatie-title">Zie verkoper-informatie</a>
+      </li>
+    );
+  }
   // Only Kenmerken rows carry a vak anchor; Source facts are shown in their own groups.
   const vak =
     item.provenance === "listing"

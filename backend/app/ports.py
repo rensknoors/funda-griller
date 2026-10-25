@@ -32,6 +32,10 @@ class SourceFailed(Exception):
     """A Source client tried and failed. Any other exception from a client counts as failed too."""
 
 
+class DownloadFailed(Exception):
+    """A Document (the funda brochure) could not be downloaded."""
+
+
 class LlmError(Exception):
     """The LLM client could not produce an answer (network, quota, refusal, unparseable reply)."""
 
@@ -89,7 +93,10 @@ class SourceClient(Protocol):
 class LlmClient(Protocol):
     def observe_photos(self, photo_paths: list[str]) -> list[dict]: ...
 
-    def extract_findings(self, document_path: str) -> list[dict]: ...
+    def extract_findings(self, document_path: str) -> list[dict]:
+        """Raw Findings for the PDF at `document_path`, each with `topic`, `present`, `statement`
+        and its 1-based `page`. Validated by the caller. Raises LlmError."""
+        ...
 
     def rate(self, case: dict, buyer_profile: dict) -> dict:
         """The Verdict model's raw answer for a Case and the reduced Buyer Profile. Raises LlmError."""
@@ -102,9 +109,16 @@ class PhotoDownloader(Protocol):
         ...
 
 
+class DocumentDownloader(Protocol):
+    def download(self, url: str) -> bytes:
+        """The file at `url` (the funda brochure). Raises DownloadFailed."""
+        ...
+
+
 @dataclass
 class Ports:
     listing_provider: ListingProvider
     source_clients: dict[str, SourceClient] = field(default_factory=dict)
     llm_client: LlmClient | None = None
     photo_downloader: PhotoDownloader | None = None
+    document_downloader: DocumentDownloader | None = None

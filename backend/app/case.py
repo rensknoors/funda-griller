@@ -1,10 +1,12 @@
 """Case builder (Dossier): pure assembly of Listing facts and computed metrics. No I/O, no judgement."""
 
+from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
 from app.affordability import Rules, compute
 from app.buyer_profile import BuyerProfile
+from app.findings import document_summaries, finding_facts
 from app.flags import RuleSet, evaluate, hard_no
 
 LISTING_FACTS = (
@@ -47,10 +49,12 @@ def build_case(
     ttl_days: dict[str, int],
     comparables_min_count: int = 3,
     observation_runs: dict | None = None,
+    documents: Sequence[dict] = (),
 ) -> dict:
     """`sources` are the configured Source names; `source_runs` maps each to its latest and
     latest succeeded run. Staleness is computed against `now`, never stored. `observation_runs`
-    holds the latest and latest succeeded vision run over the snapshot's photo set."""
+    holds the latest and latest succeeded vision run over the snapshot's photo set. `documents`
+    are the Listing's stored Documents; analysed ones contribute their Findings."""
     today = now.date()
     source_facts = _source_facts(source_runs, ttl_days, now)
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
@@ -79,6 +83,7 @@ def build_case(
     photos = [{"number": p["number"], "url": p["url"]} for p in snapshot.get("photos", [])]
     observed = (observation_runs or {}).get("last_success")
     facts += _observation_facts(observed, photos)
+    facts += finding_facts(documents)
     flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, profile))
     return {
         "funda_id": funda_id,
@@ -87,11 +92,13 @@ def build_case(
             "profile_version": profile_version,
             "flag_rules_version": flag_rules.version,
             "observation_run": observed["id"] if observed else None,
+            "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
         },
         "facts": facts,
         "sources": [_source_status(name, source_runs.get(name)) for name in sources],
         "photos": photos,
         "observations": _observation_status(photos, observation_runs),
+        "documents": document_summaries(documents),
         "metrics": {
             "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
             "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
@@ -261,6 +268,10 @@ def _rule_inputs(
     for fact in facts:
         if fact["provenance"] == "observation":
             inputs[f"observation.{fact['key']}"] = fact
+    # Findings are keyed `finding.<topic>`. When Documents disagree, a disclosure (`True`) wins
+    # over a denial, so a seller's admission is never hidden by another page.
+    for fact in sorted((f for f in facts if f["provenance"] == "finding"), key=lambda f: f["value"] is True):
+        inputs[f"finding.{fact['key']}"] = fact
     if snapshot.get("description"):
         inputs["description"] = {
             "key": "description",

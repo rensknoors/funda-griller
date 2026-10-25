@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.ports import Listing, PricePoint
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -45,6 +45,23 @@ CREATE TABLE IF NOT EXISTS observation_runs (
     reason TEXT,
     model TEXT,
     observations TEXT
+);
+CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    funda_id TEXT NOT NULL REFERENCES listings(funda_id),
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    source_url TEXT,
+    stored_name TEXT,
+    sha256 TEXT,
+    added_at TEXT NOT NULL,
+    status TEXT NOT NULL,
+    reason TEXT,
+    page_count INTEGER,
+    findings TEXT,
+    rejected_findings INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    extracted_at TEXT
 );
 CREATE TABLE IF NOT EXISTS listing_archive_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -395,6 +412,122 @@ def verdicts(database_path: Path, funda_id: str) -> list[dict]:
         {"id": row["id"], "version": number, "created_at": row["created_at"], **json.loads(row["data"])}
         for number, row in enumerate(rows, start=1)
     ][::-1]
+
+
+_DOCUMENT_NAME = re.compile(r"^[0-9a-f]{32}\.pdf$")
+_DOCUMENT_FIELDS = (
+    "name",
+    "source_url",
+    "stored_name",
+    "sha256",
+    "status",
+    "reason",
+    "page_count",
+    "findings",
+    "rejected_findings",
+    "model",
+    "extracted_at",
+)
+
+
+def _document_dir(media_dir: Path, funda_id: str) -> Path:
+    return media_dir / "listings" / funda_id / "documents"
+
+
+def save_document_file(media_dir: Path, funda_id: str, content: bytes) -> str:
+    """Store a Document's bytes under a generated name; returns that name."""
+    name = uuid.uuid4().hex + ".pdf"
+    directory = _document_dir(media_dir, funda_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / name).write_bytes(content)
+    return name
+
+
+def document_file_path(media_dir: Path, funda_id: str, stored_name: str | None) -> Path | None:
+    if not funda_id.isdigit() or not stored_name or not _DOCUMENT_NAME.match(stored_name):
+        return None
+    path = _document_dir(media_dir, funda_id) / stored_name
+    return path if path.is_file() else None
+
+
+def delete_document_file(media_dir: Path, funda_id: str, stored_name: str | None) -> None:
+    path = document_file_path(media_dir, funda_id, stored_name)
+    if path is not None:
+        path.unlink()
+
+
+def add_document(database_path: Path, funda_id: str, kind: str, name: str, added_at: str) -> int:
+    """A new Document row, `pending` until it has been read and analysed."""
+    connection = connect(database_path)
+    try:
+        cursor = connection.execute(
+            "INSERT INTO documents (funda_id, kind, name, added_at, status) VALUES (?, ?, ?, ?, 'pending')",
+            (funda_id, kind, name, added_at),
+        )
+        connection.commit()
+        return cursor.lastrowid
+    finally:
+        connection.close()
+
+
+def update_document(database_path: Path, document_id: int, **fields: object) -> None:
+    unknown = set(fields) - set(_DOCUMENT_FIELDS)
+    if unknown:
+        raise ValueError(f"unknown Document fields: {sorted(unknown)}")
+    if "findings" in fields:
+        fields["findings"] = json.dumps(fields["findings"] or [])
+    connection = connect(database_path)
+    try:
+        connection.execute(
+            f"UPDATE documents SET {', '.join(f'{key} = ?' for key in fields)} WHERE id = ?",
+            (*fields.values(), document_id),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _document(row: sqlite3.Row) -> dict:
+    return {**dict(row), "findings": json.loads(row["findings"]) if row["findings"] else []}
+
+
+def documents(database_path: Path, funda_id: str) -> list[dict]:
+    """A Listing's Documents in the order they were added."""
+    connection = connect(database_path)
+    try:
+        rows = connection.execute(
+            "SELECT * FROM documents WHERE funda_id = ? ORDER BY id", (funda_id,)
+        ).fetchall()
+    finally:
+        connection.close()
+    return [_document(row) for row in rows]
+
+
+def get_document(database_path: Path, funda_id: str, document_id: int) -> dict | None:
+    return next((d for d in documents(database_path, funda_id) if d["id"] == document_id), None)
+
+
+def delete_document(database_path: Path, document_id: int) -> None:
+    connection = connect(database_path)
+    try:
+        connection.execute("DELETE FROM documents WHERE id = ?", (document_id,))
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def cached_extraction(database_path: Path, sha256: str, model: str | None) -> dict | None:
+    """An earlier analysis of the same bytes by the same model, from any Listing."""
+    connection = connect(database_path)
+    try:
+        row = connection.execute(
+            "SELECT * FROM documents WHERE sha256 = ? AND model IS ? AND status = 'analysed' "
+            "ORDER BY id DESC LIMIT 1",
+            (sha256, model),
+        ).fetchone()
+    finally:
+        connection.close()
+    return _document(row) if row else None
 
 
 def listings_with_verdicts(database_path: Path) -> list[str]:
