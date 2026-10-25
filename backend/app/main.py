@@ -4,12 +4,12 @@ from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Body, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from app import store
+from app import documents, store
 from app.affordability import compute, consequences
 from app.case import build_case
 from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, reduce_profile
@@ -95,7 +95,26 @@ def create_app(
         fetched_at = clock().isoformat()
         store.add_snapshot(settings.database_path, listing, fetched_at, status, entry)
         run_sources(settings.database_path, ports.source_clients, listing, fetched_at)
+        attach_brochure(funda_id, listing.brochure_url, fetched_at)
         return with_comparison(store.get_listing(settings.database_path, funda_id))
+
+    def attach_brochure(funda_id: str, url: str | None, now: str) -> None:
+        """Download the funda brochure as a Document, once per brochure URL. A new URL replaces the
+        old brochure and its Findings."""
+        if not url or ports.document_downloader is None:
+            return
+        brochures = [d for d in store.documents(settings.database_path, funda_id) if d["kind"] == "brochure"]
+        if any(d["source_url"] == url for d in brochures):
+            return
+        for old in brochures:
+            discard_document(funda_id, old)
+        document_id = store.add_document(settings.database_path, funda_id, "brochure", "Brochure (funda)", now)
+        store.update_document(settings.database_path, document_id, source_url=url)
+        documents.download_and_analyse(
+            settings.database_path, settings.media_dir, funda_id,
+            store.get_document(settings.database_path, funda_id, document_id),
+            ports.document_downloader, ports.llm_client, settings.vision_model, now,
+        )
 
     def with_comparison(listing: dict) -> dict:
         """The Listing plus its comparison-view row: the latest Verdict's tier, or none until a
@@ -188,6 +207,94 @@ def create_app(
             list(ports.source_clients),
             store.source_runs(settings.database_path, funda_id),
             settings.source_ttl_days,
+            documents=store.documents(settings.database_path, funda_id),
+        )
+
+    def document_or_404(funda_id: str, document_id: int) -> dict:
+        document = store.get_document(settings.database_path, funda_id, document_id)
+        if document is None:
+            raise HTTPException(status_code=404, detail="not_found")
+        return document
+
+    def public_document(funda_id: str, document_id: int) -> dict:
+        document = store.get_document(settings.database_path, funda_id, document_id)
+        hidden = {"stored_name", "sha256", "funda_id"}
+        return {key: value for key, value in document.items() if key not in hidden}
+
+    @app.get("/api/listings/{funda_id}/documents", response_model=None)
+    def list_documents(funda_id: str) -> list[dict] | JSONResponse:
+        if store.get_listing(settings.database_path, funda_id) is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        return [public_document(funda_id, d["id"]) for d in store.documents(settings.database_path, funda_id)]
+
+    @app.post("/api/listings/{funda_id}/documents", status_code=201, response_model=None)
+    def upload_document(funda_id: str, file: Annotated[UploadFile, File()]) -> dict | JSONResponse:
+        """Add a Document (Vragenlijst, Lijst van zaken, ...) and extract its Findings once."""
+        if store.get_listing(settings.database_path, funda_id) is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        now = clock().isoformat()
+        document_id = store.add_document(
+            settings.database_path, funda_id, "upload", (file.filename or "Document").strip() or "Document", now
+        )
+        document = store.get_document(settings.database_path, funda_id, document_id)
+        documents.store_content(
+            settings.database_path, settings.media_dir, funda_id, document, file.file.read(),
+            ports.llm_client, settings.vision_model, now,
+        )
+        return public_document(funda_id, document_id)
+
+    @app.put("/api/listings/{funda_id}/documents/{document_id}", response_model=None)
+    def replace_document(funda_id: str, document_id: int, file: Annotated[UploadFile, File()]) -> dict:
+        """Re-upload: the new file replaces the old one and its Findings."""
+        document = document_or_404(funda_id, document_id)
+        if file.filename and document["kind"] == "upload":
+            store.update_document(settings.database_path, document_id, name=file.filename.strip() or document["name"])
+        documents.store_content(
+            settings.database_path, settings.media_dir, funda_id, document, file.file.read(),
+            ports.llm_client, settings.vision_model, clock().isoformat(),
+        )
+        return public_document(funda_id, document_id)
+
+    @app.post("/api/listings/{funda_id}/documents/{document_id}/analyse", response_model=None)
+    def reanalyse_document(funda_id: str, document_id: int) -> dict:
+        """Retry a Document that was not analysed, or whose brochure download failed."""
+        document = document_or_404(funda_id, document_id)
+        now = clock().isoformat()
+        if document["status"] == "download_failed" and ports.document_downloader is not None:
+            documents.download_and_analyse(
+                settings.database_path, settings.media_dir, funda_id, document,
+                ports.document_downloader, ports.llm_client, settings.vision_model, now,
+            )
+        elif document["status"] != "download_failed":
+            documents.analyse(
+                settings.database_path, settings.media_dir, funda_id, document_id,
+                ports.llm_client, settings.vision_model, now,
+            )
+        return public_document(funda_id, document_id)
+
+    @app.delete("/api/listings/{funda_id}/documents/{document_id}", status_code=204)
+    def remove_document(funda_id: str, document_id: int) -> Response:
+        discard_document(funda_id, document_or_404(funda_id, document_id))
+        return Response(status_code=204)
+
+    def discard_document(funda_id: str, document: dict) -> None:
+        """Remove a Document's file and row; its Findings leave the Case with it."""
+        store.delete_document_file(settings.media_dir, funda_id, document["stored_name"])
+        store.delete_document(settings.database_path, document["id"])
+
+    @app.get("/api/listings/{funda_id}/documents/{document_id}/file", response_model=None)
+    def read_document_file(funda_id: str, document_id: int) -> FileResponse | JSONResponse:
+        """The Document itself, for the app's own UI only: shown inline, never offered elsewhere."""
+        document = document_or_404(funda_id, document_id)
+        path = store.document_file_path(settings.media_dir, funda_id, document["stored_name"])
+        if path is None:
+            return JSONResponse({"code": "not_found"}, status_code=404)
+        return FileResponse(
+            path,
+            media_type="application/pdf",
+            content_disposition_type="inline",
+            filename=document["name"],
+            headers={"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex"},
         )
 
     def verdict_state(funda_id: str, case: dict) -> dict:

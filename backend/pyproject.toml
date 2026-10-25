@@ -9,6 +9,7 @@ dependencies = [
   "pyfunda==3.1.5",
   "tls-client<2.0",
   "python-multipart==0.0.32",
+  "pypdf==6.1.1",
 ]
 
 [dependency-groups]
@@ -32,9 +33,9 @@ source_modules = ["app.ports"]
 forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main"]
 
 [[tool.importlinter.contracts]]
-name = "Case builder is pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
+name = "Case builder and Findings are pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
 type = "forbidden"
-source_modules = ["app.case", "app.affordability", "app.flags", "app.comparison"]
+source_modules = ["app.case", "app.affordability", "app.flags", "app.comparison", "app.findings"]
 forbidden_modules = [
   "app.ports",
   "app.production_ports",

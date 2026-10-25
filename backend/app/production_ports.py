@@ -1,5 +1,6 @@
 from funda import Funda
 
+from app.document_downloader import HttpDocumentDownloader
 from app.gemini_client import GeminiLlmClient
 from app.ports import Ports
 from app.pyfunda_provider import PyfundaListingProvider
@@ -25,4 +26,5 @@ def build_production_ports(settings: Settings) -> Ports:
         llm_client=GeminiLlmClient(
             settings.gemini_api_key, settings.vision_model, settings.verdict_model
         ),
+        document_downloader=HttpDocumentDownloader(),
     )

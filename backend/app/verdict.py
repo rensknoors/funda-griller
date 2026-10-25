@@ -68,7 +68,11 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
     """Which inputs moved since the Verdict was made: `case`, `buyer_profile`, `rules`, `model`."""
     then = verdict["built_from"]
     changed = []
-    if then["snapshot_id"] != current["snapshot_id"] or then["source_fetches"] != current["source_fetches"]:
+    if (
+        then["snapshot_id"] != current["snapshot_id"]
+        or then["source_fetches"] != current["source_fetches"]
+        or then.get("documents", []) != current.get("documents", [])
+    ):
         changed.append("case")
     if then["profile_version"] != current["profile_version"]:
         changed.append("buyer_profile")

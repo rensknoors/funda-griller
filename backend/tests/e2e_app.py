@@ -7,8 +7,9 @@ from app.main import create_app
 from app.ports import Ports, ProviderBlocked, SourceFact, SourceSkipped
 from app.settings import Settings
 from tests.conftest import SOURCES
-from tests.fakes import FakeListingProvider, FakeLlmClient, FakeSourceClient
+from tests.fakes import FakeDocumentDownloader, FakeListingProvider, FakeLlmClient, FakeSourceClient
 from tests.listing_fixtures import LIVE_URL, live_listing
+from tests.pdf_fixtures import make_pdf
 
 BLOCKED_URL = "https://www.funda.nl/detail/koop/utrecht/huis-oudegracht-2/12345678/"
 # Available on first fetch, sold on every refetch after: the comparison view's status change.
@@ -84,8 +85,21 @@ def _rate(case: dict, _profile: dict) -> dict:
     }
 
 
+def _findings(document_path: str) -> list[dict]:
+    """Findings keyed off the generated PDFs' text: the Vragenlijst discloses asbestos, the
+    brochure says what stays."""
+    content = Path(document_path).read_bytes()
+    if b"asbest" in content:
+        return [{"topic": "asbestos", "present": True, "statement": "Asbest in de dakplaten van de schuur.", "page": 2}]
+    if b"Brochure" in content:
+        return [{"topic": "stays_or_goes", "present": True, "statement": "De gordijnen blijven achter.", "page": 2}]
+    return []
+
+
 _llm_client = FakeLlmClient()
 _llm_client.verdict = _rate
+_llm_client.findings = _findings
+_document_downloader = FakeDocumentDownloader(make_pdf(["Brochure Buchterweg 15", "De gordijnen blijven achter."]))
 
 app = create_app(
     Settings(
@@ -97,5 +111,6 @@ app = create_app(
         listing_provider=_listing_provider,
         source_clients=_source_clients,
         llm_client=_llm_client,
+        document_downloader=_document_downloader,
     ),
 )
