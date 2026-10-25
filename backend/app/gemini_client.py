@@ -15,6 +15,9 @@ TIMEOUT_SECONDS = 120
 
 Transport = Callable[[str, dict, bytes], bytes]
 
+# Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
+VERDICT_PROMPT_VERSION = 1
+
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
 deterministic evidence file (facts, computed metrics, affordability and Flags), and `buyer_profile`,

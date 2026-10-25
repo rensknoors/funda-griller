@@ -4,9 +4,9 @@
 
 **Blocked by:** 09 (Verdict and Bid Advice)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] A set of stored Listings with expected tiers can be defined and extended
-- [ ] A single command runs the set against the configured real model and prints expected versus actual per Listing
-- [ ] The harness is excluded from the default test run and clearly marked as costing money
-- [ ] Results record the model identifier, rule version and prompt version used
+- [x] A set of stored Listings with expected tiers can be defined and extended
+- [x] A single command runs the set against the configured real model and prints expected versus actual per Listing
+- [x] The harness is excluded from the default test run and clearly marked as costing money
+- [x] Results record the model identifier, rule version and prompt version used
