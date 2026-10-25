@@ -9,7 +9,7 @@ set premium above what they put the house at.
 
 from collections.abc import Callable
 
-from app.ports import LlmClient
+from app.ports import LlmClient, LlmError
 
 TIERS = ("must_buy", "consider", "skip", "hard_no")
 # Tiers that tell the household to bid, so they need Bid Advice.
@@ -39,7 +39,7 @@ class InvalidVerdict(Exception):
 def judge(
     case: dict,
     reduced_profile: dict,
-    llm_client: LlmClient,
+    llm_client: LlmClient | None,
     model: str | None,
     comparables_premium: float,
     monthly_cost_at: Callable[[int], int | None],
@@ -48,6 +48,8 @@ def judge(
     built_from = inputs_of(case, model)
     if case["hard_no"]:
         return _hard_no(case, {**built_from, "model": None})
+    if llm_client is None:
+        raise LlmError("no LLM client configured")
     limits = bid_limits(case, comparables_premium)
     response = llm_client.rate(
         {**case, "provenance_legend": PROVENANCE_LEGEND, "bid_limits": limits}, reduced_profile

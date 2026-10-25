@@ -271,6 +271,8 @@ export type Affordability = {
   headroom: number | null;
   /** Highest purchase price the household can pay, kosten koper included. */
   max_price: number;
+  /** The energielabel the borrowing capacity was computed with (register over Listing). */
+  energy_label: string | null;
   provenance: "computed";
   computed_on: string;
 };
