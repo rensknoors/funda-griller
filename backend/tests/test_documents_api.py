@@ -344,3 +344,11 @@ def test_a_finding_on_a_page_without_text_is_kept_but_marked_unverified(client, 
 
     [finding] = findings_in(client.get("/api/listings/80907644/case").json())
     assert finding["verified"] is False
+
+
+def test_an_unknown_document_is_not_found_in_the_common_error_shape(client, listing_provider):
+    capture(client, listing_provider)
+
+    response = client.delete("/api/listings/80907644/documents/999")
+
+    assert (response.status_code, response.json()) == (404, {"code": "not_found"})

@@ -1,4 +1,5 @@
-"""The three outside-world ports. Everything that touches the network sits behind one."""
+"""The outside-world ports: Listing provider, Source clients, LLM client, photo and document
+downloaders. Everything that touches the network sits behind one."""
 
 from dataclasses import dataclass, field
 from typing import Protocol
