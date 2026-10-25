@@ -8,7 +8,7 @@ Read during review. Judgement calls only; anything mechanical belongs in a check
 - Every Flag cites its rule id, rule version and evidence facts. A Flag with no evidence path is a defect.
 - Every fact entering a Case carries a provenance class (Listing, Source, Observation, Finding) and a fetch or extraction time. Observations read as estimated, Findings as seller-stated, WOZ as third-party.
 - Derived inputs are not facts and never get a fake fetch time: computed metrics and affordability (`computed`), Buyer Profile values (`buyer_profile`) and rule thresholds (`rule`) carry their derived class and a `computed_at` time, the moment the Case derived them.
-- LLM output is validated at the boundary: a tier outside the four, or a Walk-away Maximum above affordability, is rejected, not displayed.
+- LLM output is validated at the boundary: a tier outside the four, or an opening bid above the Walk-away Maximum, is rejected, not displayed. The Walk-away Maximum itself is derived, never taken from the model.
 
 ## Boundaries
 

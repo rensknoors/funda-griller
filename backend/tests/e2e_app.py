@@ -103,8 +103,7 @@ def _rate(case: dict, _profile: dict) -> dict:
             "cited_flags": cited,
             "bid_advice": None,
         }
-    limits = case["bid_limits"]
-    walk_away = min(affordable, limits["comparables_maximum"] or affordable, asking + 20_000)
+    walk_away = case["walk_away"]["walk_away_maximum"]
     return {
         "tier": "consider",
         "summary": "Degelijke woning, de vraagprijs is aan de hoge kant.",
@@ -113,7 +112,6 @@ def _rate(case: dict, _profile: dict) -> dict:
         "cited_flags": cited,
         "bid_advice": {
             "opening_bid": min(walk_away, asking - 15_000),
-            "walk_away_maximum": walk_away,
             "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
         },
     }
