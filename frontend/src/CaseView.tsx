@@ -49,7 +49,7 @@ const REASON_COPY: Record<string, string> = {
   no_address: "adres onvolledig",
   no_coordinates: "geen coördinaten",
   not_fetched: "nog niet opgehaald",
-  no_destinations: "geen pendelbestemmingen in je koperprofiel",
+  no_destinations: "geen pendelbestemmingen in je Koperprofiel",
   destination_not_found: "adres van pendelbestemming niet gevonden",
   no_route: "geen route gevonden",
 };
