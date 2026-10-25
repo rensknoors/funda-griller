@@ -3,7 +3,8 @@
 A deal-breaker Hard no is applied deterministically and never reaches the LLM client. Otherwise the
 model reads the Case plus the reduced Buyer Profile, and its answer is validated here before
 anything stores or shows it: one of four tiers, Flags it cites must exist, and the Walk-away Maximum
-may not exceed what the household can afford.
+may not exceed what the household can afford, nor, when there are enough comparables, more than a
+set premium above what they put the house at.
 """
 
 from collections.abc import Callable
@@ -40,14 +41,38 @@ def judge(
     reduced_profile: dict,
     llm_client: LlmClient,
     model: str | None,
+    comparables_premium: float,
     monthly_cost_at: Callable[[int], int | None],
 ) -> dict:
     """A Verdict for the Case, without id, version or creation time (the store adds those)."""
     built_from = inputs_of(case, model)
     if case["hard_no"]:
         return _hard_no(case, {**built_from, "model": None})
-    response = llm_client.rate({**case, "provenance_legend": PROVENANCE_LEGEND}, reduced_profile)
-    return {**_validated(response, case, monthly_cost_at), "deterministic": False, "built_from": built_from}
+    limits = bid_limits(case, comparables_premium)
+    response = llm_client.rate(
+        {**case, "provenance_legend": PROVENANCE_LEGEND, "bid_limits": limits}, reduced_profile
+    )
+    return {
+        **_validated(response, case, limits, monthly_cost_at),
+        "deterministic": False,
+        "built_from": built_from,
+    }
+
+
+def bid_limits(case: dict, comparables_premium: float) -> dict:
+    """The limits a Walk-away Maximum must stay under: what the household can afford, and, only
+    when comparables are sufficient, their value for this house plus the premium. Thin or missing
+    comparables set no limit of their own."""
+    comparables = case["metrics"]["asking_vs_comparables"]
+    value = comparables["comparables_value"]
+    return {
+        "affordable_maximum": case["affordability"]["max_price"] if case["affordability"] else None,
+        "comparables_maximum": (
+            round(value * (1 + comparables_premium))
+            if comparables["coverage"] == "sufficient" and value is not None
+            else None
+        ),
+    }
 
 
 def inputs_of(case: dict, model: str | None) -> dict:
@@ -102,7 +127,9 @@ def _cited(flag: dict) -> dict:
     return {"id": flag["id"], "title": flag["title"], "class": flag["class"]}
 
 
-def _validated(response: object, case: dict, monthly_cost_at: Callable[[int], int | None]) -> dict:
+def _validated(
+    response: object, case: dict, limits: dict, monthly_cost_at: Callable[[int], int | None]
+) -> dict:
     if not isinstance(response, dict):
         raise InvalidVerdict(["not_an_object"])
     problems = []
@@ -119,7 +146,7 @@ def _validated(response: object, case: dict, monthly_cost_at: Callable[[int], in
     if not isinstance(cited_ids, list) or any(flag_id not in flags for flag_id in cited_ids):
         problems.append("unknown_flag_cited")
         cited_ids = []
-    bid_advice, bid_problems = _bid_advice(response.get("bid_advice"), tier, case, monthly_cost_at)
+    bid_advice, bid_problems = _bid_advice(response.get("bid_advice"), tier, case, limits, monthly_cost_at)
     problems += bid_problems
     if problems:
         raise InvalidVerdict(problems)
@@ -134,7 +161,11 @@ def _validated(response: object, case: dict, monthly_cost_at: Callable[[int], in
 
 
 def _bid_advice(
-    advice: object, tier: object, case: dict, monthly_cost_at: Callable[[int], int | None]
+    advice: object,
+    tier: object,
+    case: dict,
+    limits: dict,
+    monthly_cost_at: Callable[[int], int | None],
 ) -> tuple[dict | None, list[str]]:
     if advice is None:
         return None, ["bid_advice_missing"] if tier in BIDDING_TIERS else []
@@ -157,11 +188,20 @@ def _bid_advice(
         problems.append("opening_bid_above_walk_away_maximum")
     if walk_away > affordability["max_price"]:
         problems.append("walk_away_maximum_above_affordability")
+    elif limits["comparables_maximum"] is not None and walk_away > limits["comparables_maximum"]:
+        problems.append("walk_away_maximum_above_comparables")
+    comparables = case["metrics"]["asking_vs_comparables"]
     return {
         "opening_bid": opening,
         "walk_away_maximum": walk_away,
         "conditions": [condition.strip() for condition in conditions],
         "affordable_maximum": affordability["max_price"],
+        "comparables": {
+            "coverage": comparables["coverage"],
+            "count": comparables["count"],
+            "comparables_value": comparables["comparables_value"],
+            "maximum": limits["comparables_maximum"],
+        },
         "asking_price": next(
             (f["value"] for f in case["facts"] if f["provenance"] == "listing" and f["key"] == "asking_price"),
             None,

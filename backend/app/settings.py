@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     # Casefolded raw funda status string to normalised status.
     listing_status_map: dict[str, str] = Field(default_factory=dict)
 
+    # Comparables: at most this many follow-up provider fetches per user request; fewer usable
+    # comparables than the minimum count as thin; a Walk-away Maximum may sit at most this share
+    # above what sufficient comparables put the house at.
+    comparables_max_fetches: int = 5
+    comparables_min_count: int = 3
+    walk_away_comparables_premium: float = 0.10
+
     # Days after which a Source's facts count as Stale.
     source_ttl_days: dict[str, int] = Field(
         default_factory=lambda: {

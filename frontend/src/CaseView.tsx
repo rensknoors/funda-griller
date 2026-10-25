@@ -17,6 +17,7 @@ import {
   refetchSource,
 } from "./api";
 import { FotoWaarnemingen, OBSERVATION_LABELS, observationValue, photoList } from "./FotoWaarnemingen";
+import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
 
@@ -271,6 +272,13 @@ export function CaseView(props: {
               />
             )}
           </SourceGroup>
+          <Vergelijkbaar
+            metric={state.data.metrics.asking_vs_comparables}
+            facts={sourceFacts.filter((f) => f.source === "comparables")}
+            status={state.data.sources.find((s) => s.source === "comparables")}
+            refetching={refetching}
+            onFetch={() => handleSourceRefetch("comparables")}
+          />
           <SourceGroup
             title="Energie"
             id="energie"
@@ -376,6 +384,9 @@ function KeyFigures({
         value={metrics.asking_vs_woz ? `${percent.format(metrics.asking_vs_woz.percent)}%` : "–"}
       >
         {metrics.asking_vs_woz && "~ WOZ onofficieel"}
+      </Figure>
+      <Figure label="t.o.v. vergelijkbaar" value={comparablesFigure(metrics.asking_vs_comparables)}>
+        {coverageNote(metrics.asking_vs_comparables)}
       </Figure>
       <Figure
         label="Ruimte boven vraag"

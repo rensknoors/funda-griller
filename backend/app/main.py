@@ -33,6 +33,10 @@ from app.settings import Settings
 from app.source_runner import run_sources
 from app.verdict import InvalidVerdict, changed_inputs, inputs_of, judge
 
+# Sources fetched only when the user asks for them, never on capture or a Listing refetch:
+# comparables cost one provider fetch per comparable.
+ON_REQUEST_SOURCES = frozenset({"comparables"})
+
 _ERROR_RESPONSES = {
     InvalidListingUrl: (400, "bad_url"),
     ListingRemoved: (404, "listing_removed"),
@@ -104,7 +108,8 @@ def create_app(
             existing["snapshots"][0].get("photos", []) if existing else [],
         )
         store.add_snapshot(settings.database_path, listing, fetched_at, status, entry, photos)
-        run_sources(settings.database_path, ports.source_clients, listing, fetched_at)
+        automatic = {n: c for n, c in ports.source_clients.items() if n not in ON_REQUEST_SOURCES}
+        run_sources(settings.database_path, automatic, listing, fetched_at)
         observe_photos(funda_id, photos, fetched_at)
         return with_comparison(store.get_listing(settings.database_path, funda_id))
 
@@ -227,7 +232,10 @@ def create_app(
             list(ports.source_clients),
             store.source_runs(settings.database_path, funda_id),
             settings.source_ttl_days,
-            store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
+            settings.comparables_min_count,
+            observation_runs=(
+                store.observation_runs(settings.database_path, funda_id, identity) if identity else None
+            ),
         )
 
     def verdict_state(funda_id: str, case: dict) -> dict:
@@ -263,6 +271,7 @@ def create_app(
                 reduce_profile(latest["version"], profile),
                 ports.llm_client,
                 settings.verdict_model,
+                settings.walk_away_comparables_premium,
                 lambda price: compute(profile, price, None, rules, now.date()).monthly_cost,
             )
         except InvalidVerdict as error:
