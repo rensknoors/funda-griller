@@ -32,10 +32,7 @@ def routes(w: Wiring) -> APIRouter:
         now = w.clock().isoformat()
         name = (file.filename or "Document").strip() or "Document"
         document_id = store.add_document(settings.database_path, funda_id, USER_KIND, name, now)
-        documents.store_content(
-            settings.database_path, settings.media_dir, funda_id, w.document(funda_id, document_id),
-            file.file.read(), w.ports.llm_client, settings.vision_model, now,
-        )
+        documents.store_content(w.document_reader, funda_id, w.document(funda_id, document_id), file.file.read(), now)
         return public(funda_id, document_id)
 
     @router.put("/{document_id}", response_model=None)
@@ -44,10 +41,7 @@ def routes(w: Wiring) -> APIRouter:
         document = w.document(funda_id, document_id)
         if file.filename and document["kind"] == USER_KIND:
             store.update_document(settings.database_path, document_id, name=file.filename.strip() or document["name"])
-        documents.store_content(
-            settings.database_path, settings.media_dir, funda_id, document, file.file.read(),
-            w.ports.llm_client, settings.vision_model, w.clock().isoformat(),
-        )
+        documents.store_content(w.document_reader, funda_id, document, file.file.read(), w.clock().isoformat())
         return public(funda_id, document_id)
 
     @router.post("/{document_id}/analyse", response_model=None)
@@ -56,15 +50,9 @@ def routes(w: Wiring) -> APIRouter:
         document = w.document(funda_id, document_id)
         now = w.clock().isoformat()
         if document["status"] == "download_failed" and w.ports.document_downloader is not None:
-            documents.download_and_analyse(
-                settings.database_path, settings.media_dir, funda_id, document,
-                w.ports.document_downloader, w.ports.llm_client, settings.vision_model, now,
-            )
+            documents.download_and_analyse(w.document_reader, funda_id, document, w.ports.document_downloader, now)
         elif document["status"] != "download_failed":
-            documents.analyse(
-                settings.database_path, settings.media_dir, funda_id, document_id,
-                w.ports.llm_client, settings.vision_model, now,
-            )
+            documents.analyse(w.document_reader, funda_id, document_id, now)
         return public(funda_id, document_id)
 
     @router.delete("/{document_id}", status_code=204)

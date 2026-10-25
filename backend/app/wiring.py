@@ -80,6 +80,11 @@ class Wiring:
             funda_id, photos, at, rerun,
         )
 
+    @property
+    def document_reader(self) -> documents.Reader:
+        settings = self.settings
+        return documents.Reader(settings.database_path, settings.media_dir, self.ports.llm_client, settings.vision_model)
+
     def _attach_brochure(self, funda_id: str, url: str | None, now: str) -> None:
         """Download the funda brochure as a Document, once per brochure URL. A new URL replaces the
         old brochure and its Findings."""
@@ -94,9 +99,11 @@ class Wiring:
         document_id = store.add_document(settings.database_path, funda_id, "brochure", "Brochure (funda)", now)
         store.update_document(settings.database_path, document_id, source_url=url)
         documents.download_and_analyse(
-            settings.database_path, settings.media_dir, funda_id,
+            self.document_reader,
+            funda_id,
             store.get_document(settings.database_path, funda_id, document_id),
-            self.ports.document_downloader, self.ports.llm_client, settings.vision_model, now,
+            self.ports.document_downloader,
+            now,
         )
 
     def discard_document(self, funda_id: str, document: dict) -> None:

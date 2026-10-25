@@ -8,6 +8,7 @@ Extraction is cached by content and model: the same bytes are never sent twice.
 
 import hashlib
 import io
+from dataclasses import dataclass
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -16,6 +17,16 @@ from pypdf.errors import PyPdfError
 from app import store
 from app.findings import validated
 from app.ports import DocumentDownloader, DownloadFailed, LlmClient, LlmError
+
+
+@dataclass(frozen=True)
+class Reader:
+    """Where Documents are kept, and which LLM client and model read them (None: no client)."""
+
+    database_path: Path
+    media_dir: Path
+    llm_client: LlmClient | None
+    model: str | None
 
 
 def page_texts(content: bytes) -> tuple[list[str] | None, str | None]:
@@ -33,17 +44,9 @@ def page_texts(content: bytes) -> tuple[list[str] | None, str | None]:
     return (texts, None) if texts else (None, "corrupt")
 
 
-def store_content(
-    database_path: Path,
-    media_dir: Path,
-    funda_id: str,
-    document: dict,
-    content: bytes,
-    llm_client: LlmClient | None,
-    model: str | None,
-    now: str,
-) -> None:
+def store_content(reader: Reader, funda_id: str, document: dict, content: bytes, now: str) -> None:
     """Replace a Document's file with `content` and analyse it; earlier Findings are dropped."""
+    database_path, media_dir = reader.database_path, reader.media_dir
     store.delete_document_file(media_dir, funda_id, document["stored_name"])
     stored_name = store.save_document_file(media_dir, funda_id, content)
     store.update_document(
@@ -56,18 +59,12 @@ def store_content(
         model=None,
         extracted_at=None,
     )
-    analyse(database_path, media_dir, funda_id, document["id"], llm_client, model, now)
+    analyse(reader, funda_id, document["id"], now)
 
 
-def analyse(
-    database_path: Path,
-    media_dir: Path,
-    funda_id: str,
-    document_id: int,
-    llm_client: LlmClient | None,
-    model: str | None,
-    now: str,
-) -> None:
+def analyse(reader: Reader, funda_id: str, document_id: int, now: str) -> None:
+    database_path, media_dir = reader.database_path, reader.media_dir
+    llm_client, model = reader.llm_client, reader.model
     document = store.get_document(database_path, funda_id, document_id)
     path = store.document_file_path(media_dir, funda_id, document["stored_name"])
     texts, reason = page_texts(path.read_bytes()) if path else (None, "missing")
@@ -114,19 +111,12 @@ def analyse(
 
 
 def download_and_analyse(
-    database_path: Path,
-    media_dir: Path,
-    funda_id: str,
-    document: dict,
-    downloader: DocumentDownloader,
-    llm_client: LlmClient | None,
-    model: str | None,
-    now: str,
+    reader: Reader, funda_id: str, document: dict, downloader: DocumentDownloader, now: str
 ) -> None:
     """Fetch a downloaded Document (the funda brochure) from its URL and analyse it."""
     try:
         content = downloader.download(document["source_url"])
     except DownloadFailed:
-        store.update_document(database_path, document["id"], status="download_failed", reason="download_failed")
+        store.update_document(reader.database_path, document["id"], status="download_failed", reason="download_failed")
         return
-    store_content(database_path, media_dir, funda_id, document, content, llm_client, model, now)
+    store_content(reader, funda_id, document, content, now)
