@@ -26,6 +26,7 @@ def summarise(snapshots: list[dict], case: dict, tier: str | None = None) -> dic
         "plot_area": latest.get("plot_area"),
         "energy_label": _energy_label(case["facts"], latest.get("energy_label")),
         "asking_vs_woz_percent": woz["percent"] if woz else None,
+        "asking_vs_comparables_percent": case["metrics"]["asking_vs_comparables"]["percent"],
         "headroom": affordability["headroom"] if affordability else None,
         "flag_counts": counts,
         "stale_count": sum(1 for fact in case["facts"] if fact.get("stale")),

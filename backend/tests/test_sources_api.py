@@ -219,13 +219,16 @@ def test_refetching_an_unknown_source_or_listing_is_not_found(client, listing_pr
     assert client.post("/api/listings/1/sources/woz/refetch").status_code == 404
 
 
-def test_refetching_the_listing_refetches_every_source(client, listing_provider, source_clients, clock):
+def test_refetching_the_listing_refetches_every_automatic_source(
+    client, listing_provider, source_clients, clock
+):
     source_clients["energielabel"].facts = [SourceFact(name="energy_label", value="C")]
     capture(client, listing_provider)
     clock.advance(days=400)
 
     client.post("/api/listings/80907644/refetch")
 
-    assert {len(c.calls) for c in source_clients.values()} == {2}
+    # Comparables are fetched only on their own request (see test_comparables_api).
+    assert {len(c.calls) for n, c in source_clients.items() if n != "comparables"} == {2}
     [label] = source_facts(read_case(client), "energielabel")
     assert label["stale"] is False
