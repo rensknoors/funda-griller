@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   type Affordability,
@@ -19,6 +19,9 @@ import {
 } from "./api";
 import { Documenten, FINDING_LABELS, VerkoperInformatie } from "./Documenten";
 import { FotoWaarnemingen, OBSERVATION_LABELS, observationValue, photoList } from "./FotoWaarnemingen";
+import { TierMark, statusLabel } from "./ListingsTable";
+import { plural } from "./plural";
+import { tierOf } from "./comparison";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
@@ -121,10 +124,12 @@ const REASON_COPY: Record<string, string> = {
 
 function formatNumber(key: string, value: number): string {
   if (MONEY_FACTS.has(key)) return euro.format(value);
+  if (key === "threshold") return decimal.format(value);
   return ENVIRONMENT_FACTS[key]?.format(value) ?? String(value);
 }
 
 function formatValue(fact: CaseFact): string {
+  if (fact.key === "status" && typeof fact.value === "string") return statusLabel(fact.value, fact.value);
   return typeof fact.value === "number" ? formatNumber(fact.key, fact.value) : String(fact.value);
 }
 
@@ -149,6 +154,14 @@ export function CaseView(props: {
   const [refetching, setRefetching] = useState<string | null>(null);
   const [refetchFailed, setRefetchFailed] = useState(false);
   const latest = listing.snapshots[0];
+  const heading = useRef<HTMLHeadingElement>(null);
+  const address = latest.address ?? listing.url;
+
+  // A view switch moves focus and the tab title, so keyboard and screen-reader users land here.
+  useEffect(() => {
+    document.title = `Dossier: ${address} · Funda Griller`;
+    heading.current?.focus();
+  }, [address]);
 
   useEffect(() => {
     let current = true;
@@ -192,7 +205,15 @@ export function CaseView(props: {
     <section aria-labelledby="case-title" className="dossier">
       <header className="dossier-head">
         <div>
-          <h2 id="case-title">Dossier: {latest.address ?? listing.url}</h2>
+          <h2 id="case-title" ref={heading} tabIndex={-1}>
+            Dossier: {address}
+          </h2>
+          <p className="dossier-status">
+            <TierMark tier={tierOf(listing)} />
+            {latest.status !== "available" && (
+              <span className="chip status-chip">{statusLabel(latest.status, latest.raw_status)}</span>
+            )}
+          </p>
           <p className="muted">
             Advertentie van {shortDate(latest.fetched_at)}
             {latest.entry === "manual" && <> · Handmatig ingevoerd</>}
@@ -219,6 +240,7 @@ export function CaseView(props: {
           </button>
         </div>
       </header>
+      <HerkomstLegend />
       {state.kind === "klaar" && state.data.hard_no && (
         <HardNoBanner hardNo={state.data.hard_no} flags={state.data.flags} />
       )}
@@ -393,7 +415,7 @@ function KeyFigures({
       <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
       <Figure
         label="t.o.v. WOZ"
-        value={metrics.asking_vs_woz ? `${percent.format(metrics.asking_vs_woz.percent)}%` : "–"}
+        value={metrics.asking_vs_woz ? signedPercent(metrics.asking_vs_woz.percent) : "–"}
       >
         {metrics.asking_vs_woz && "~ WOZ onofficieel"}
       </Figure>
@@ -468,6 +490,33 @@ function Betaalruimte({
   );
 }
 
+function signedPercent(value: number): string {
+  return `${value > 0 ? "▲ " : value < 0 ? "▼ " : ""}${percent.format(value)}%`;
+}
+
+/** The herkomst codes in one line, pinned under the Dossier header so the stamps are learnable. */
+function HerkomstLegend() {
+  const entries: [string, string, string][] = [
+    ["■ ADV", "advertentie, volgens funda", ""],
+    ["◆ BRN", "register, officieel", "stamp-official"],
+    ["◇ 3DE", "derde partij, onofficieel", "stamp-third-party"],
+    ["❝ VRK", "door verkoper, controleer het origineel", "stamp-finding"],
+    ["◔ OBS", "waarneming van foto's, geschat", "stamp-observation"],
+    ["= BER", "berekend", "stamp-computed"],
+    ["⇄ VGL", "vergelijkbare woning", ""],
+  ];
+  return (
+    <dl className="herkomst-legend" aria-label="Herkomst">
+      {entries.map(([code, word, variant]) => (
+        <div key={code}>
+          <dt className={`stamp ${variant}`}>{code}</dt>
+          <dd>{word}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function signedEuro(amount: number): string {
   if (amount === 0) return euro.format(0);
   return `${amount > 0 ? "▲ +" : "▼ "}${euro.format(amount)}`;
@@ -488,7 +537,7 @@ function FactGroup({ title, id, facts }: { title: string; id: string; facts: Lis
     <details open className="fact-group">
       <summary>
         <h3 id={`${id}-title`}>{title}</h3>
-        <span className="muted">{facts.length} feiten</span>
+        <span className="muted">{plural(facts.length, "feit", "feiten")}</span>
       </summary>
       <ol className="facts">
         {facts.map((fact, index) => (
@@ -529,7 +578,7 @@ function SourceGroup(props: {
       <summary>
         <h3 id={`${props.id}-title`}>{props.title}</h3>
         <span className="muted">
-          {props.facts.length} feiten{stale > 0 && ` · ${stale} verouderd`}
+          {plural(props.facts.length, "feit", "feiten")}{stale > 0 && ` · ${stale} verouderd`}
         </span>
       </summary>
       {empty.map((status) => (

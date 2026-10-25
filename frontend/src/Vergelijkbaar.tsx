@@ -6,7 +6,9 @@ const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "shor
 
 /** "t.o.v. vergelijkbaar" as a short figure, for the header strip and the list. */
 export function comparablesFigure(metric: AskingVsComparables): string {
-  return metric.percent === null ? "–" : `${percent.format(metric.percent)}%`;
+  if (metric.percent === null) return "–";
+  const arrow = metric.percent > 0 ? "▲ " : metric.percent < 0 ? "▼ " : "";
+  return `${arrow}${percent.format(metric.percent)}%`;
 }
 
 /** Plain statement of how much the comparables can carry; thin or missing is said, never hidden. */
@@ -120,7 +122,7 @@ export function Vergelijkbaar(props: {
                 className="stamp"
                 aria-label={`Bron: funda vergelijkbare woningen, ${c.recently_sold ? "recent verkocht" : "recent te koop gezet"}, opgehaald ${fetchedAt ? dayMonth.format(new Date(fetchedAt)) : ""}`}
               >
-                <span aria-hidden="true">◇ VGL</span> {c.recently_sold ? "Recent verkocht" : "Recent te koop"}
+                <span aria-hidden="true">⇄ VGL</span> {c.recently_sold ? "Recent verkocht" : "Recent te koop"}
                 {c.raw_status && ` (${c.raw_status})`} · laatste vraagprijs
                 {fact.stale && " · verouderd"}
               </span>

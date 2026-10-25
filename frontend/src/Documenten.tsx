@@ -11,6 +11,7 @@ import {
   replaceDocument,
   uploadDocument,
 } from "./api";
+import { plural } from "./plural";
 
 export const FINDING_LABELS: Record<FindingTopic, string> = {
   asbestos: "Asbest",
@@ -56,7 +57,7 @@ export function VerkoperInformatie({ fundaId, findings }: { fundaId: string; fin
     <details open className="fact-group">
       <summary>
         <h3 id="verkoper-informatie-title">Verkoper-informatie</h3>
-        <span className="muted">{findings.length} bevindingen · door verkoper</span>
+        <span className="muted">{plural(findings.length, "bevinding", "bevindingen")} · door verkoper</span>
       </summary>
       {findings.length === 0 ? (
         <p className="empty">Nog geen bevindingen. Upload de Vragenlijst of de Lijst van zaken.</p>
@@ -83,7 +84,7 @@ function statusLine(document: CaseDocument): string {
   const reason = document.reason ? UNREAD_REASONS[document.reason] ?? document.reason : null;
   switch (document.status) {
     case "analysed":
-      return `gelezen · ${document.page_count} pagina's · ${document.finding_count} bevindingen`;
+      return `gelezen · ${document.page_count} pagina's · ${plural(document.finding_count, "bevinding", "bevindingen")}`;
     case "unreadable":
       return `kon niet gelezen worden${reason ? ` (${reason})` : ""}`;
     case "not_analysed":
@@ -129,7 +130,7 @@ export function Documenten(props: {
   return (
     <section aria-labelledby="documenten-title" className="documenten">
       <h3 id="documenten-title">Documenten</h3>
-      <p className="muted">
+      <p className="muted measure">
         Documenten blijven op deze computer en worden alleen naar het taalmodel gestuurd om
         bevindingen te lezen.
       </p>
@@ -148,7 +149,7 @@ export function Documenten(props: {
                 {statusLine(document)}
               </span>
               {document.rejected_findings > 0 && (
-                <span className="muted"> · {document.rejected_findings} bevindingen afgewezen (onjuiste pagina of onderwerp)</span>
+                <span className="muted"> · {plural(document.rejected_findings, "bevinding", "bevindingen")} afgewezen (onjuiste pagina of onderwerp)</span>
               )}
             </span>
             <span className="row">
