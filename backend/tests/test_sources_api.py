@@ -41,7 +41,7 @@ def test_case_states_whether_the_listing_energielabel_matches_the_register(
 
     check = read_case(client)["metrics"]["energy_label_check"]
 
-    assert check == {"listing": "B", "register": "C", "matches": False, "provenance": "computed"}
+    assert check == {"listing": "B", "register": "C", "matches": False, "provenance": "computed", "computed_at": CAPTURED_AT}
 
 
 def test_matching_energielabels_are_reported_as_matching(client, listing_provider, source_clients):
@@ -100,6 +100,7 @@ def test_asking_price_is_compared_to_the_latest_woz_value(client, listing_provid
         "difference": 98_000,
         "percent": 25.0,
         "provenance": "computed",
+        "computed_at": CAPTURED_AT,
     }
 
 

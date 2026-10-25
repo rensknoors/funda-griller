@@ -265,3 +265,30 @@ def test_an_erfpacht_deal_breaker_is_hit_by_the_kadaster_ownership_situation(cli
     )
 
     assert case["hard_no"] == {"tier": "hard_no", "deal_breaker": "Geen erfpacht", "flag_id": "ownership_not_full"}
+
+
+TIMES = {
+    "listing": "fetched_at",
+    "source": "fetched_at",
+    "observation": "extracted_at",
+    "finding": "extracted_at",
+    "computed": "computed_at",
+    "buyer_profile": "computed_at",
+    "rule": "computed_at",
+}
+
+
+def test_every_piece_of_flag_evidence_carries_its_provenance_and_a_time(client, listing_provider, source_clients):
+    source_clients["woz"].facts = [SourceFact(name="woz_value", value=200_000, as_of="2025-01-01")]
+    profile = low_income_profile() | {"renovation_tolerance": 1, "must_haves": ["Tuin"]}
+
+    case = case_for(client, listing_provider, profile, asking_price=300_000, energy_label="E")
+
+    assert {"ask_beyond_headroom", "ask_far_above_woz", "energy_label_below_tolerance", "must_have_missing"} <= set(
+        flags_by_rule(case)
+    )
+    for flag in case["flags"]:
+        for item in flag["evidence"]:
+            assert item.get(TIMES[item["provenance"]]), (flag["id"], item)
+    assert case["affordability"]["computed_at"] == "2026-10-24T12:00:00+00:00"
+    assert case["metrics"]["asking_vs_woz"]["computed_at"] == "2026-10-24T12:00:00+00:00"

@@ -9,6 +9,7 @@ from tests.profile_fixtures import typical_profile
 CASE = "/api/listings/80907644/case"
 FETCH_COMPARABLES = "/api/listings/80907644/sources/comparables/refetch"
 VERDICT = "/api/listings/80907644/verdict"
+NOW = "2026-10-24T12:00:00+00:00"
 
 # The typical household can pay at most 704_519 for the live Listing (asking 595_000, 152 m²).
 AFFORDABLE_MAXIMUM = 704_519
@@ -98,6 +99,7 @@ def test_asking_price_is_compared_to_several_comparables_per_square_metre(
         "percent": -2.1,
         "comparables_value": 608_000,
         "provenance": "computed",
+        "computed_at": NOW,
     }
     listed = [f["value"]["funda_id"] for f in case["facts"] if f.get("source") == "comparables"]
     assert listed == ["101", "102", "103", "104"]

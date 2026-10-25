@@ -57,6 +57,7 @@ def build_case(
     holds the latest and latest succeeded vision run over the snapshot's photo set. `documents`
     are the Listing's stored Documents; analysed ones contribute their Findings."""
     today = now.date()
+    computed_at = now.isoformat()
     source_facts = _source_facts(source_runs, ttl_days, now)
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
     register_label = _value(source_facts, "energielabel", "energy_label")
@@ -70,6 +71,7 @@ def build_case(
             "energy_label": energy_label,
             "provenance": "computed",
             "computed_on": today.isoformat(),
+            "computed_at": computed_at,
         }
         if profile
         else None
@@ -89,7 +91,9 @@ def build_case(
     facts += _observation_facts(observed, photos)
     facts += finding_facts(documents)
     vs_comparables = _asking_vs_comparables(snapshot, source_facts, comparables_fetched, comparables_min_count)
-    flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, profile))
+    flags = evaluate(
+        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, profile), computed_at
+    )
     return {
         "funda_id": funda_id,
         "built_from": {
@@ -105,9 +109,12 @@ def build_case(
         "observations": _observation_status(photos, observation_runs),
         "documents": document_summaries(documents),
         "metrics": {
-            "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
-            "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
-            "asking_vs_comparables": vs_comparables,
+            name: {**metric, "computed_at": computed_at} if metric else None
+            for name, metric in {
+                "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
+                "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
+                "asking_vs_comparables": vs_comparables,
+            }.items()
         },
         "affordability": affordability,
         "flags": flags,
