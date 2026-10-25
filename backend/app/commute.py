@@ -31,6 +31,8 @@ class CommuteSource:
             raise SourceSkipped("no_coordinates")
         if not self._destinations:
             raise SourceSkipped("no_destinations")
+        # Before geocoding: a Source that will be skipped sends no address anywhere.
+        self._router.check_available()
         located = [
             (destination.label, place)
             for destination in self._destinations
