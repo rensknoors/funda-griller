@@ -41,13 +41,23 @@ class Settings(BaseSettings):
     database_path: Path = Path("data/funda-griller.sqlite")
     media_dir: Path = Path("data/media")
     affordability_rules_path: Path = CONFIG_DIR / "affordability.toml"
+    flag_rules_path: Path = CONFIG_DIR / "flag_rules.toml"
 
     gemini_api_key: str | None = None
+    # RVO EP-Online API key for the energielabel register; without it that Source is skipped.
+    ep_online_api_key: str | None = None
     vision_model: str | None = None
     verdict_model: str | None = None
 
     # Casefolded raw funda status string to normalised status.
     listing_status_map: dict[str, str] = Field(default_factory=dict)
+
+    # Comparables: at most this many follow-up provider fetches per user request; fewer usable
+    # comparables than the minimum count as thin; a Walk-away Maximum may sit at most this share
+    # above what sufficient comparables put the house at.
+    comparables_max_fetches: int = 5
+    comparables_min_count: int = 3
+    walk_away_comparables_premium: float = 0.10
 
     # Days after which a Source's facts count as Stale.
     source_ttl_days: dict[str, int] = Field(

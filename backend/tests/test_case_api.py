@@ -1,3 +1,4 @@
+from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import high_equity_profile, low_income_profile, typical_profile
 
@@ -33,7 +34,13 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
 
     built_from = client.get("/api/listings/80907644/case").json()["built_from"]
 
-    assert built_from == {"snapshot_id": snapshot["id"], "profile_version": 1}
+    assert built_from | {"documents": None} == {
+        "snapshot_id": snapshot["id"],
+        "profile_version": 1,
+        "flag_rules_version": FLAG_RULES_VERSION,
+        "observation_run": 1,
+        "documents": None,
+    }
 
 
 def test_typical_household_affordability(client, listing_provider):
@@ -45,6 +52,7 @@ def test_typical_household_affordability(client, listing_provider):
     affordability = case["affordability"]
     assert affordability.pop("provenance") == "computed"
     assert affordability.pop("computed_on")
+    assert affordability.pop("computed_at") == "2026-10-24T12:00:00+00:00"
     assert affordability == {
         "max_mortgage": 496_660,
         "energy_label_bonus": 10_000,
@@ -53,6 +61,8 @@ def test_typical_household_affordability(client, listing_provider):
         "mortgage_needed": 384_950,
         "monthly_cost": 1_838,
         "headroom": 109_519,
+        "affordable_maximum": 704_519,
+        "energy_label": "B",
     }
     assert case["rules"]["year"] == 2026
 

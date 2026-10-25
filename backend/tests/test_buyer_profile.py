@@ -92,6 +92,8 @@ def _remove(key):
     return lambda profile: profile.pop(key)
 
 
+NO_ADDRESS = "Geen adres of postcode: deze tekst gaat mee naar het taalmodel"
+
 INVALID_INPUT = [
     ("negative income", _set("gross_annual_income", -1), "gross_annual_income", "Bedrag buiten bereik"),
     ("absurd income", _set("gross_annual_income", 50_000_000), "gross_annual_income", "Bedrag buiten bereik"),
@@ -114,6 +116,10 @@ INVALID_INPUT = [
     ("zero commute minutes", _set("commute_destinations.0.max_minutes", 0), "commute_destinations.0.max_minutes", "Bedrag buiten bereik"),
     ("tolerance too high", _set("renovation_tolerance", 6), "renovation_tolerance", "Kies een waarde van 1 tot en met 5"),
     ("tolerance missing", _remove("renovation_tolerance"), "renovation_tolerance", "Verplicht veld"),
+    ("postcode in a must-have", _set("must_haves.0", "dichtbij 3511 AB"), "must_haves.0", NO_ADDRESS),
+    ("postcode in a nice-to-have", _set("nice_to_haves.0", "rond 1012ab"), "nice_to_haves.0", NO_ADDRESS),
+    ("street address in a deal-breaker", _set("deal_breakers.0", "verder dan Dorpsstraat 12"), "deal_breakers.0", NO_ADDRESS),
+    ("street address in a commute label", _set("commute_destinations.0.label", "Kerkplein 4"), "commute_destinations.0.label", NO_ADDRESS),
 ]
 
 
@@ -129,6 +135,34 @@ def test_invalid_input_is_rejected_with_a_clear_message(client, profile, mutate,
 
     assert response.status_code == 422
     assert {"field": field, "message": message} in response.json()["errors"]
+
+
+def test_a_draft_can_be_checked_without_saving(client, profile):
+    profile["gross_annual_income"] = -1
+    del profile["renovation_tolerance"]
+
+    response = client.post("/api/buyer-profile/validation", json=profile)
+
+    assert response.status_code == 200
+    assert sorted(response.json()["errors"], key=lambda e: e["field"]) == [
+        {"field": "gross_annual_income", "message": "Bedrag buiten bereik"},
+        {"field": "renovation_tolerance", "message": "Verplicht veld"},
+    ]
+    assert client.get("/api/buyer-profile").status_code == 404
+
+
+def test_a_valid_draft_has_no_problems(client, profile):
+    response = client.post("/api/buyer-profile/validation", json=profile)
+
+    assert response.json() == {"errors": []}
+    assert client.get("/api/buyer-profile").status_code == 404
+
+
+def test_preferences_that_merely_mention_numbers_are_accepted(client, profile):
+    profile["must_haves"] = ["bouwjaar na 1930 en tuin", "minstens 3 slaapkamers"]
+    profile["deal_breakers"] = ["aan een drukke weg"]
+
+    assert client.put("/api/buyer-profile", json=profile).status_code == 200
 
 
 def test_rejected_profile_is_not_stored(client, profile):
@@ -195,3 +229,10 @@ def test_profile_endpoints_make_no_llm_call(client, profile, llm_client):
     client.get("/api/buyer-profile/reduced")
 
     assert llm_client.rate_calls == []
+
+
+def test_reading_a_buyer_profile_before_one_is_saved_says_so_in_the_common_error_shape(client):
+    for path in ("/api/buyer-profile", "/api/buyer-profile/reduced"):
+        response = client.get(path)
+
+        assert (response.status_code, response.json()) == (404, {"code": "no_buyer_profile"})

@@ -69,6 +69,11 @@ The highest price at which the house still makes sense, derived from comparable 
 _Dutch UI_: **Maximumbod**
 _Avoid_: Max price, ceiling
 
+**Comparable**:
+A nearby Listing that funda offers as recently sold or recently listed next to a house, fetched only on the user's request and capped in number. Its price is its (last) asking price, not a registered sale price. Too few comparables are **thin** and do not bound the Walk-away Maximum.
+_Dutch UI_: **Vergelijkbare woning**; the metric is **t.o.v. vergelijkbaar**; thin is **Dun**
+_Avoid_: Comps, similar listing, reference house
+
 **Buyer Profile**:
 The household's finances (income, household composition, assets, current home equity) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally.
 _Dutch UI_: **Koperprofiel**; the preference lists keep their English labels **Must-have**, **Nice-to-have** and **Deal-breaker**, which are common usage in Dutch
