@@ -239,3 +239,15 @@ button.primary { background: var(--form-blue); color: #fff; }
 @media (max-width: 719px) {
   .bid-vakken { grid-template-columns: 1fr; }
 }
+
+/* Documenten and Findings: a seller's claim is a vermilion, dashed stamp, never the blue of a register. */
+.stamp-finding { border: 1px dashed var(--vermilion); color: var(--vermilion); text-decoration: none; }
+.stamp-finding:hover { background: #fdf1ec; }
+.fact.finding .fact-value { font-style: italic; }
+.document-list { list-style: none; margin: 0 0 12px; padding: 0; border-top: 1px solid var(--ink); }
+.document { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 40px; padding: 4px 0; border-bottom: 1px solid var(--rule); }
+.document .chip { margin-left: 8px; }
+.document-problem { color: var(--vermilion); font-weight: 600; }
+label.button { display: inline-block; position: relative; font: inherit; border: 1px solid var(--form-blue); border-radius: 2px; background: var(--surface); color: var(--form-blue); padding: 6px 12px; cursor: pointer; }
+label.button.small { padding: 2px 8px; font-size: 12px; }
+label.button:focus-within { outline: 2px solid var(--form-blue); outline-offset: 2px; }

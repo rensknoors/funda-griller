@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from app.ports import Listing, SourceFact
+from app.ports import DownloadFailed, Listing, SourceFact
 
 
 class FakeListingProvider:
@@ -57,7 +57,9 @@ class FakeLlmClient:
 
     def __init__(self) -> None:
         self.observations: list[dict] = []
-        self.findings: list[dict] = []
+        # Canned Findings: a list, a function of the Document's path, or an exception to raise.
+        self.findings: list[dict] | Callable[[str], list[dict]] | Exception = []
+        self.extract_calls: list[str] = []
         self.verdict: dict | Callable[[dict, dict], dict] | Exception = {
             "tier": "skip",
             "summary": "",
@@ -71,10 +73,29 @@ class FakeLlmClient:
         return self.observations
 
     def extract_findings(self, document_path: str) -> list[dict]:
-        return self.findings
+        self.extract_calls.append(document_path)
+        if isinstance(self.findings, Exception):
+            raise self.findings
+        return self.findings(document_path) if callable(self.findings) else self.findings
 
     def rate(self, case: dict, buyer_profile: dict) -> dict:
         self.rate_calls.append((case, buyer_profile))
         if isinstance(self.verdict, Exception):
             raise self.verdict
         return self.verdict(case, buyer_profile) if callable(self.verdict) else self.verdict
+
+
+class FakeDocumentDownloader:
+    """`documents` maps a URL to its bytes or an exception; any other URL returns `default`."""
+
+    def __init__(self, default: bytes) -> None:
+        self.default = default
+        self.documents: dict[str, bytes | Exception] = {}
+        self.calls: list[str] = []
+
+    def download(self, url: str) -> bytes:
+        self.calls.append(url)
+        result = self.documents.get(url, self.default)
+        if isinstance(result, Exception):
+            raise result
+        return result

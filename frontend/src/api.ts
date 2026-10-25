@@ -144,7 +144,48 @@ export type SourceFact = {
   stale: boolean;
 };
 
-export type CaseFact = ListingFact | SourceFact;
+/** What a Finding is about; mirrors the backend's topic list. */
+export type FindingTopic =
+  | "asbestos"
+  | "leak"
+  | "solar_lease"
+  | "erfpacht"
+  | "subsidy"
+  | "stays_or_goes"
+  | "foundation"
+  | "other";
+
+/** A seller-stated fact from a Document, with the page it is on. */
+export type FindingFact = {
+  key: FindingTopic;
+  /** Whether the seller states it applies. */
+  value: boolean;
+  statement: string;
+  page: number;
+  provenance: "finding";
+  seller_stated: true;
+  document_id: number;
+  document_name: string;
+  extracted_at: string;
+};
+
+export type CaseFact = ListingFact | SourceFact | FindingFact;
+
+export type DocumentStatus = "pending" | "analysed" | "unreadable" | "not_analysed" | "download_failed";
+
+/** A Document as the Case lists it. */
+export type CaseDocument = {
+  id: number;
+  name: string;
+  kind: "upload" | "brochure";
+  status: DocumentStatus;
+  reason: string | null;
+  page_count: number | null;
+  finding_count: number;
+  rejected_findings: number;
+  added_at: string;
+  extracted_at: string | null;
+};
 
 export type SourceStatus = {
   source: string;
@@ -190,6 +231,11 @@ export type Evidence = {
   value: string | number | boolean | null;
   provenance: string;
   fetched_at?: string | null;
+  /** Findings only: the Document and page the evidence is on. */
+  page?: number;
+  document_id?: number;
+  document_name?: string;
+  statement?: string;
 };
 
 export type FlagClass = "pro" | "con" | "risk";
@@ -207,9 +253,15 @@ export type HardNo = { tier: "hard_no"; deal_breaker: string; flag_id: string };
 
 export type Case = {
   funda_id: string;
-  built_from: { snapshot_id: number; profile_version: number | null; flag_rules_version: number };
+  built_from: {
+    snapshot_id: number;
+    profile_version: number | null;
+    flag_rules_version: number;
+    documents: { id: number; sha256: string | null; status: DocumentStatus }[];
+  };
   facts: CaseFact[];
   sources: SourceStatus[];
+  documents: CaseDocument[];
   metrics: Metrics;
   affordability: Affordability | null;
   flags: Flag[];
@@ -231,6 +283,38 @@ export async function refetchSource(fundaId: string, source: string): Promise<Ca
   if (!response.ok) throw new Error("source refetch unavailable");
   return response.json();
 }
+
+const documentsPath = (fundaId: string) => `/api/listings/${fundaId}/documents`;
+
+async function sendDocument(path: string, method: "POST" | "PUT", file: File): Promise<void> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(path, { method, body: form });
+  if (!response.ok) throw new Error("document upload failed");
+}
+
+/** Upload a Document; its Findings are extracted before this resolves. */
+export const uploadDocument = (fundaId: string, file: File) =>
+  sendDocument(documentsPath(fundaId), "POST", file);
+
+/** Re-upload: the file replaces the Document and its Findings. */
+export const replaceDocument = (fundaId: string, documentId: number, file: File) =>
+  sendDocument(`${documentsPath(fundaId)}/${documentId}`, "PUT", file);
+
+export async function removeDocument(fundaId: string, documentId: number): Promise<void> {
+  const response = await fetch(`${documentsPath(fundaId)}/${documentId}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("document removal failed");
+}
+
+/** Retry a Document that was not analysed, or a brochure whose download failed. */
+export async function analyseDocument(fundaId: string, documentId: number): Promise<void> {
+  const response = await fetch(`${documentsPath(fundaId)}/${documentId}/analyse`, { method: "POST" });
+  if (!response.ok) throw new Error("document analysis failed");
+}
+
+/** The Document itself, served only to this app; `page` opens it at that page. */
+export const documentFileUrl = (fundaId: string, documentId: number, page?: number) =>
+  `${documentsPath(fundaId)}/${documentId}/file${page ? `#page=${page}` : ""}`;
 
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
 export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";

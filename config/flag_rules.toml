@@ -4,14 +4,15 @@
 #
 # Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
 # facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
-# affordability) and `renovation_tolerance` (Buyer Profile). A list of
-# keys means "first one present", so an official register value wins over the Listing's claim.
-# A rule whose facts are absent raises nothing.
+# affordability), `renovation_tolerance` (Buyer Profile) and Findings from Documents as
+# `finding.<topic>` (true when the seller states it applies; a disclosure wins over a denial). A
+# list of keys means "first one present", so an official register value wins over the Listing's
+# claim. A rule whose facts are absent raises nothing.
 #
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker containing one of these
 # words is hit when the rule raises a Flag.
-version = 2
+version = 3
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -99,6 +100,55 @@ kind = "above"
 fact = "noise.lden_all_sources_db"
 threshold = 60
 deal_breaker_aliases = ["geluid", "lawaai", "drukke weg"]
+
+# Findings: what the seller states in a Document (Vragenlijst, Lijst van zaken, brochure). The
+# Flag cites the Finding with its Document and page.
+[[rules]]
+id = "finding_asbestos"
+version = 1
+class = "risk"
+title = "Asbest aanwezig volgens de verkoper"
+kind = "is_true"
+fact = "finding.asbestos"
+deal_breaker_aliases = ["asbest"]
+
+[[rules]]
+id = "finding_leak"
+version = 1
+class = "risk"
+title = "Lekkage gemeld door de verkoper"
+kind = "is_true"
+fact = "finding.leak"
+deal_breaker_aliases = ["lekkage"]
+
+[[rules]]
+id = "finding_foundation"
+version = 1
+class = "risk"
+title = "Funderingsproblemen gemeld door de verkoper"
+kind = "is_true"
+fact = "finding.foundation"
+deal_breaker_aliases = ["fundering"]
+
+[[rules]]
+id = "finding_solar_lease"
+version = 1
+class = "con"
+title = "Zonnepanelen geleased: contract gaat mogelijk over"
+kind = "is_true"
+fact = "finding.solar_lease"
+deal_breaker_aliases = ["lease"]
+
+# Erfpacht from the seller's papers, where canon and term are stated. Complements the Listing
+# description alias under `[[features]]`.
+[[rules]]
+id = "finding_erfpacht"
+version = 1
+class = "risk"
+title = "Erfpacht volgens de verkoper"
+kind = "is_true"
+fact = "finding.erfpacht"
+deal_breaker_aliases = ["erfpacht"]
 
 # One Flag per Buyer Profile must-have that names a feature below and that the Listing does not
 # mention. Must-haves naming no feature are not checked.

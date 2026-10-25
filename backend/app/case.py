@@ -1,10 +1,12 @@
 """Case builder (Dossier): pure assembly of Listing facts and computed metrics. No I/O, no judgement."""
 
+from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
 from app.affordability import Rules, compute
 from app.buyer_profile import BuyerProfile
+from app.findings import document_summaries, finding_facts
 from app.flags import RuleSet, evaluate, hard_no
 
 LISTING_FACTS = (
@@ -44,9 +46,11 @@ def build_case(
     sources: list[str],
     source_runs: dict[str, dict],
     ttl_days: dict[str, int],
+    documents: Sequence[dict] = (),
 ) -> dict:
     """`sources` are the configured Source names; `source_runs` maps each to its latest and
-    latest succeeded run. Staleness is computed against `now`, never stored."""
+    latest succeeded run. Staleness is computed against `now`, never stored. `documents` are the
+    Listing's stored Documents; analysed ones contribute their Findings."""
     today = now.date()
     source_facts = _source_facts(source_runs, ttl_days, now)
     register_label = _value(source_facts, "energielabel", "energy_label")
@@ -70,7 +74,7 @@ def build_case(
         }
         for key in LISTING_FACTS
         if snapshot.get(key) is not None
-    ] + source_facts
+    ] + source_facts + finding_facts(documents)
     flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, profile))
     return {
         "funda_id": funda_id,
@@ -78,9 +82,11 @@ def build_case(
             "snapshot_id": snapshot["id"],
             "profile_version": profile_version,
             "flag_rules_version": flag_rules.version,
+            "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
         },
         "facts": facts,
         "sources": [_source_status(name, source_runs.get(name)) for name in sources],
+        "documents": document_summaries(documents),
         "metrics": {
             "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
             "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
@@ -175,6 +181,10 @@ def _rule_inputs(
         (f for f in facts if f["provenance"] == "source"), key=lambda f: f["as_of"] or ""
     ):
         inputs[f"{fact['source']}.{fact['key']}"] = fact
+    # Findings are keyed `finding.<topic>`. When Documents disagree, a disclosure (`True`) wins
+    # over a denial, so a seller's admission is never hidden by another page.
+    for fact in sorted((f for f in facts if f["provenance"] == "finding"), key=lambda f: f["value"] is True):
+        inputs[f"finding.{fact['key']}"] = fact
     if snapshot.get("description"):
         inputs["description"] = {
             "key": "description",

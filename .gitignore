@@ -33,3 +33,6 @@ PROTOTYPE_out_live/
 .opencode/
 .claude/*
 !.claude/settings.json
+
+# Third-party PDFs used as local test fixtures (the real funda brochure); never committed
+backend/tests/fixtures/local/
