@@ -4,9 +4,11 @@ Model ids for the vision and Verdict roles come from configuration and are indep
 call goes through `transport` so tests can replace it; the default uses the standard library.
 """
 
+import base64
 import json
 import urllib.request
 from collections.abc import Callable
+from pathlib import Path
 
 from app.ports import LlmError
 
@@ -59,6 +61,85 @@ _VERDICT_SCHEMA = {
 }
 
 
+OBSERVATION_INSTRUCTION = """\
+You inspect the photos of one Dutch house for sale. Each photo follows a text part `Foto n`; cite
+photos by that number. Report only what the photos show; leave out anything you cannot see.
+
+Report each of these at most once:
+- `kitchen_age_years`, `bathroom_age_years`: estimated age in whole years, in `years`.
+- `damp_or_mould`: `present` true when damp stains or mould are visible, false when the relevant
+  walls and ceilings are visible and clean.
+- `roof_condition`, `facade_condition`: `level` good, fair or poor.
+- `renovation_needed`: `level` none, cosmetic, partial or full.
+
+Every observation lists the `photos` it rests on and a short `note` in Dutch saying what you saw.
+"""
+
+_OBSERVATION_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "observations": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "key": {
+                        "type": "STRING",
+                        "enum": [
+                            "kitchen_age_years",
+                            "bathroom_age_years",
+                            "damp_or_mould",
+                            "roof_condition",
+                            "facade_condition",
+                            "renovation_needed",
+                        ],
+                    },
+                    "years": {"type": "INTEGER", "nullable": True},
+                    "present": {"type": "BOOLEAN", "nullable": True},
+                    "level": {
+                        "type": "STRING",
+                        "nullable": True,
+                        "enum": ["good", "fair", "poor", "none", "cosmetic", "partial", "full"],
+                    },
+                    "photos": {"type": "ARRAY", "items": {"type": "INTEGER"}},
+                    "note": {"type": "STRING"},
+                },
+                "required": ["key", "photos"],
+            },
+        }
+    },
+    "required": ["observations"],
+}
+
+# Which reply field carries each observation's value.
+_OBSERVATION_VALUE_FIELD = {
+    "kitchen_age_years": "years",
+    "bathroom_age_years": "years",
+    "damp_or_mould": "present",
+    "roof_condition": "level",
+    "facade_condition": "level",
+    "renovation_needed": "level",
+}
+
+# Gemini caps an inline request at 20 MB; base64 adds a third, so batches stay under 14 MB of photos.
+INLINE_LIMIT_BYTES = 14 * 1024 * 1024
+
+_MIME_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+
+def _observation(item: dict, offset: int) -> dict:
+    """One reply item in the port's shape, its photo numbers shifted from batch to whole set.
+    Values are passed through as given; the Observation service validates them."""
+    key = item.get("key")
+    photos = item.get("photos")
+    return {
+        "key": key,
+        "value": item.get(_OBSERVATION_VALUE_FIELD.get(key, ""), None),
+        "photos": [n + offset if isinstance(n, int) else n for n in photos] if isinstance(photos, list) else photos,
+        "note": item.get("note"),
+    }
+
+
 def _urllib_transport(url: str, headers: dict, body: bytes) -> bytes:
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
@@ -72,14 +153,50 @@ class GeminiLlmClient:
         vision_model: str | None,
         verdict_model: str | None,
         transport: Transport = _urllib_transport,
+        inline_limit_bytes: int = INLINE_LIMIT_BYTES,
     ) -> None:
         self.api_key = api_key
         self.vision_model = vision_model
         self.verdict_model = verdict_model
         self.transport = transport
+        self.inline_limit_bytes = inline_limit_bytes
 
     def observe_photos(self, photo_paths: list[str]) -> list[dict]:
-        raise NotImplementedError("Observations arrive with ticket 11")
+        """Observations over the whole photo set, photos numbered from 1 in the given order. A set
+        too large for one inline request goes in batches, renumbered back to the whole set."""
+        observations: list[dict] = []
+        offset = 0
+        for batch in self._photo_batches(photo_paths):
+            parts: list[dict] = []
+            for number, (path, content) in enumerate(batch, start=1):
+                mime_type = _MIME_TYPES.get(Path(path).suffix.lower(), "image/jpeg")
+                parts.append({"text": f"Foto {number}"})
+                parts.append(
+                    {"inlineData": {"mimeType": mime_type, "data": base64.b64encode(content).decode()}}
+                )
+            text = self._generate(self.vision_model, OBSERVATION_INSTRUCTION, parts, _OBSERVATION_SCHEMA)
+            try:
+                reply = json.loads(text)["observations"]
+            except (json.JSONDecodeError, KeyError, TypeError) as error:
+                raise LlmError("observation reply is not the expected JSON") from error
+            observations += [_observation(item, offset) for item in reply if isinstance(item, dict)]
+            offset += len(batch)
+        return observations
+
+    def _photo_batches(self, photo_paths: list[str]) -> list[list[tuple[str, bytes]]]:
+        batches: list[list[tuple[str, bytes]]] = [[]]
+        size = 0
+        for path in photo_paths:
+            try:
+                content = Path(path).read_bytes()
+            except OSError as error:
+                raise LlmError("photo unreadable") from error
+            if batches[-1] and size + len(content) > self.inline_limit_bytes:
+                batches.append([])
+                size = 0
+            batches[-1].append((path, content))
+            size += len(content)
+        return [batch for batch in batches if batch]
 
     def extract_findings(self, document_path: str) -> list[dict]:
         raise NotImplementedError("Findings arrive with ticket 12")
@@ -96,14 +213,18 @@ class GeminiLlmClient:
         except json.JSONDecodeError as error:
             raise LlmError("reply is not JSON") from error
 
-    def _generate(self, model: str | None, instruction: str, prompt: str, schema: dict) -> str:
+    def _generate(
+        self, model: str | None, instruction: str, prompt: str | list[dict], schema: dict
+    ) -> str:
+        """`prompt` is the user text, or the user parts (e.g. text and inline images) as is."""
         if not self.api_key:
             raise LlmError("no Gemini API key configured")
         if not model:
             raise LlmError("no model configured")
+        parts = [{"text": prompt}] if isinstance(prompt, str) else prompt
         body = {
             "systemInstruction": {"parts": [{"text": instruction}]},
-            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "contents": [{"role": "user", "parts": parts}],
             "generationConfig": {"responseMimeType": "application/json", "responseSchema": schema},
         }
         try:

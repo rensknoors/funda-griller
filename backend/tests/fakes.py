@@ -40,6 +40,22 @@ class FakeSourceClient:
         return self.facts
 
 
+class FakePhotoDownloader:
+    """`photos` maps a photo URL to its bytes or an exception to raise; an unlisted URL returns
+    bytes derived from it. Every download is recorded."""
+
+    def __init__(self) -> None:
+        self.photos: dict[str, bytes | Exception] = {}
+        self.calls: list[str] = []
+
+    def download(self, url: str) -> bytes:
+        self.calls.append(url)
+        result = self.photos.get(url, b"photo:" + url.encode())
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+
 class FakeClock:
     def __init__(self, now: datetime) -> None:
         self.now = now
@@ -56,7 +72,7 @@ class FakeLlmClient:
     exception to raise. Every `rate` call is recorded."""
 
     def __init__(self) -> None:
-        self.observations: list[dict] = []
+        self.observations: list[dict] | Exception = []
         self.findings: list[dict] = []
         self.verdict: dict | Callable[[dict, dict], dict] | Exception = {
             "tier": "skip",
@@ -66,8 +82,13 @@ class FakeLlmClient:
             "bid_advice": None,
         }
         self.rate_calls: list[tuple[dict, dict]] = []
+        self.observe_calls: list[list[str]] = []
 
     def observe_photos(self, photo_paths: list[str]) -> list[dict]:
+        """Returns `observations` (canned raw answers) or raises it when it is an exception."""
+        self.observe_calls.append(list(photo_paths))
+        if isinstance(self.observations, Exception):
+            raise self.observations
         return self.observations
 
     def extract_findings(self, document_path: str) -> list[dict]:
