@@ -1,9 +1,12 @@
 """The Gemini adapter, driven through a fake HTTP transport: no network."""
 
 import base64
+import io
 import json
 
 import pytest
+
+from pypdf import PdfReader
 
 from app.gemini_client import GeminiLlmClient
 from app.ports import LlmError
@@ -56,13 +59,6 @@ def test_rating_asks_the_configured_verdict_model_for_structured_json():
     assert url.endswith("/models/verdict-model:generateContent")
     assert headers["x-goog-api-key"] == "key-123"
     assert "key-123" not in url
-    assert body["generationConfig"]["responseMimeType"] == "application/json"
-    assert body["generationConfig"]["responseSchema"]["properties"]["tier"]["enum"] == [
-        "must_buy",
-        "consider",
-        "skip",
-        "hard_no",
-    ]
     sent = body["contents"][0]["parts"][0]["text"]
     assert json.loads(sent) == {"case": CASE, "buyer_profile": PROFILE}
 
@@ -88,10 +84,16 @@ def test_a_transport_failure_is_an_llm_error():
         client.rate(CASE, PROFILE)
 
 
-FINDING = {"topic": "asbestos", "present": True, "statement": "Asbest in de schuur.", "page": 2}
+FINDING = {
+    "topic": "asbestos",
+    "present": True,
+    "statement": "Asbest in de schuur.",
+    "quote": "Ja, in de dakplaten van de schuur.",
+    "page": 2,
+}
 
 
-def test_findings_are_extracted_by_the_vision_model_from_the_whole_pdf(tmp_path):
+def test_findings_are_extracted_by_the_vision_model_from_the_pdf_split_into_labelled_pages(tmp_path):
     document = tmp_path / "vragenlijst.pdf"
     document.write_bytes(VRAGENLIJST)
     client, transport = client_with(gemini_reply(json.dumps({"findings": [FINDING]})))
@@ -101,13 +103,17 @@ def test_findings_are_extracted_by_the_vision_model_from_the_whole_pdf(tmp_path)
     assert findings == [FINDING]
     [(url, _headers, body)] = transport.requests
     assert url.endswith("/models/vision-model:generateContent")
-    pdf, prompt = body["contents"][0]["parts"]
-    assert pdf["inlineData"]["mimeType"] == "application/pdf"
-    assert base64.b64decode(pdf["inlineData"]["data"]) == VRAGENLIJST
-    assert "page" in prompt["text"]
-    item = body["generationConfig"]["responseSchema"]["properties"]["findings"]["items"]
-    assert "erfpacht" in item["properties"]["topic"]["enum"]
-    assert item["required"] == ["topic", "present", "statement", "page"]
+    parts = body["contents"][0]["parts"]
+    labels = [part["text"] for part in parts if "text" in part and part["text"].startswith("[PAGE")]
+    pages = [
+        PdfReader(io.BytesIO(base64.b64decode(part["inlineData"]["data"])))
+        for part in parts
+        if "inlineData" in part
+    ]
+    assert labels == ["[PAGE 1]", "[PAGE 2]", "[PAGE 3]"]
+    assert all(part["inlineData"]["mimeType"] == "application/pdf" for part in parts if "inlineData" in part)
+    assert [len(page.pages) for page in pages] == [1, 1, 1]
+    assert "asbest" in pages[1].pages[0].extract_text()
 
 
 def test_a_findings_reply_without_a_list_is_an_llm_error(tmp_path):

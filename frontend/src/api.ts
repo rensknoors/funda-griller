@@ -174,7 +174,11 @@ export type FindingFact = {
   /** Whether the seller states it applies. */
   value: boolean;
   statement: string;
+  /** The words on the page the Finding rests on, as the model quoted them. */
+  quote: string | null;
   page: number;
+  /** The quote was found on the cited page; false when the page has no text to check (a scan). */
+  verified: boolean;
   provenance: "finding";
   seller_stated: true;
   document_id: number;

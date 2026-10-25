@@ -97,8 +97,9 @@ class LlmClient(Protocol):
     def observe_photos(self, photo_paths: list[str]) -> list[dict]: ...
 
     def extract_findings(self, document_path: str) -> list[dict]:
-        """Raw Findings for the PDF at `document_path`, each with `topic`, `present`, `statement`
-        and its 1-based `page`. Validated by the caller. Raises LlmError."""
+        """Raw Findings for the PDF at `document_path`, each with `topic`, `present`, `statement`,
+        the `quote` it rests on and its 1-based `page`. The caller checks the quote is on that page.
+        Raises LlmError."""
         ...
 
     def rate(self, case: dict, buyer_profile: dict) -> dict:
