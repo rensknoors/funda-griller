@@ -76,6 +76,7 @@ const EVIDENCE_LABELS: Record<string, string> = {
   ...FACT_LABELS,
   woz_value: "WOZ-waarde",
   asking_vs_woz: "Vraagprijs gedeeld door WOZ",
+  asking_vs_comparables_percent: "Vraagprijs per m² t.o.v. vergelijkbaar",
   headroom: "Ruimte boven vraag",
   renovation_tolerance: "Verbouwtolerantie",
   worst_acceptable_energy_label: "Slechtst passende energielabel",
@@ -127,6 +128,7 @@ const REASON_COPY: Record<string, string> = {
 function formatNumber(key: string, value: number): string {
   if (MONEY_FACTS.has(key)) return euro.format(value);
   if (key === "threshold") return decimal.format(value);
+  if (key === "asking_vs_comparables_percent") return `${value > 0 ? "+" : ""}${decimal.format(value)}%`;
   return ENVIRONMENT_FACTS[key]?.format(value) ?? String(value);
 }
 
