@@ -102,12 +102,13 @@ def test_each_destination_over_its_limit_is_a_con_citing_travel_time_threshold_a
         CAPTURED_AT,
     )
     # The modes are stated: the faster of car and bike counts, public transport is not included.
-    assert (travel["destination"], travel["mode"], travel["minutes_by_mode"], travel["public_transport"]) == (
-        "Werk",
-        "car",
-        {"car": 52, "bike": 140},
-        False,
-    )
+    assert travel["commute"] == {
+        "destination": "Werk",
+        "minutes": 52,
+        "mode": "car",
+        "minutes_by_mode": {"car": 52, "bike": 140},
+        "public_transport": False,
+    }
     assert (limit["key"], limit["value"], limit["provenance"]) == ("max_minutes", 45, "buyer_profile")
     assert limit["computed_at"] == CAPTURED_AT
 
@@ -185,6 +186,7 @@ def test_a_destination_address_is_geocoded_once_and_never_reaches_the_case_or_th
     [(sent_case, sent_profile)] = llm_client.rate_calls
     for shared in (case, sent_case, sent_profile):
         assert "Kantoorlaan" not in repr(shared)
+        assert "address_ref" not in repr(shared)
 
 
 def test_an_address_the_geocoder_does_not_find_fails_the_source(client, listing_provider):
@@ -221,6 +223,49 @@ def test_a_destination_not_found_or_not_routable_is_shown_as_unknown_beside_the_
         "School": {"destination": "School", "minutes": None, "unavailable": "no_route"},
     }
     assert [flag["id"] for flag in commute_flags(case)] == ["commute_too_long:Werk"]
+
+
+def test_a_changed_address_is_not_judged_with_the_old_travel_time_until_it_is_refetched(
+    client, listing_provider, router
+):
+    router.minutes = {("car", OFFICE_AT): 52.0, ("car", SCHOOL_AT): 30.0}
+    capture(client, listing_provider, commuting(("Werk", OFFICE, 45)))
+
+    client.put("/api/buyer-profile", json=commuting(("Werk", SCHOOL, 45)))
+    moved = client.get(CASE).json()
+
+    assert commute_facts(moved) == []
+    assert commute_flags(moved) == []
+    assert moved["metrics"]["commute_coverage"]["not_fetched"] == ["Werk"]
+
+    client.post("/api/listings/80907644/sources/commute/refetch")
+    refetched = client.get(CASE).json()
+
+    assert [f["value"]["minutes"] for f in commute_facts(refetched)] == [30]
+    assert refetched["metrics"]["commute_coverage"] is None
+
+
+def test_a_destination_added_after_the_fetch_is_shown_as_not_fetched(client, listing_provider, router):
+    router.minutes = {("car", OFFICE_AT): 30.0}
+    capture(client, listing_provider, commuting(("Werk", OFFICE, 45)))
+
+    client.put("/api/buyer-profile", json=commuting(("Werk", OFFICE, 45), ("School", SCHOOL, 20)))
+    case = client.get(CASE).json()
+
+    assert [f["value"]["destination"] for f in commute_facts(case)] == ["Werk"]
+    assert case["metrics"]["commute_coverage"]["not_fetched"] == ["School"]
+
+
+def test_a_removed_destination_leaves_the_case(client, listing_provider, router):
+    router.minutes = {("car", OFFICE_AT): 52.0, ("car", SCHOOL_AT): 30.0}
+    capture(client, listing_provider, commuting(("Werk", OFFICE, 45), ("School", SCHOOL, 40)))
+
+    client.put("/api/buyer-profile", json=commuting(("School", SCHOOL, 40)))
+    case = client.get(CASE).json()
+
+    assert [f["value"]["destination"] for f in commute_facts(case)] == ["School"]
+    assert commute_flags(case) == []
+    assert case["metrics"]["commute_coverage"] is None
 
 
 def test_commute_facts_turn_stale_after_their_time_to_live(client, listing_provider, router, clock):

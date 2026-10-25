@@ -34,6 +34,7 @@ class CommuteSource:
         # Before geocoding: a Source that will be skipped sends no address anywhere.
         self._router.check_available()
         places = {destination.label: self._locate(destination.address) for destination in self._destinations}
+        refs = {destination.label: destination.address_ref for destination in self._destinations}
         if all(place is None for place in places.values()):
             raise SourceFailed("destination_not_found")
         origin = (listing.latitude, listing.longitude)
@@ -46,7 +47,7 @@ class CommuteSource:
         if not any(minutes.values()):
             raise SourceFailed("no_route")
         # One fact per destination, so one that was not found or not routable is shown, not dropped.
-        return [_travel_fact(label, minutes.get(label), places[label]) for label in places]
+        return [_travel_fact(label, refs[label], minutes.get(label), places[label]) for label in places]
 
     def _locate(self, address: str) -> Coordinates | None:
         cached = store.cached_geocode(self._database_path, address)
@@ -58,18 +59,15 @@ class CommuteSource:
         return place
 
 
-def _travel_fact(label: str, minutes: dict[CommuteMode, int] | None, place: Coordinates | None) -> SourceFact:
+def _travel_fact(
+    label: str, address_ref: str, minutes: dict[CommuteMode, int] | None, place: Coordinates | None
+) -> SourceFact:
+    """The travel time to one destination, tied to the address it was computed for by its
+    fingerprint; or, when the address was not found or not routable, why it is unknown."""
+    travel: dict = {"destination": label, "address_ref": address_ref}
     if place is None or not minutes:
-        unavailable = "destination_not_found" if place is None else "no_route"
-        return SourceFact(name="travel_minutes", value={"destination": label, "minutes": None, "unavailable": unavailable})
+        travel |= {"minutes": None, "unavailable": "destination_not_found" if place is None else "no_route"}
+        return SourceFact(name="travel_minutes", value=travel)
     fastest = min(minutes, key=lambda mode: minutes[mode])
-    return SourceFact(
-        name="travel_minutes",
-        value={
-            "destination": label,
-            "minutes": minutes[fastest],
-            "mode": fastest,
-            "minutes_by_mode": minutes,
-            "public_transport": False,
-        },
-    )
+    travel |= {"minutes": minutes[fastest], "mode": fastest, "minutes_by_mode": minutes, "public_transport": False}
+    return SourceFact(name="travel_minutes", value=travel)
