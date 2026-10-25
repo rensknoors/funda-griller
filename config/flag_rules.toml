@@ -4,15 +4,17 @@
 #
 # Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
 # facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
-# affordability), `renovation_tolerance` (Buyer Profile) and Observations from the Listing photos
-# as `observation.<key>` (estimated by the vision model; keys in app/observations.py). A list of
-# keys means "first one present", so an official register value wins over the Listing's claim.
-# A rule whose facts are absent raises nothing.
+# affordability), `renovation_tolerance` (Buyer Profile), Observations from the Listing photos
+# as `observation.<key>` (estimated by the vision model; keys in app/observations.py) and Findings
+# from Documents as `finding.<topic>` (true when the seller states it applies; a disclosure wins
+# over a denial; topics in app/findings.py). A list of keys means "first one present", so an
+# official register value wins over the Listing's claim. A rule whose facts are absent raises
+# nothing.
 #
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker containing one of these
 # words is hit when the rule raises a Flag.
-version = 3
+version = 4
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -100,6 +102,60 @@ kind = "above"
 fact = "noise.lden_all_sources_db"
 threshold = 60
 deal_breaker_aliases = ["geluid", "lawaai", "drukke weg"]
+
+# Findings: what the seller states in a Document (Vragenlijst, Lijst van zaken, brochure). The
+# Flag cites the Finding with its Document and page.
+[[rules]]
+id = "finding_asbestos"
+version = 1
+class = "risk"
+title = "Asbest aanwezig volgens de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.asbestos"
+deal_breaker_aliases = ["asbest"]
+
+[[rules]]
+id = "finding_leak"
+version = 1
+class = "risk"
+title = "Lekkage gemeld door de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.leak"
+deal_breaker_aliases = ["lekkage"]
+
+[[rules]]
+id = "finding_foundation"
+version = 1
+class = "risk"
+title = "Funderingsproblemen gemeld door de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.foundation"
+deal_breaker_aliases = ["fundering"]
+
+[[rules]]
+id = "finding_solar_lease"
+version = 1
+class = "con"
+title = "Zonnepanelen geleased: contract gaat mogelijk over"
+kind = "equals"
+values = [true]
+fact = "finding.solar_lease"
+deal_breaker_aliases = ["lease"]
+
+# Erfpacht from the seller's papers, where canon and term are stated. Complements the Listing
+# description alias under `[[features]]`.
+[[rules]]
+id = "finding_erfpacht"
+version = 1
+class = "risk"
+title = "Erfpacht volgens de verkoper"
+kind = "equals"
+values = [true]
+fact = "finding.erfpacht"
+deal_breaker_aliases = ["erfpacht"]
 
 # Observations: estimated by the vision model from the Listing photos, so each Flag below rests on
 # an estimate and cites the photos. `equals` raises when the Observation's value is in `values`.

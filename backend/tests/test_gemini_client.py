@@ -7,6 +7,7 @@ import pytest
 
 from app.gemini_client import GeminiLlmClient
 from app.ports import LlmError
+from tests.pdf_fixtures import VRAGENLIJST
 
 CASE = {
     "funda_id": "80907644",
@@ -85,6 +86,47 @@ def test_a_transport_failure_is_an_llm_error():
 
     with pytest.raises(LlmError):
         client.rate(CASE, PROFILE)
+
+
+FINDING = {"topic": "asbestos", "present": True, "statement": "Asbest in de schuur.", "page": 2}
+
+
+def test_findings_are_extracted_by_the_vision_model_from_the_whole_pdf(tmp_path):
+    document = tmp_path / "vragenlijst.pdf"
+    document.write_bytes(VRAGENLIJST)
+    client, transport = client_with(gemini_reply(json.dumps({"findings": [FINDING]})))
+
+    findings = client.extract_findings(str(document))
+
+    assert findings == [FINDING]
+    [(url, _headers, body)] = transport.requests
+    assert url.endswith("/models/vision-model:generateContent")
+    pdf, prompt = body["contents"][0]["parts"]
+    assert pdf["inlineData"]["mimeType"] == "application/pdf"
+    assert base64.b64decode(pdf["inlineData"]["data"]) == VRAGENLIJST
+    assert "page" in prompt["text"]
+    item = body["generationConfig"]["responseSchema"]["properties"]["findings"]["items"]
+    assert "erfpacht" in item["properties"]["topic"]["enum"]
+    assert item["required"] == ["topic", "present", "statement", "page"]
+
+
+def test_a_findings_reply_without_a_list_is_an_llm_error(tmp_path):
+    document = tmp_path / "vragenlijst.pdf"
+    document.write_bytes(VRAGENLIJST)
+    client, _ = client_with(gemini_reply(json.dumps({"nope": 1})))
+
+    with pytest.raises(LlmError):
+        client.extract_findings(str(document))
+
+
+def test_a_document_too_large_to_send_inline_is_an_llm_error(tmp_path):
+    document = tmp_path / "huge.pdf"
+    document.write_bytes(b"%PDF-1.4\n" + b"0" * (15 * 1024 * 1024))
+    client, transport = client_with(gemini_reply("{}"))
+
+    with pytest.raises(LlmError):
+        client.extract_findings(str(document))
+    assert transport.requests == []
 
 
 def photos(tmp_path, *contents: bytes) -> list[str]:

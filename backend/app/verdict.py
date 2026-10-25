@@ -97,6 +97,7 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         then["snapshot_id"] != current["snapshot_id"]
         or then["source_fetches"] != current["source_fetches"]
         or then.get("observation_run") != current.get("observation_run")
+        or then.get("documents", []) != current.get("documents", [])
     ):
         changed.append("case")
     if then["profile_version"] != current["profile_version"]:

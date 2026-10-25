@@ -10,6 +10,7 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
+from app.findings import TOPICS
 from app.ports import LlmError
 
 API_ROOT = "https://generativelanguage.googleapis.com/v1beta"
@@ -146,6 +147,45 @@ def _observation(item: dict, offset: int) -> dict:
     }
 
 
+FINDINGS_INSTRUCTION = """\
+You read one Dutch house-sale Document from the seller or selling agent: a Vragenlijst (seller
+questionnaire), a Lijst van zaken (what stays and what goes), a funda brochure or similar. Extract
+what the seller states about the house as Findings. Look in particular for asbestos, leaks and damp,
+foundation problems, leased solar panels (or other leased installations), erfpacht (with canon and
+term when stated), subsidies tied to the house, and notable items that stay or go.
+
+For each Finding give:
+- `topic`: one of the listed topics; use `other` for anything else worth knowing.
+- `present`: true when the seller states it applies to the house, false when the seller states it
+  does not (e.g. "Asbest aanwezig? Nee").
+- `statement`: one short sentence in Dutch saying what the seller states, close to their words.
+- `page`: the 1-based page number of the PDF file the statement is on (count the PDF's pages, not
+  the numbers printed on them).
+
+Only report what the Document says. Never guess, and leave out marketing language.
+"""
+
+_FINDINGS_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "findings": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "topic": {"type": "STRING", "enum": list(TOPICS)},
+                    "present": {"type": "BOOLEAN"},
+                    "statement": {"type": "STRING"},
+                    "page": {"type": "INTEGER"},
+                },
+                "required": ["topic", "present", "statement", "page"],
+            },
+        }
+    },
+    "required": ["findings"],
+}
+
+
 def _urllib_transport(url: str, headers: dict, body: bytes) -> bytes:
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
@@ -205,7 +245,26 @@ class GeminiLlmClient:
         return [batch for batch in batches if batch]
 
     def extract_findings(self, document_path: str) -> list[dict]:
-        raise NotImplementedError("Findings arrive with ticket 12")
+        """The whole PDF goes to the vision model; the caller validates the Findings and pages."""
+        try:
+            content = Path(document_path).read_bytes()
+        except OSError as error:
+            raise LlmError("Document cannot be read") from error
+        if len(content) > self.inline_limit_bytes:
+            # Larger Documents need the Files API, which is not built yet.
+            raise LlmError("Document too large to send inline")
+        parts = [
+            {"inlineData": {"mimeType": "application/pdf", "data": base64.b64encode(content).decode()}},
+            {"text": "Extract the Findings from this Document, each with its PDF page number."},
+        ]
+        text = self._generate(self.vision_model, FINDINGS_INSTRUCTION, parts, _FINDINGS_SCHEMA)
+        try:
+            findings = json.loads(text)["findings"]
+        except (json.JSONDecodeError, KeyError, TypeError) as error:
+            raise LlmError("reply has no findings") from error
+        if not isinstance(findings, list):
+            raise LlmError("reply has no findings")
+        return findings
 
     def rate(self, case: dict, buyer_profile: dict) -> dict:
         text = self._generate(
