@@ -177,7 +177,7 @@ def test_the_model_sees_the_case_and_reduced_profile_but_no_raw_finances_or_addr
     for private in ("87654", "43210", "12345", "Geheimstraat", "Kantoorlaan"):
         assert private not in sent
     assert case["funda_id"] == "80907644"
-    assert case["affordability"]["max_price"] > 0
+    assert case["affordability"]["affordable_maximum"] > 0
     assert buyer_profile["must_haves"] == ["Tuin"]
     assert buyer_profile["commute_destinations"] == [{"label": "Werk", "max_minutes": 40}]
 
@@ -329,7 +329,7 @@ def test_a_manually_entered_listing_gets_a_verdict(client, llm_client):
     assert verdict["tier"] == "consider"
     [(case, _)] = llm_client.rate_calls
     assert {fact["key"]: fact["value"] for fact in case["facts"]}["asking_price"] == 595_000
-    assert verdict["bid_advice"]["affordable_maximum"] == case["affordability"]["max_price"]
+    assert verdict["bid_advice"]["affordable_maximum"] == case["affordability"]["affordable_maximum"]
 
 
 def test_the_comparison_row_shows_the_latest_verdict_tier(client, listing_provider, llm_client):

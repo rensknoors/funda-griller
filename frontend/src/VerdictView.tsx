@@ -294,7 +294,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
                 )}
               </li>
               <li>
-                <BindingCeiling advice={advice} />
+                <BindingLimit advice={advice} />
               </li>
             </ul>
           </details>
@@ -330,15 +330,15 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
   );
 }
 
-/** Names the lowest ceiling, so the Maximumbod can be checked against both inputs. */
-function BindingCeiling({ advice }: { advice: BidAdvice }) {
+/** Names the lowest bid limit, so the Maximumbod can be checked against both inputs. */
+function BindingLimit({ advice }: { advice: BidAdvice }) {
   const comparables = advice.comparables?.maximum ?? null;
   const byComparables = comparables !== null && comparables < advice.affordable_maximum;
-  const ceiling = byComparables ? comparables : advice.affordable_maximum;
-  const below = ceiling - advice.walk_away_maximum;
+  const limit = byComparables ? comparables : advice.affordable_maximum;
+  const below = limit - advice.walk_away_maximum;
   return (
     <>
-      Laagste grens: {byComparables ? "vergelijkbare woningen" : "betaalruimte"}, {euro.format(ceiling)}.{" "}
+      Laagste grens: {byComparables ? "vergelijkbare woningen" : "betaalruimte"}, {euro.format(limit)}.{" "}
       {below > 0
         ? `Het Maximumbod blijft daar ${euro.format(below)} onder.`
         : "Het Maximumbod is gelijk aan die grens."}

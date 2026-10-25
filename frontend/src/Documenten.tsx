@@ -164,7 +164,7 @@ export function Documenten(props: {
                   {document.status === "download_failed" ? "Opnieuw downloaden" : "Opnieuw analyseren"}
                 </button>
               )}
-              {document.kind === "upload" && (
+              {document.kind === "user" && (
                 <label className="button small">
                   Opnieuw uploaden
                   <input
