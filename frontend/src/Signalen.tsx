@@ -116,7 +116,7 @@ function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
       : 0;
   return (
     <li>
-      {evidenceLabel(item)}:<strong>{evidenceValue(item)}</strong>{" "}
+      {evidenceLabel(item)}: <strong>{evidenceValue(item)}</strong>{" "}
       <span className="muted">
         ({PROVENANCE_LABELS[item.provenance] ?? item.provenance}
         {item.photos && item.photos.length > 0 && <>, foto {photoList(item.photos)}</>})
