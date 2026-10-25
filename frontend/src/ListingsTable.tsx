@@ -3,6 +3,7 @@ import { Menu } from "@base-ui/react/menu";
 import { useState } from "react";
 
 import type { Listing } from "./api";
+import { plural } from "./plural";
 import {
   NO_FILTERS,
   TIER_GLYPH,
@@ -245,7 +246,7 @@ function PriceInput({ value, onChange }: { value: number | null; onChange: (valu
   );
 }
 
-function TierMark({ tier, compact }: { tier: TierKey; compact?: boolean }) {
+export function TierMark({ tier, compact }: { tier: TierKey; compact?: boolean }) {
   return (
     <span className={`tier tier-${tier}${compact ? " compact" : ""}`}>
       <span aria-hidden="true" className="tier-glyph">
@@ -347,9 +348,9 @@ function ListingRow(props: {
       </td>
       <td className="num">{row.headroom != null ? signedEuro(row.headroom) : "–"}</td>
       <td className="col-detail signal-counts">
-        <span aria-label={`${row.flag_counts.pro} pluspunten`}>+{row.flag_counts.pro}</span>{" "}
-        <span aria-label={`${row.flag_counts.con} minpunten`}>−{row.flag_counts.con}</span>{" "}
-        <span aria-label={`${row.flag_counts.risk} risico's`} className={row.flag_counts.risk > 0 ? "risk" : undefined}>
+        <span aria-label={plural(row.flag_counts.pro, "pluspunt", "pluspunten")}>+{row.flag_counts.pro}</span>{" "}
+        <span aria-label={plural(row.flag_counts.con, "minpunt", "minpunten")}>−{row.flag_counts.con}</span>{" "}
+        <span aria-label={plural(row.flag_counts.risk, "risico", "risico's")} className={row.flag_counts.risk > 0 ? "risk" : undefined}>
           !{row.flag_counts.risk}
         </span>
       </td>
