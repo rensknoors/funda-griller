@@ -4,7 +4,6 @@ import {
   type BidAdvice,
   type FlagClass,
   type Listing,
-  type Tier,
   type Verdict,
   type VerdictError,
   type VerdictInput,
@@ -13,24 +12,15 @@ import {
   isVerdictError,
   runVerdict,
 } from "./api";
+import { TIER_LABEL } from "./comparison";
+import { euro } from "./format";
 import { statusLabel } from "./ListingsTable";
+import { TierMark } from "./TierMark";
 import { coverageNote } from "./Vergelijkbaar";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: VerdictState };
 
-const euro = new Intl.NumberFormat("nl-NL", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
 const dateTime = new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium", timeStyle: "short" });
-
-export const TIERS: Record<Tier, { label: string; glyph: string }> = {
-  must_buy: { label: "Zeker kopen", glyph: "✓" },
-  consider: { label: "Overwegen", glyph: "○" },
-  skip: { label: "Overslaan", glyph: "–" },
-  hard_no: { label: "Harde afwijzing", glyph: "✕" },
-};
 
 const FLAG_GLYPHS: Record<FlagClass, string> = { pro: "+", con: "−", risk: "!" };
 
@@ -195,17 +185,6 @@ function TierSkeleton({ status }: { status: string }) {
   );
 }
 
-export function TierMark({ tier }: { tier: Tier }) {
-  return (
-    <span className={`tier-mark tier-${tier}`}>
-      <span className="tier-glyph" aria-hidden="true">
-        {TIERS[tier].glyph}
-      </span>
-      <span className="tier-label">{TIERS[tier].label}</span>
-    </span>
-  );
-}
-
 function TierBlock({ verdict, outOfDate }: { verdict: Verdict; outOfDate: boolean }) {
   return (
     <section
@@ -213,7 +192,7 @@ function TierBlock({ verdict, outOfDate }: { verdict: Verdict; outOfDate: boolea
       className={`tier-block tier-block-${verdict.tier}${outOfDate ? " out-of-date" : ""}`}
     >
       <h3 id="tier-title">Oordeel</h3>
-      <TierMark tier={verdict.tier} />
+      <TierMark tier={verdict.tier} size="large" />
       {verdict.tier === "hard_no" && verdict.deal_breaker ? (
         <>
           <p className="tier-summary">
@@ -386,7 +365,7 @@ function VersionLine({ verdict }: { verdict: Verdict }) {
   return (
     <>
       <strong>Versie {verdict.version}</strong> · {dateTime.format(new Date(verdict.created_at))} ·{" "}
-      {TIERS[verdict.tier].label} · Dossier momentopname {from.snapshot_id} · Koperprofiel versie{" "}
+      {TIER_LABEL[verdict.tier]} · Dossier momentopname {from.snapshot_id} · Koperprofiel versie{" "}
       {from.profile_version ?? "–"} · Regelset {from.flag_rules_version}, regels {from.rules_year} ·{" "}
       {from.model ? `Model ${from.model}` : "Geen model"}
     </>
@@ -408,7 +387,7 @@ function describeChange(older: Verdict, newer: Verdict): string {
   }
   const tiers =
     older.tier === newer.tier
-      ? `Bleef ${TIERS[older.tier].label}`
-      : `Was ${TIERS[older.tier].label}, daarna ${TIERS[newer.tier].label}`;
+      ? `Bleef ${TIER_LABEL[older.tier]}`
+      : `Was ${TIER_LABEL[older.tier]}, daarna ${TIER_LABEL[newer.tier]}`;
   return parts.length > 0 ? `${tiers}: ${parts.join(", ")}` : tiers;
 }

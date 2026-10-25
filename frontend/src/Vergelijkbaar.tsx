@@ -1,14 +1,11 @@
 import type { AskingVsComparables, Comparable, SourceFact, SourceStatus } from "./api";
+import { euro, percentChange, signedPercent } from "./format";
 
-const euro = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
-const percent = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 1, signDisplay: "exceptZero" });
 const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
 
 /** "t.o.v. vergelijkbaar" as a short figure, for the header strip and the list. */
 export function comparablesFigure(metric: AskingVsComparables): string {
-  if (metric.percent === null) return "–";
-  const arrow = metric.percent > 0 ? "▲ " : metric.percent < 0 ? "▼ " : "";
-  return `${arrow}${percent.format(metric.percent)}%`;
+  return signedPercent(metric.percent);
 }
 
 /** Plain statement of how much the comparables can carry; thin or missing is said, never hidden. */
@@ -77,7 +74,7 @@ export function Vergelijkbaar(props: {
             <span className="vak-number">=</span>
             <span className="fact-label">Vraagprijs per m² t.o.v. vergelijkbaar</span>
             <span className="fact-value">
-              {percent.format(metric.percent)}% ({euro.format(metric.price_per_m2 ?? 0)} tegen mediaan{" "}
+              {percentChange.format(metric.percent)}% ({euro.format(metric.price_per_m2 ?? 0)} tegen mediaan{" "}
               {euro.format(metric.median_price_per_m2)} per m²)
             </span>
             <span className="stamp stamp-computed" aria-label={`Berekend uit ${metric.count} vergelijkbare woningen`}>
