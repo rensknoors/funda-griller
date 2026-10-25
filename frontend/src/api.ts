@@ -157,9 +157,18 @@ export type CommuteTravel = {
   public_transport: false;
 };
 
+/** A commute destination the Source could not place or route: shown as unknown, never judged. */
+export type CommuteUnknown = {
+  destination: string;
+  minutes: null;
+  unavailable: "destination_not_found" | "no_route";
+};
+
+export type CommuteFact = CommuteTravel | CommuteUnknown;
+
 export type SourceFact = {
   key: string;
-  value: string | number | Comparable | CommuteTravel;
+  value: string | number | Comparable | CommuteFact;
   as_of: string | null;
   provenance: "source";
   source: string;

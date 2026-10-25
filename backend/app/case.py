@@ -300,7 +300,12 @@ def _rule_inputs(
     # Commute travel times, one per destination, are keyed `commute.travel_minutes:<label>`, with
     # the faster mode's minutes as the value and the modes beside it.
     for fact in facts:
-        if fact["provenance"] == "source" and fact["source"] == "commute" and fact["key"] == "travel_minutes":
+        if (
+            fact["provenance"] == "source"
+            and fact["source"] == "commute"
+            and fact["key"] == "travel_minutes"
+            and fact["value"]["minutes"] is not None
+        ):
             travel = fact["value"]
             inputs[f"commute.travel_minutes:{travel['destination']}"] = {
                 **fact,
