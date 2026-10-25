@@ -7,6 +7,13 @@
   --form-blue: #154273;
   --vermilion: #c2410c;
   --vak-frame: #0e1f3a;
+  /* Hatch for Stale, Achterhaald and Overslaan: two greys, never colour alone. */
+  --hatch-light: #eef0f4;
+  --hatch-dark: #dfe3ea;
+  /* Pale form-blue wash for a deep-linked target and the refetch flash. */
+  --highlight: #eef3fa;
+  --flash: #dbe6f3;
+  --hatch: repeating-linear-gradient(45deg, var(--hatch-light) 0 6px, var(--hatch-dark) 6px 7px);
   font-family: "Source Sans 3 Variable", "Source Sans 3", system-ui, sans-serif;
   font-size: 14px;
   color: var(--ink);
@@ -48,7 +55,7 @@ table { width: 100%; border-collapse: collapse; background: var(--surface); bord
 th, td { text-align: left; padding: 4px 8px; height: 32px; border-bottom: 1px solid var(--rule); font-weight: 400; }
 thead th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
 tbody th { font-weight: 600; }
-.num { text-align: right; font-variant-numeric: tabular-nums; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .muted { color: var(--ink-muted); font-weight: 400; }
 .chip { border: 1px solid var(--ink-muted); border-radius: 2px; padding: 0 4px; font-size: 12px; font-weight: 400; }
 .sold { color: var(--ink-muted); }
@@ -56,7 +63,7 @@ tbody th { font-weight: 600; }
 .struck { text-decoration: line-through; }
 .empty { max-width: 68ch; }
 .skeleton { border: 1px solid var(--rule); background: var(--surface); }
-.skeleton-row { height: 32px; border-bottom: 1px solid var(--rule); background: #eef0f4; }
+.skeleton-row { height: 32px; border-bottom: 1px solid var(--rule); background: var(--hatch-light); }
 .api-state { color: var(--ink-muted); font-size: 12px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -73,17 +80,17 @@ th button.sort { border: 0; background: none; padding: 0; color: inherit; font: 
 .tier { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .tier-glyph { display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: 12px; font-weight: 600; border: 1px solid var(--form-blue); border-radius: 2px; color: var(--form-blue); }
 .tier-must_buy .tier-glyph { background: var(--form-blue); color: #fff; }
-.tier-skip .tier-glyph { border-color: var(--ink-muted); color: var(--ink-muted); background: repeating-linear-gradient(45deg, #eef0f4 0 3px, #dfe3ea 3px 4px); }
+.tier-skip .tier-glyph { border-color: var(--ink-muted); color: var(--ink-muted); background: repeating-linear-gradient(45deg, var(--hatch-light) 0 3px, var(--hatch-dark) 3px 4px); }
 .tier-none .tier-glyph { border-style: dashed; border-color: var(--ink-muted); color: var(--ink-muted); }
 .tier-hard_no .tier-glyph { border: 3px double var(--vermilion); color: var(--vermilion); width: 20px; height: 20px; }
 .tier-hard_no:not(.compact) { color: var(--vermilion); font-weight: 600; }
 .hard-no-reason { display: block; color: var(--vermilion); font-size: 12px; font-weight: 600; }
 .signal-counts { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .signal-counts .risk { color: var(--vermilion); font-weight: 600; }
-.listings tr.stale > :first-child { box-shadow: inset 4px 0 0 var(--ink); background: repeating-linear-gradient(45deg, #eef0f4 0 6px, #dfe3ea 6px 7px); }
+.listings tr.stale > :first-child { box-shadow: inset 4px 0 0 var(--ink); background: var(--hatch); }
 .listings tr.archived { color: var(--ink-muted); }
 .listings tr.flash > * { animation: flash 200ms ease-out; }
-@keyframes flash { from { background: #dbe6f3; } }
+@keyframes flash { from { background: var(--flash); } }
 @media (prefers-reduced-motion: reduce) { .listings tr.flash > * { animation: none; } }
 button.row-menu { min-height: 32px; min-width: 32px; padding: 0 8px; border-color: var(--rule); }
 .menu { background: var(--surface); border: 1px solid var(--ink); border-radius: 2px; padding: 4px 0; min-width: 180px; }
@@ -121,7 +128,7 @@ button.link { border: 0; background: none; padding: 0; min-height: 0; font-weigh
 .facts { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ink); }
 .fact { display: grid; grid-template-columns: 48px 240px 1fr 280px; align-items: center; min-height: 32px; border-bottom: 1px solid var(--rule); }
 .fact-value { font-variant-numeric: tabular-nums; }
-.stamp { border: 1px solid var(--form-blue); border-radius: 2px; padding: 0 4px; font-size: 12px; color: var(--form-blue); justify-self: start; }
+.stamp { border: 1px solid var(--form-blue); border-radius: 2px; padding: 1px 4px; font-size: 12px; color: var(--form-blue); justify-self: start; }
 
 @media (max-width: 719px) {
   .fact { grid-template-columns: 32px 1fr; }
@@ -129,7 +136,10 @@ button.link { border: 0; background: none; padding: 0; min-height: 0; font-weigh
 }
 .key-figures { margin-bottom: 16px; }
 .fact-group { margin: 0 0 16px; }
-.fact-group summary { display: flex; align-items: baseline; gap: 16px; cursor: pointer; }
+.fact-group summary { display: flex; align-items: baseline; gap: 16px; cursor: pointer; list-style: none; }
+.fact-group summary::-webkit-details-marker { display: none; }
+.fact-group summary::before { content: "▸"; color: var(--form-blue); width: 12px; flex: none; }
+.fact-group[open] > summary::before { content: "▾"; }
 .fact-group summary h3 { display: inline; margin: 8px 0; }
 
 /* Koperprofiel: section index | vakken | Gevolgen; below 1024 one column with a select. */
@@ -175,7 +185,7 @@ a { color: var(--form-blue); }
 .stamp-third-party { border-style: solid; }
 .stamp-computed { border-style: solid; border-color: var(--ink-muted); color: var(--ink-muted); }
 /* Stale: hatch wash, left edge bar, struck date with clock and the word Verouderd. */
-.fact.stale { background: repeating-linear-gradient(45deg, #eef0f4 0 6px, #dfe3ea 6px 7px); box-shadow: inset 4px 0 0 var(--ink); }
+.fact.stale { background: var(--hatch); box-shadow: inset 4px 0 0 var(--ink); }
 .fact.stale .stamp { background: var(--surface); }
 .stale-chip { border-color: var(--ink); }
 .brondekking h3 { margin-top: 0; }
@@ -198,13 +208,13 @@ textarea[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(-
 .flag-band h4 { font-size: 13px; margin: 12px 0 4px; }
 .flag-glyph { display: inline-block; width: 18px; text-align: center; border: 1px solid var(--ink); font-weight: 600; }
 .flag-pro .flag-glyph { border-radius: 50%; }
-.flag-risk .flag-glyph { border-color: var(--vermilion); color: var(--vermilion); }
+.flag-risk .flag-glyph, .signaal-chip.flag-risk .flag-glyph { border: 0; width: 20px; color: #fff; background: var(--vermilion); clip-path: polygon(50% 0, 100% 100%, 0 100%); font-size: 11px; line-height: 1; padding-top: 5px; }
 .flags, .evidence { list-style: none; margin: 0; padding: 0; }
 .flags > li { border-bottom: 1px solid var(--rule); padding: 4px 0; }
 .flags summary { cursor: pointer; }
 .evidence { padding-left: 24px; }
-.fact:target { background: #eef3fa; }
-.flags > li.focused { background: #eef3fa; box-shadow: inset 4px 0 0 var(--form-blue); }
+.fact:target { background: var(--highlight); }
+.flags > li.focused { background: var(--highlight); outline: 1px solid var(--form-blue); outline-offset: -1px; }
 
 /* Oordeel (Verdict page). Tier marks read in greyscale: fill pattern + glyph + word. */
 button.primary { background: var(--form-blue); color: #fff; }
@@ -214,21 +224,19 @@ button.primary { background: var(--form-blue); color: #fff; }
 .tier-block { display: grid; gap: 8px; }
 .tier-block h3 { margin: 0; }
 .tier-mark { display: inline-flex; align-items: center; gap: 12px; }
-.tier-glyph { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 2px solid var(--form-blue); border-radius: 2px; font-size: 22px; font-weight: 600; color: var(--form-blue); }
-.tier-label { font-size: 28px; font-weight: 600; }
-.tier-must_buy .tier-glyph { background: var(--form-blue); color: #fff; }
-.tier-skip .tier-glyph { border-color: var(--ink-muted); color: var(--ink); background: repeating-linear-gradient(45deg, var(--surface) 0 4px, #dfe3ea 4px 5px); }
-.tier-hard_no .tier-glyph { border: 4px double var(--vermilion); color: var(--vermilion); background: linear-gradient(135deg, transparent 47%, var(--vermilion) 47% 53%, transparent 53%); }
+.tier-mark .tier-glyph { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 2px solid var(--form-blue); border-radius: 2px; font-size: 22px; font-weight: 600; color: var(--form-blue); }
+.tier-mark .tier-label { font-size: 28px; font-weight: 600; }
+.tier-mark.tier-skip .tier-glyph { border-color: var(--ink-muted); color: var(--ink); background: repeating-linear-gradient(45deg, var(--surface) 0 4px, var(--hatch-dark) 4px 5px); }
+.tier-mark.tier-hard_no .tier-glyph { border: 4px double var(--vermilion); color: var(--vermilion); background: linear-gradient(135deg, transparent 47%, var(--vermilion) 47% 53%, transparent 53%); }
 .tier-block-hard_no { border: 4px double var(--vermilion); }
 .tier-summary { font-size: 16px; max-width: 68ch; margin: 0; }
-.tier-block.out-of-date { background: repeating-linear-gradient(45deg, #eef0f4 0 6px, #dfe3ea 6px 7px); }
+.tier-block.out-of-date { background: var(--hatch); }
 .achterhaald-banner { border: 1px solid var(--ink); box-shadow: inset 4px 0 0 var(--ink); background: var(--surface); padding: 8px 16px; margin-bottom: 16px; }
 .achterhaald-banner button { margin-left: 8px; }
 .prose { font-size: 16px; line-height: 1.5; max-width: 68ch; }
 .signaal-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.signaal-chip { color: var(--ink); border-color: var(--rule); padding: 2px 8px; }
+.signaal-chip { color: var(--ink); border-color: var(--rule); padding: 2px 8px; text-align: left; }
 .signaal-chip.flag-pro .flag-glyph { border-radius: 50%; }
-.signaal-chip.flag-risk .flag-glyph { border-color: var(--vermilion); color: var(--vermilion); }
 .bid-vakken { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
 .vak-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
 .bid-amount { font-size: 28px; font-weight: 600; margin: 4px 0; text-align: left; }
@@ -240,9 +248,9 @@ button.primary { background: var(--form-blue); color: #fff; }
   .bid-vakken { grid-template-columns: 1fr; }
 }
 
-/* Documenten and Findings: a seller's claim is a vermilion, dashed stamp, never the blue of a register. */
-.stamp-finding { border: 1px dashed var(--vermilion); color: var(--vermilion); text-decoration: none; }
-.stamp-finding:hover { background: #fdf1ec; }
+/* Documenten and Findings: a seller's claim is a dotted stamp, never the double rule of a register. */
+.stamp-finding { border: 1px dotted var(--form-blue); text-decoration: none; }
+a.stamp-finding:hover { background: var(--highlight); }
 .fact.finding .fact-value { font-style: italic; }
 .document-list { list-style: none; margin: 0 0 12px; padding: 0; border-top: 1px solid var(--ink); }
 .document { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 40px; padding: 4px 0; border-bottom: 1px solid var(--rule); }
@@ -260,3 +268,19 @@ button.photo-thumb { padding: 0; border-color: var(--rule); width: 64px; height:
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-dialog { top: 5%; max-width: min(960px, 92vw); }
 .photo-dialog img { display: block; max-width: 100%; max-height: 75vh; margin-bottom: 12px; }
+
+.measure { max-width: 68ch; }
+
+/* Dossier header: tier mark and listing status beside the address, herkomst legend beneath. */
+.dossier-head { flex-wrap: wrap; }
+.dossier-head h2:focus { outline: 0; }
+.dossier-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 4px; }
+.status-chip { border-color: var(--ink); font-weight: 600; }
+.status-banner { border: 1px solid var(--ink); background: var(--surface); padding: 8px 16px; margin-bottom: 16px; }
+.herkomst-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 16px; font-size: 12px; color: var(--ink-muted); }
+.herkomst-legend > div { display: flex; align-items: center; gap: 6px; }
+.herkomst-legend dd { margin: 0; }
+@media (max-width: 1023px) {
+  .dossier-head .row { flex-direction: row; align-items: center; }
+  .herkomst-legend { margin-top: 8px; }
+}

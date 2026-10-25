@@ -137,6 +137,9 @@ export function App() {
   }
 
   const openCase = listings.find((l) => l.funda_id === openCaseId);
+  useEffect(() => {
+    if (!openCaseId) document.title = "Funda Griller";
+  }, [openCaseId]);
   if (openCase && verdictOpen) {
     return (
       <main>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   type BidAdvice,
@@ -13,6 +13,7 @@ import {
   isVerdictError,
   runVerdict,
 } from "./api";
+import { statusLabel } from "./ListingsTable";
 import { coverageNote } from "./Vergelijkbaar";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: VerdictState };
@@ -56,7 +57,14 @@ export function VerdictView(props: {
   const [state, setState] = useState<LoadState>({ kind: "laden" });
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<VerdictError | null>(null);
-  const address = listing.snapshots[0].address ?? listing.url;
+  const snapshot = listing.snapshots[0];
+  const address = snapshot.address ?? listing.url;
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    document.title = `Oordeel: ${address} · Funda Griller`;
+    heading.current?.focus();
+  }, [address]);
 
   useEffect(() => {
     let current = true;
@@ -90,7 +98,9 @@ export function VerdictView(props: {
   return (
     <section aria-labelledby="verdict-title" className="oordeel">
       <header className="dossier-head">
-        <h2 id="verdict-title">Oordeel: {address}</h2>
+        <h2 id="verdict-title" ref={heading} tabIndex={-1}>
+          Oordeel: {address}
+        </h2>
         <div className="row">
           <button type="button" onClick={props.onBackToCase}>
             Terug naar dossier
@@ -98,6 +108,16 @@ export function VerdictView(props: {
         </div>
       </header>
 
+      {snapshot.status !== "available" && (
+        <div role="status" className="status-banner">
+          <span className="chip status-chip">{statusLabel(snapshot.status, snapshot.raw_status)}</span>{" "}
+          <strong>
+            {snapshot.status === "negotiations"
+              ? "Deze woning is onder bod. Controleer bij de makelaar of er nog geboden kan worden."
+              : "Deze woning is verkocht. Een biedadvies is niet meer van toepassing."}
+          </strong>
+        </div>
+      )}
       {state.kind === "laden" && <TierSkeleton status="Oordeel laden" />}
       {state.kind === "fout" && (
         <p role="alert" className="notice error">
@@ -273,6 +293,9 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
                   <span className="muted">niet meegenomen in dit oordeel</span>
                 )}
               </li>
+              <li>
+                <BindingCeiling advice={advice} />
+              </li>
             </ul>
           </details>
         </div>
@@ -304,6 +327,22 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
       </dl>
       <p className="muted rules-year">Regels {rulesYear}</p>
     </section>
+  );
+}
+
+/** Names the lowest ceiling, so the Maximumbod can be checked against both inputs. */
+function BindingCeiling({ advice }: { advice: BidAdvice }) {
+  const comparables = advice.comparables?.maximum ?? null;
+  const byComparables = comparables !== null && comparables < advice.affordable_maximum;
+  const ceiling = byComparables ? comparables : advice.affordable_maximum;
+  const below = ceiling - advice.walk_away_maximum;
+  return (
+    <>
+      Laagste grens: {byComparables ? "vergelijkbare woningen" : "betaalruimte"}, {euro.format(ceiling)}.{" "}
+      {below > 0
+        ? `Het Maximumbod blijft daar ${euro.format(below)} onder.`
+        : "Het Maximumbod is gelijk aan die grens."}
+    </>
   );
 }
 

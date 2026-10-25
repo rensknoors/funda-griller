@@ -14,7 +14,7 @@ test("documenten: brochure attached, an uploaded Vragenlijst yields a door-verko
 
   const documenten = page.getByRole("region", { name: "Documenten" });
   await expect(documenten.getByRole("link", { name: "Brochure (funda)" })).toBeVisible();
-  await expect(documenten.getByText(/gelezen · 2 pagina's · 1 bevindingen/)).toBeVisible();
+  await expect(documenten.getByText(/gelezen · 2 pagina's · 1 bevinding/)).toBeVisible();
 
   await documenten.getByLabel("Document uploaden").setInputFiles(VRAGENLIJST);
   await expect(documenten.getByRole("link", { name: "Vragenlijst.pdf" })).toBeVisible();
