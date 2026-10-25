@@ -1,6 +1,15 @@
 import pytest
-from funda.exceptions import PriceHistoryError
-from funda.listing import PriceChange, PriceHistory
+from funda.exceptions import FundaRequestError, ListingNotFound, PriceHistoryError
+from funda.listing import (
+    Address,
+    Areas,
+    Listing,
+    Price,
+    PriceChange,
+    PriceHistory,
+    PropertyDetails,
+    Urls,
+)
 
 from urllib.parse import parse_qs, urlsplit
 
@@ -8,6 +17,7 @@ from app.ports import SourceFact, SourceFailed, SourceSkipped
 from app.source_clients import (
     EpOnlineEnergielabelSource,
     KlimaateffectatlasFloodSoilSource,
+    PyfundaComparablesSource,
     PyfundaWozSource,
     RivmNoiseSource,
 )
@@ -201,3 +211,81 @@ def test_noise_is_skipped_without_coordinates_and_fails_when_unreachable():
         RivmNoiseSource(LayerHttp({})).fetch(live_listing(longitude=None))
     with pytest.raises(SourceFailed, match="unreachable"):
         RivmNoiseSource(unreachable).fetch(live_listing())
+
+
+class SimilarPyfunda:
+    """Stands in for funda.Funda for comparables: similar-listing ids plus one Listing per id."""
+
+    def __init__(self, sold=(), listed=(), listings=None, similar_error=None):
+        self._similar = {"recently_sold": list(sold), "recently_listed": list(listed)}
+        self._listings = listings or {}
+        self._similar_error = similar_error
+        self.listing_calls: list = []
+
+    def similar_listings(self, listing):
+        if self._similar_error:
+            raise self._similar_error
+        return self._similar
+
+    def listing(self, listing_id):
+        self.listing_calls.append(listing_id)
+        found = self._listings[listing_id]
+        if isinstance(found, Exception):
+            raise found
+        return found
+
+    def search(self, *_args, **_kwargs):
+        raise AssertionError("search() must never be called")
+
+
+def nearby(global_id, price, living, raw_status="Verkocht"):
+    return Listing(
+        global_id=global_id,
+        price=Price(amount=price),
+        address=Address(title=f"Dorpsstraat {global_id % 100}", city="Holtum"),
+        areas=Areas(living=living),
+        property_details=PropertyDetails(raw_status=raw_status),
+        urls=Urls(full=f"https://www.funda.nl/detail/koop/holtum/huis-x/{global_id}/"),
+    )
+
+
+def test_comparables_fetch_sold_neighbours_first_and_stop_at_the_cap():
+    listings = {i: nearby(i, 500_000 + i, 120) for i in (101, 102, 103, 201, 202)}
+    client = SimilarPyfunda(sold=[101, 102, 103], listed=[201, 202], listings=listings)
+
+    facts = PyfundaComparablesSource(client, max_fetches=4).fetch(live_listing())
+
+    assert client.listing_calls == [101, 102, 103, 201]
+    assert [f.name for f in facts] == ["comparable"] * 4
+    assert facts[0] == SourceFact(
+        name="comparable",
+        value={
+            "funda_id": "101",
+            "address": "Dorpsstraat 1",
+            "city": "Holtum",
+            "asking_price": 500_101,
+            "living_area": 120,
+            "raw_status": "Verkocht",
+            "recently_sold": True,
+            "url": "https://www.funda.nl/detail/koop/holtum/huis-x/101/",
+        },
+    )
+    assert facts[3].value["recently_sold"] is False
+
+
+def test_a_comparable_that_cannot_be_fetched_is_left_out_and_still_counts_against_the_cap():
+    client = SimilarPyfunda(
+        sold=[101, 102, 103],
+        listings={101: ListingNotFound("gone"), 102: nearby(102, 400_000, 100), 103: nearby(103, 1, 1)},
+    )
+
+    facts = PyfundaComparablesSource(client, max_fetches=2).fetch(live_listing())
+
+    assert [f.value["funda_id"] for f in facts] == ["102"]
+
+
+def test_comparables_fail_when_the_similar_listings_lookup_fails():
+    client = SimilarPyfunda(similar_error=FundaRequestError("blocked"))
+
+    with pytest.raises(SourceFailed, match="similar_listings_unavailable"):
+        PyfundaComparablesSource(client, max_fetches=3).fetch(live_listing())

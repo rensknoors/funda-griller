@@ -30,6 +30,7 @@ SOURCE_TRUST = {
     "woz": "third_party",
     "flood_soil": "official",
     "noise": "official",
+    "comparables": "third_party",
 }
 
 
@@ -44,11 +45,13 @@ def build_case(
     sources: list[str],
     source_runs: dict[str, dict],
     ttl_days: dict[str, int],
+    comparables_min_count: int = 3,
 ) -> dict:
     """`sources` are the configured Source names; `source_runs` maps each to its latest and
     latest succeeded run. Staleness is computed against `now`, never stored."""
     today = now.date()
     source_facts = _source_facts(source_runs, ttl_days, now)
+    comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
     register_label = _value(source_facts, "energielabel", "energy_label")
     # The register's label, when known, outranks the Listing's claim.
     energy_label = register_label if isinstance(register_label, str) else snapshot.get("energy_label")
@@ -84,6 +87,9 @@ def build_case(
         "metrics": {
             "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
             "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
+            "asking_vs_comparables": _asking_vs_comparables(
+                snapshot, source_facts, comparables_fetched, comparables_min_count
+            ),
         },
         "affordability": affordability,
         "flags": flags,
@@ -137,6 +143,40 @@ def _asking_vs_woz(asking_price: int | None, facts: list[dict]) -> dict | None:
         "percent": round(difference / latest["value"] * 100, 1),
         "provenance": "computed",
     }
+
+
+def _asking_vs_comparables(snapshot: dict, facts: list[dict], fetched: bool, min_count: int) -> dict:
+    """Asking price per m² against the median price per m² of the comparables that state both
+    price and living area. Coverage states plainly when there are none or too few to lean on."""
+    per_m2 = sorted(
+        c["asking_price"] / c["living_area"]
+        for c in (f["value"] for f in facts if f["source"] == "comparables" and f["key"] == "comparable")
+        if _positive(c.get("asking_price")) and _positive(c.get("living_area"))
+    )
+    count = len(per_m2)
+    coverage = "not_fetched" if not fetched else "none" if count == 0 else "thin" if count < min_count else "sufficient"
+    asking, area = snapshot.get("asking_price"), snapshot.get("living_area")
+    median = _median(per_m2) if per_m2 else None
+    comparable = median is not None and _positive(asking) and _positive(area)
+    return {
+        "coverage": coverage,
+        "count": count,
+        "min_count": min_count,
+        "price_per_m2": round(asking / area) if _positive(asking) and _positive(area) else None,
+        "median_price_per_m2": round(median) if median is not None else None,
+        "percent": round((asking / area / median - 1) * 100, 1) if comparable else None,
+        "comparables_value": round(median * area) if median is not None and _positive(area) else None,
+        "provenance": "computed",
+    }
+
+
+def _positive(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
+
+
+def _median(values: list[float]) -> float:
+    middle = len(values) // 2
+    return values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
 
 
 def _source_facts(source_runs: dict[str, dict], ttl_days: dict[str, int], now: datetime) -> list[dict]:
