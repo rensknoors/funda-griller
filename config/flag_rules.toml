@@ -14,7 +14,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 6
+version = 7
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -55,6 +55,18 @@ fact = "asking_price"
 of = "woz.woz_value"
 ratio_name = "asking_vs_woz"
 threshold = 1.15
+
+# Asking price per m² against the median of the comparables, only when there are enough of them
+# (coverage "sufficient"); thin comparables raise nothing.
+[[rules]]
+id = "ask_far_above_comparables"
+version = 1
+class = "con"
+title = "Vraagprijs per m² ver boven vergelijkbare woningen"
+kind = "above"
+fact = "asking_vs_comparables_percent"
+threshold = 15
+cite = ["asking_price"]
 
 # Klimaateffectatlas flood depth, small-chance scenario (LIWO, about 1 in 1,000 a year): more
 # than 0.5 m of water at the address.

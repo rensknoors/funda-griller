@@ -88,7 +88,8 @@ def build_case(
     observed = (observation_runs or {}).get("last_success")
     facts += _observation_facts(observed, photos)
     facts += finding_facts(documents)
-    flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, profile))
+    vs_comparables = _asking_vs_comparables(snapshot, source_facts, comparables_fetched, comparables_min_count)
+    flags = evaluate(flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, profile))
     return {
         "funda_id": funda_id,
         "built_from": {
@@ -106,9 +107,7 @@ def build_case(
         "metrics": {
             "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
             "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
-            "asking_vs_comparables": _asking_vs_comparables(
-                snapshot, source_facts, comparables_fetched, comparables_min_count
-            ),
+            "asking_vs_comparables": vs_comparables,
         },
         "affordability": affordability,
         "flags": flags,
@@ -258,7 +257,11 @@ def _observation_status(photos: list[dict], runs: dict | None) -> dict:
 
 
 def _rule_inputs(
-    snapshot: dict, facts: list[dict], affordability: dict | None, profile: BuyerProfile | None
+    snapshot: dict,
+    facts: list[dict],
+    affordability: dict | None,
+    vs_comparables: dict,
+    profile: BuyerProfile | None,
 ) -> dict:
     """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values."""
     inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
@@ -287,6 +290,13 @@ def _rule_inputs(
         inputs["headroom"] = {
             "key": "headroom",
             "value": affordability["headroom"],
+            "provenance": "computed",
+        }
+    # Only sufficient comparables may say the ask is high: thin ones are not a market.
+    if vs_comparables["coverage"] == "sufficient" and vs_comparables["percent"] is not None:
+        inputs["asking_vs_comparables_percent"] = {
+            "key": "asking_vs_comparables_percent",
+            "value": vs_comparables["percent"],
             "provenance": "computed",
         }
     if profile:

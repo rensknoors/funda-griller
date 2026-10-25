@@ -221,3 +221,35 @@ def test_fetching_comparables_makes_an_earlier_verdict_out_of_date(
     state = client.get(VERDICT).json()
     assert state["out_of_date"] is True
     assert state["changed"] == ["case"]
+
+
+# Price per m² 3000 each: the live Listing asks 595_000 / 152 m² = 3914 per m², 30.5% above.
+CHEAPER = [comparable("201", 300_000, 100), comparable("202", 360_000, 120), comparable("203", 450_000, 150)]
+
+
+def flags_by_rule(case):
+    return {flag["rule_id"]: flag for flag in case["flags"]}
+
+
+def test_asking_far_above_sufficient_comparables_is_a_con(client, listing_provider, source_clients):
+    case = with_comparables(client, listing_provider, source_clients, CHEAPER).json()
+
+    flag = flags_by_rule(case)["ask_far_above_comparables"]
+    assert flag["class"] == "con"
+    assert {item["key"]: item["value"] for item in flag["evidence"]} == {
+        "asking_vs_comparables_percent": 30.5,
+        "threshold": 15,
+        "asking_price": 595_000,
+    }
+
+
+def test_thin_comparables_raise_no_overpricing_flag(client, listing_provider, source_clients):
+    case = with_comparables(client, listing_provider, source_clients, CHEAPER[:2]).json()
+
+    assert "ask_far_above_comparables" not in flags_by_rule(case)
+
+
+def test_asking_in_line_with_comparables_raises_no_overpricing_flag(client, listing_provider, source_clients):
+    case = with_comparables(client, listing_provider, source_clients, SEVERAL).json()
+
+    assert "ask_far_above_comparables" not in flags_by_rule(case)
