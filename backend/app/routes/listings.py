@@ -96,12 +96,11 @@ def routes(w: Wiring) -> APIRouter:
     @router.post("/{funda_id}/sources/{source}/refetch", response_model=None)
     def refetch_source(funda_id: str, source: str) -> dict:
         listing = w.listing(funda_id)
-        clients = w.source_clients
-        if source not in clients:
+        if source not in w.source_names():
             raise NotFound()
         run_sources(
             settings.database_path,
-            {source: clients[source]},
+            {source: w.source_clients()[source]},
             store.listing_from_snapshot(funda_id, listing["url"], listing["snapshots"][0]),
             w.clock().isoformat(),
         )
