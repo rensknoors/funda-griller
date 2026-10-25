@@ -24,6 +24,17 @@ cd frontend && npx playwright test # smoke test against the API with fakes
 
 First Playwright run: `npx playwright install chromium`.
 
+### Verdict regression set (costs money)
+
+Before changing the Verdict prompt, the Flag rules or the Verdict model, run the stored Listings through the real model and compare with the expected tiers:
+
+```
+cd backend && uv run python -m app.verdict_regression run --yes      # one Gemini call per entry
+cd backend && uv run python -m app.verdict_regression add <funda_id> --expect consider --name <slug>
+```
+
+Not part of `pytest`. The shipped entries are placeholders; see `config/verdict_regression/README.md`.
+
 ## Constraints
 
 - `tls-client` stays below 2.0 (pyfunda 3.1.5 breaks on import otherwise).
