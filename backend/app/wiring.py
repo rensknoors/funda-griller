@@ -54,10 +54,15 @@ class Wiring:
             raise NotFound()
         return document
 
-    @property
+    def source_names(self) -> list[str]:
+        """The configured Sources, the commute Source included when a geocoder and a router are
+        configured. Reads nothing."""
+        names = list(self.ports.source_clients)
+        return [*names, "commute"] if self._commute_configured() else names
+
     def source_clients(self) -> dict[str, SourceClient]:
-        """The configured Source clients, plus the commute Source when a geocoder and a router are
-        configured. The commute Source reads the latest Buyer Profile's destinations."""
+        """The configured Source clients. The commute Source is built here from the latest Buyer
+        Profile's destinations (a database read), so build them once per run."""
         ports = self.ports
         if ports.geocoder is None or ports.router is None:
             return dict(ports.source_clients)
@@ -65,6 +70,9 @@ class Wiring:
         destinations = BuyerProfile.model_validate(latest["profile"]).commute_destinations if latest else []
         commute = CommuteSource(self.settings.database_path, ports.geocoder, ports.router, destinations)
         return {**ports.source_clients, "commute": commute}
+
+    def _commute_configured(self) -> bool:
+        return self.ports.geocoder is not None and self.ports.router is not None
 
     def capture(self, funda_id: str, url: str, provider: ListingProvider | None = None, entry: str = "fetched") -> dict:
         settings, ports = self.settings, self.ports
@@ -80,7 +88,7 @@ class Wiring:
             existing["snapshots"][0].get("photos", []) if existing else [],
         )
         store.add_snapshot(settings.database_path, listing, fetched_at, status, entry, photos)
-        automatic = {n: c for n, c in self.source_clients.items() if n not in ON_REQUEST_SOURCES}
+        automatic = {n: c for n, c in self.source_clients().items() if n not in ON_REQUEST_SOURCES}
         run_sources(settings.database_path, automatic, listing, fetched_at)
         self.observe(funda_id, photos, fetched_at)
         self._attach_brochure(funda_id, listing.brochure_url, fetched_at)
@@ -135,7 +143,7 @@ class Wiring:
             snapshot,
             VersionedProfile(latest["version"], BuyerProfile.model_validate(latest["profile"])) if latest else None,
             self.clock(),
-            list(self.source_clients),
+            self.source_names(),
             store.source_runs(settings.database_path, funda_id),
             store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
             store.documents(settings.database_path, funda_id),

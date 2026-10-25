@@ -157,9 +157,18 @@ export type CommuteTravel = {
   public_transport: false;
 };
 
+/** A commute destination the Source could not place or route: shown as unknown, never judged. */
+export type CommuteUnknown = {
+  destination: string;
+  minutes: null;
+  unavailable: "destination_not_found" | "no_route";
+};
+
+export type CommuteFact = CommuteTravel | CommuteUnknown;
+
 export type SourceFact = {
   key: string;
-  value: string | number | Comparable | CommuteTravel;
+  value: string | number | Comparable | CommuteFact;
   as_of: string | null;
   provenance: "source";
   source: string;
@@ -261,6 +270,9 @@ export type Metrics = {
     provenance: "computed";
   } | null;
   asking_vs_comparables: AskingVsComparables;
+  /** Koperprofiel commute destinations with no travel time for their current address (added, or
+   * address changed since the last fetch): not judged until the commute Source is fetched again. */
+  commute_coverage: { not_fetched: string[]; provenance: "computed" } | null;
 };
 
 /** Coverage says plainly whether comparables were fetched and whether there are enough to lean on. */
@@ -306,11 +318,8 @@ export type Evidence = {
   /** Observations only: estimated, with the photos they were read from. */
   estimated?: boolean;
   photos?: CasePhoto[];
-  /** Commute only: the destination, and for a travel time the mode that counts and all modes. */
-  destination?: string;
-  mode?: CommuteMode;
-  minutes_by_mode?: Partial<Record<CommuteMode, number>>;
-  public_transport?: boolean;
+  /** Commute travel time only: the destination and the modes behind `value`. */
+  commute?: CommuteTravel;
 };
 
 export type FlagClass = "pro" | "con" | "risk";

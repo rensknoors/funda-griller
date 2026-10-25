@@ -13,20 +13,25 @@ from urllib.parse import urlencode
 
 from funda.exceptions import FundaRequestError, ListingNotFound, PriceHistoryError
 
-from app.ports import Listing, SourceFact, SourceFailed, SourceSkipped
+from app.ports import CommuteMode, Coordinates, Listing, SourceFact, SourceFailed, SourceSkipped
 
 EP_ONLINE_URL = "https://public.ep-online.nl/api/v5/PandEnergielabel/Adres"
 
 HttpGet = Callable[[str, dict], tuple[int, Any]]
 
 
-def _http_get_json(url: str, headers: dict) -> tuple[int, Any]:
-    request = urllib.request.Request(url, headers={**headers, "Accept": "application/json"})
+def _open_json(request: urllib.request.Request, timeout: float) -> tuple[int, Any]:
+    """Status and decoded JSON body; an HTTP error status comes back with no body."""
+    request.add_header("Accept", "application/json")
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, json.load(response)
     except urllib.error.HTTPError as error:
         return error.code, None
+
+
+def _http_get_json(url: str, headers: dict) -> tuple[int, Any]:
+    return _open_json(urllib.request.Request(url, headers=headers), timeout=15)
 
 
 class EpOnlineEnergielabelSource:
@@ -193,7 +198,7 @@ class PdokGeocoder:
     def __init__(self, http_get: HttpGet = _http_get_json) -> None:
         self._http_get = http_get
 
-    def geocode(self, address: str) -> tuple[float, float] | None:
+    def geocode(self, address: str) -> Coordinates | None:
         query = {"q": address, "fq": "type:adres", "rows": 1, "fl": "centroide_ll"}
         try:
             status, payload = self._http_get(f"{PDOK_LOCATIESERVER_URL}?{urlencode(query)}", {})
@@ -217,13 +222,9 @@ def _http_post_json(url: str, headers: dict, body: dict) -> tuple[int, Any]:
         url,
         data=json.dumps(body).encode(),
         method="POST",
-        headers={**headers, "Accept": "application/json", "Content-Type": "application/json"},
+        headers={**headers, "Content-Type": "application/json"},
     )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return response.status, json.load(response)
-    except urllib.error.HTTPError as error:
-        return error.code, None
+    return _open_json(request, timeout=20)
 
 
 OPENROUTESERVICE_MATRIX_URL = "https://api.openrouteservice.org/v2/matrix"
@@ -240,11 +241,14 @@ class OpenRouteServiceRouter:
         self._api_key = api_key
         self._http_post = http_post
 
-    def travel_minutes(
-        self, origin: tuple[float, float], destinations: list[tuple[float, float]], mode: str
-    ) -> list[float | None]:
+    def check_available(self) -> None:
         if not self._api_key:
             raise SourceSkipped("no_api_key")
+
+    def travel_minutes(
+        self, origin: Coordinates, destinations: list[Coordinates], mode: CommuteMode
+    ) -> list[float | None]:
+        self.check_available()
         body = {
             "locations": [[lon, lat] for lat, lon in [origin, *destinations]],
             "sources": [0],
