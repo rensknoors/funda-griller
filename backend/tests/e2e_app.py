@@ -93,7 +93,7 @@ _source_clients["comparables"].facts = [
 def _rate(case: dict, _profile: dict) -> dict:
     """A plausible Verdict derived from the Case, so it always passes validation."""
     asking = next(f["value"] for f in case["facts"] if f["key"] == "asking_price")
-    affordable = case["affordability"]["max_price"]
+    affordable = case["affordability"]["affordable_maximum"]
     cited = [flag["id"] for flag in case["flags"]]
     if affordable < asking:
         return {
@@ -124,9 +124,25 @@ def _findings(document_path: str) -> list[dict]:
     brochure says what stays."""
     content = Path(document_path).read_bytes()
     if b"asbest" in content:
-        return [{"topic": "asbestos", "present": True, "statement": "Asbest in de dakplaten van de schuur.", "page": 2}]
+        return [
+            {
+                "topic": "asbestos",
+                "present": True,
+                "statement": "Asbest in de dakplaten van de schuur.",
+                "quote": "Ja, in de dakplaten van de schuur.",
+                "page": 2,
+            }
+        ]
     if b"Brochure" in content:
-        return [{"topic": "stays_or_goes", "present": True, "statement": "De gordijnen blijven achter.", "page": 2}]
+        return [
+            {
+                "topic": "stays_or_goes",
+                "present": True,
+                "statement": "De gordijnen blijven achter.",
+                "quote": "De gordijnen blijven achter.",
+                "page": 2,
+            }
+        ]
     return []
 
 

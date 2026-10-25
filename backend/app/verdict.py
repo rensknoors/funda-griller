@@ -9,7 +9,7 @@ set premium above what they put the house at.
 
 from collections.abc import Callable
 
-from app.ports import LlmClient
+from app.ports import LlmClient, LlmError
 
 TIERS = ("must_buy", "consider", "skip", "hard_no")
 # Tiers that tell the household to bid, so they need Bid Advice.
@@ -39,7 +39,7 @@ class InvalidVerdict(Exception):
 def judge(
     case: dict,
     reduced_profile: dict,
-    llm_client: LlmClient,
+    llm_client: LlmClient | None,
     model: str | None,
     comparables_premium: float,
     monthly_cost_at: Callable[[int], int | None],
@@ -48,6 +48,8 @@ def judge(
     built_from = inputs_of(case, model)
     if case["hard_no"]:
         return _hard_no(case, {**built_from, "model": None})
+    if llm_client is None:
+        raise LlmError("no LLM client configured")
     limits = bid_limits(case, comparables_premium)
     response = llm_client.rate(
         {**case, "provenance_legend": PROVENANCE_LEGEND, "bid_limits": limits}, reduced_profile
@@ -66,7 +68,7 @@ def bid_limits(case: dict, comparables_premium: float) -> dict:
     comparables = case["metrics"]["asking_vs_comparables"]
     value = comparables["comparables_value"]
     return {
-        "affordable_maximum": case["affordability"]["max_price"] if case["affordability"] else None,
+        "affordable_maximum": case["affordability"]["affordable_maximum"] if case["affordability"] else None,
         "comparables_maximum": (
             round(value * (1 + comparables_premium))
             if comparables["coverage"] == "sufficient" and value is not None
@@ -187,7 +189,7 @@ def _bid_advice(
     problems = []
     if opening > walk_away:
         problems.append("opening_bid_above_walk_away_maximum")
-    if walk_away > affordability["max_price"]:
+    if walk_away > affordability["affordable_maximum"]:
         problems.append("walk_away_maximum_above_affordability")
     elif limits["comparables_maximum"] is not None and walk_away > limits["comparables_maximum"]:
         problems.append("walk_away_maximum_above_comparables")
@@ -196,7 +198,7 @@ def _bid_advice(
         "opening_bid": opening,
         "walk_away_maximum": walk_away,
         "conditions": [condition.strip() for condition in conditions],
-        "affordable_maximum": affordability["max_price"],
+        "affordable_maximum": affordability["affordable_maximum"],
         "comparables": {
             "coverage": comparables["coverage"],
             "count": comparables["count"],

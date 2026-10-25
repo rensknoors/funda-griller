@@ -12,19 +12,18 @@
 # nothing.
 #
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
-# Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker containing one of these
-# words is hit when the rule raises a Flag.
-version = 4
+# Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
+# words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
+version = 7
 
 [[rules]]
 id = "energy_label_below_tolerance"
-version = 1
+version = 2
 class = "con"
 title = "Energielabel slechter dan je verbouwtolerantie toelaat"
 kind = "label_worse_than"
 fact = ["energielabel.energy_label", "energy_label"]
 threshold = { name = "worst_acceptable_energy_label", from_profile = "renovation_tolerance", table = { 1 = "C", 2 = "D", 3 = "E", 4 = "F", 5 = "G" } }
-deal_breaker_aliases = ["energielabel"]
 
 [[rules]]
 id = "energy_label_efficient"
@@ -56,6 +55,18 @@ fact = "asking_price"
 of = "woz.woz_value"
 ratio_name = "asking_vs_woz"
 threshold = 1.15
+
+# Asking price per m² against the median of the comparables, only when there are enough of them
+# (coverage "sufficient"); thin comparables raise nothing.
+[[rules]]
+id = "ask_far_above_comparables"
+version = 1
+class = "con"
+title = "Vraagprijs per m² ver boven vergelijkbare woningen"
+kind = "above"
+fact = "asking_vs_comparables_percent"
+threshold = 15
+cite = ["asking_price"]
 
 # Klimaateffectatlas flood depth, small-chance scenario (LIWO, about 1 in 1,000 a year): more
 # than 0.5 m of water at the address.
@@ -145,6 +156,19 @@ values = [true]
 fact = "finding.solar_lease"
 deal_breaker_aliases = ["lease"]
 
+# Kadaster Eigendomssituatie from the Listing (ticket 02): anything but full ownership (erfpacht,
+# opstalrecht, appartementsrecht, ...) is a risk. Matches on "not Volle eigendom", never on the word
+# erfpacht. Canon and term come from the description and Documents.
+[[rules]]
+id = "ownership_not_full"
+version = 1
+class = "risk"
+title = "Geen volle eigendom volgens het Kadaster"
+kind = "not_one_of"
+fact = "ownership_situation"
+values = ["Volle eigendom"]
+deal_breaker_aliases = ["erfpacht", "opstalrecht"]
+
 # Erfpacht from the seller's papers, where canon and term are stated. Complements the Listing
 # description alias under `[[features]]`.
 [[rules]]
@@ -218,10 +242,10 @@ values = ["full"]
 deal_breaker_aliases = ["opknapper", "renovatie"]
 
 # One Flag per Buyer Profile must-have that names a feature below and that the Listing does not
-# mention. Must-haves naming no feature are not checked.
+# say it has. Must-haves naming no feature are not checked.
 [[rules]]
 id = "must_have_missing"
-version = 1
+version = 2
 class = "con"
 title = "Must-have ontbreekt"
 kind = "must_have_missing"
@@ -230,13 +254,29 @@ kind = "must_have_missing"
 # Flag forces a Hard no.
 [[rules]]
 id = "deal_breaker_mentioned"
-version = 1
+version = 2
 class = "con"
 title = "Deal-breaker"
 kind = "deal_breaker_mentioned"
 
+# One Flag per Buyer Profile deal-breaker naming energielabels ("Energielabel F of G", "slechter
+# dan C") that the house's label is one of; one about the energielabel naming none ("Slecht
+# energielabel") is hit by a label worse than the threshold. The register's label outranks the
+# Listing's claim.
+[[rules]]
+id = "deal_breaker_energy_label"
+version = 1
+class = "con"
+title = "Deal-breaker"
+kind = "deal_breaker_energy_label"
+fact = ["energielabel.energy_label", "energy_label"]
+threshold = { name = "worst_acceptable_energy_label", from_profile = "renovation_tolerance", table = { 1 = "C", 2 = "D", 3 = "E", 4 = "F", 5 = "G" } }
+
 # Features a must-have or deal-breaker can name. `aliases`: words that identify the feature in the
-# Buyer Profile's free text. `mentioned`: words that show the Listing description has it.
+# Buyer Profile's free text, as whole words; a negation there ("Geen garage") does not change the
+# feature. `mentioned`: words that show the Listing description has it, as a whole word or the head
+# of a compound ("achtertuin"), unless negated shortly before in the same clause ("geen garage",
+# "zonder tuin").
 [[features]]
 id = "garage"
 aliases = ["garage"]

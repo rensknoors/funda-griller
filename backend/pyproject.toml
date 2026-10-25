@@ -30,7 +30,7 @@ root_package = "app"
 name = "Ports are pure types: no adapters, storage, settings or app wiring"
 type = "forbidden"
 source_modules = ["app.ports"]
-forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main"]
+forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main", "app.wiring", "app.routes", "app.assembly"]
 
 [[tool.importlinter.contracts]]
 name = "Case builder and Findings are pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
@@ -47,6 +47,9 @@ forbidden_modules = [
   "app.settings",
   "app.rules_loader",
   "app.main",
+  "app.wiring",
+  "app.routes",
+  "app.assembly",
 ]
 
 [[tool.importlinter.contracts]]
@@ -59,6 +62,9 @@ forbidden_modules = [
   "app.production_ports",
   "app.settings",
   "app.main",
+  "app.wiring",
+  "app.routes",
+  "app.assembly",
 ]
 
 [[tool.importlinter.contracts]]
@@ -71,4 +77,7 @@ forbidden_modules = [
   "app.store",
   "app.settings",
   "app.main",
+  "app.wiring",
+  "app.routes",
+  "app.assembly",
 ]

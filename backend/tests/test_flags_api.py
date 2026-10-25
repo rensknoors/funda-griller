@@ -1,3 +1,5 @@
+import tomllib
+
 import pytest
 
 from app.ports import SourceFact
@@ -28,7 +30,7 @@ def test_energielabel_worse_than_the_renovation_tolerance_allows_is_a_con(client
 
     flag = flags_by_rule(case)["energy_label_below_tolerance"]
     assert flag["class"] == "con"
-    assert flag["rule_version"] == 1
+    assert flag["rule_version"] == 2
     assert evidence(flag)["energy_label"] == "E"
     assert evidence(flag)["worst_acceptable_energy_label"] == "C"
 
@@ -49,18 +51,19 @@ def test_the_same_energielabel_passes_for_a_household_ready_to_renovate(client, 
 
 def test_editing_the_rules_produces_a_new_case_version(client, listing_provider, settings, tmp_path):
     first = case_for(client, listing_provider, typical_profile(), energy_label="E")
+    version = tomllib.loads(settings.flag_rules_path.read_text())["version"]
     stricter = tmp_path / "flag_rules.toml"
     stricter.write_text(
         settings.flag_rules_path.read_text()
-        .replace("version = 4\n", "version = 5\n", 1)
+        .replace(f"version = {version}\n", f"version = {version + 1}\n", 1)
         .replace("3 = \"E\"", "3 = \"D\"")
     )
     settings.flag_rules_path = stricter
 
     second = client.get("/api/listings/80907644/case").json()
 
-    assert first["built_from"]["flag_rules_version"] == 4
-    assert second["built_from"]["flag_rules_version"] == 5
+    assert first["built_from"]["flag_rules_version"] == version
+    assert second["built_from"]["flag_rules_version"] == version + 1
     assert "energy_label_below_tolerance" in flags_by_rule(second)
 
 
@@ -155,3 +158,137 @@ def test_asking_price_far_above_woz_is_a_con(client, listing_provider, source_cl
         "asking_vs_woz": 1.19,
         "threshold": 1.15,
     }
+
+
+def test_a_listing_that_says_it_has_no_garage_does_not_hit_a_geen_garage_deal_breaker(
+    client, listing_provider
+):
+    profile = typical_profile() | {"deal_breakers": ["Geen garage"]}
+
+    case = case_for(client, listing_provider, profile, description="Tussenwoning, geen garage.")
+
+    assert case["hard_no"] is None
+
+
+def test_a_negated_deal_breaker_is_hit_when_the_listing_has_the_feature(client, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Niet op erfpacht"]}
+
+    case = case_for(
+        client, listing_provider, profile, description="Geen garage. Gelegen op eeuwigdurende erfpacht."
+    )
+
+    assert case["hard_no"]["deal_breaker"] == "Niet op erfpacht"
+
+
+def test_a_must_have_the_listing_says_it_lacks_is_missing(client, listing_provider):
+    profile = typical_profile() | {"must_haves": ["Garage"]}
+
+    case = case_for(client, listing_provider, profile, description="Woning zonder garage, wel een tuin.")
+
+    missing = [flag for flag in case["flags"] if flag["rule_id"] == "must_have_missing"]
+    assert [evidence(flag) for flag in missing] == [{"must_have": "Garage", "garage_mentioned": False}]
+
+
+def test_a_compound_in_the_description_counts_as_its_feature(client, listing_provider):
+    profile = typical_profile() | {"must_haves": ["Tuin"]}
+
+    case = case_for(client, listing_provider, profile, description="Diepe achtertuin op het zuiden.")
+
+    assert "must_have_missing" not in flags_by_rule(case)
+
+
+def test_a_deal_breaker_only_containing_a_rule_alias_inside_a_word_is_not_hit(
+    client, listing_provider, llm_client
+):
+    llm_client.observations = [{"key": "roof_condition", "value": "poor", "photos": [1]}]
+    profile = typical_profile() | {"deal_breakers": ["Geen dakterras"]}
+
+    case = case_for(client, listing_provider, profile, description="Ruime woning.")
+
+    assert "roof_poor" in flags_by_rule(case)
+    assert case["hard_no"] is None
+
+
+@pytest.mark.parametrize(("label", "hit"), [("E", False), ("F", True), ("G", True)])
+def test_an_energielabel_deal_breaker_is_hit_only_by_the_labels_it_names(
+    client, listing_provider, label, hit
+):
+    profile = typical_profile() | {"renovation_tolerance": 1, "deal_breakers": ["Energielabel F of G"]}
+
+    case = case_for(client, listing_provider, profile, energy_label=label)
+
+    assert "energy_label_below_tolerance" in flags_by_rule(case)
+    assert (case["hard_no"] is not None) == hit
+    if hit:
+        flag = {f["id"]: f for f in case["flags"]}[case["hard_no"]["flag_id"]]
+        assert evidence(flag)["energy_label"] == label
+        assert evidence(flag)["named_energy_labels"] == ["F", "G"]
+
+
+def test_an_energielabel_deal_breaker_can_name_a_floor(client, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Energielabel slechter dan C"]}
+
+    case = case_for(client, listing_provider, profile, energy_label="D")
+
+    assert case["hard_no"]["deal_breaker"] == "Energielabel slechter dan C"
+
+
+def test_an_energielabel_deal_breaker_is_not_hit_by_a_better_label(client, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Energielabel slechter dan C"]}
+
+    case = case_for(client, listing_provider, profile, energy_label="B")
+
+    assert case["hard_no"] is None
+
+
+@pytest.mark.parametrize("ownership", ["Erfpacht", "Eeuwigdurend recht van erfpacht", "Appartementsrecht"])
+def test_any_ownership_situation_other_than_volle_eigendom_is_a_risk(client, listing_provider, ownership):
+    case = case_for(client, listing_provider, typical_profile(), ownership_situation=ownership)
+
+    flag = flags_by_rule(case)["ownership_not_full"]
+    assert flag["class"] == "risk"
+    assert evidence(flag) == {"ownership_situation": ownership}
+
+
+@pytest.mark.parametrize("ownership", ["Volle eigendom", "volle eigendom ", None])
+def test_volle_eigendom_or_an_unknown_ownership_situation_raises_nothing(client, listing_provider, ownership):
+    case = case_for(client, listing_provider, typical_profile(), ownership_situation=ownership)
+
+    assert "ownership_not_full" not in flags_by_rule(case)
+
+
+def test_an_erfpacht_deal_breaker_is_hit_by_the_kadaster_ownership_situation(client, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Geen erfpacht"]}
+
+    case = case_for(
+        client, listing_provider, profile, ownership_situation="Erfpacht", description="Ruime woning."
+    )
+
+    assert case["hard_no"] == {"tier": "hard_no", "deal_breaker": "Geen erfpacht", "flag_id": "ownership_not_full"}
+
+
+TIMES = {
+    "listing": "fetched_at",
+    "source": "fetched_at",
+    "observation": "extracted_at",
+    "finding": "extracted_at",
+    "computed": "computed_at",
+    "buyer_profile": "computed_at",
+    "rule": "computed_at",
+}
+
+
+def test_every_piece_of_flag_evidence_carries_its_provenance_and_a_time(client, listing_provider, source_clients):
+    source_clients["woz"].facts = [SourceFact(name="woz_value", value=200_000, as_of="2025-01-01")]
+    profile = low_income_profile() | {"renovation_tolerance": 1, "must_haves": ["Tuin"]}
+
+    case = case_for(client, listing_provider, profile, asking_price=300_000, energy_label="E")
+
+    assert {"ask_beyond_headroom", "ask_far_above_woz", "energy_label_below_tolerance", "must_have_missing"} <= set(
+        flags_by_rule(case)
+    )
+    for flag in case["flags"]:
+        for item in flag["evidence"]:
+            assert item.get(TIMES[item["provenance"]]), (flag["id"], item)
+    assert case["affordability"]["computed_at"] == "2026-10-24T12:00:00+00:00"
+    assert case["metrics"]["asking_vs_woz"]["computed_at"] == "2026-10-24T12:00:00+00:00"

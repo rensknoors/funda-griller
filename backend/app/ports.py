@@ -1,4 +1,5 @@
-"""The three outside-world ports. Everything that touches the network sits behind one."""
+"""The outside-world ports: Listing provider, Source clients, LLM client, photo and document
+downloaders. Everything that touches the network sits behind one."""
 
 from dataclasses import dataclass, field
 from typing import Protocol
@@ -67,6 +68,9 @@ class Listing:
     latitude: float | None = None
     longitude: float | None = None
     heating: str | None = None
+    # Kadaster `Eigendomssituatie`, verbatim (e.g. "Volle eigendom"); distinct values across
+    # parcels are joined with "; ".
+    ownership_situation: str | None = None
     description: str | None = None
     price_history: tuple[PricePoint, ...] = ()
     photo_urls: tuple[str, ...] = ()
@@ -94,8 +98,9 @@ class LlmClient(Protocol):
     def observe_photos(self, photo_paths: list[str]) -> list[dict]: ...
 
     def extract_findings(self, document_path: str) -> list[dict]:
-        """Raw Findings for the PDF at `document_path`, each with `topic`, `present`, `statement`
-        and its 1-based `page`. Validated by the caller. Raises LlmError."""
+        """Raw Findings for the PDF at `document_path`, each with `topic`, `present`, `statement`,
+        the `quote` it rests on and its 1-based `page`. The caller checks the quote is on that page.
+        Raises LlmError."""
         ...
 
     def rate(self, case: dict, buyer_profile: dict) -> dict:

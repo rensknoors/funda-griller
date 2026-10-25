@@ -21,6 +21,7 @@ class ManualEntry:
     construction_year: int | None = None
     energy_label: str | None = None
     heating: str | None = None
+    ownership_situation: str | None = None
     description: str | None = None
     photo_urls: tuple[str, ...] = ()
 
@@ -45,6 +46,7 @@ class ManualListingProvider:
             construction_year=entry.construction_year,
             energy_label=entry.energy_label,
             heating=entry.heating,
+            ownership_situation=entry.ownership_situation,
             description=entry.description,
             photo_urls=entry.photo_urls,
         )
