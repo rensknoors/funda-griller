@@ -21,6 +21,7 @@ LISTING_FACTS = (
     "construction_year",
     "energy_label",
     "heating",
+    "ownership_situation",
 )
 
 # How far a Source's facts can be trusted. WOZ comes from a third-party price-history service,

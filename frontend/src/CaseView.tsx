@@ -48,6 +48,7 @@ const FACT_LABELS: Record<string, string> = {
   construction_year: "Bouwjaar",
   energy_label: "Energielabel",
   heating: "Verwarming",
+  ownership_situation: "Eigendomssituatie",
 };
 const MONEY_FACTS = new Set(["asking_price", "headroom", "woz_value"]);
 

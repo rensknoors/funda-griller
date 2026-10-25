@@ -96,6 +96,11 @@ export function ManualEntryForm(props: {
         <Vak number={next()} label="Verwarming" error={errors.heating}>
           {({ id, describedBy, invalid }) => <input id={id} name="heating" aria-describedby={describedBy} aria-invalid={invalid} />}
         </Vak>
+        <Vak number={next()} label="Eigendomssituatie" error={errors.ownership_situation}>
+          {({ id, describedBy, invalid }) => (
+            <input id={id} name="ownership_situation" placeholder="Volle eigendom" aria-describedby={describedBy} aria-invalid={invalid} />
+          )}
+        </Vak>
       </div>
       <Vak number={next()} label="Omschrijving" error={errors.description}>
         {({ id, describedBy, invalid }) => <textarea id={id} name="description" rows={4} aria-describedby={describedBy} aria-invalid={invalid} />}

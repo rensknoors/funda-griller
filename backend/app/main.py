@@ -81,6 +81,7 @@ def create_app(
         construction_year: int | None = Field(default=None, ge=1000, le=2100)
         energy_label: str | None = None
         heating: str | None = None
+        ownership_situation: str | None = None
         description: str | None = None
         photos: list[UploadFile] = []
 

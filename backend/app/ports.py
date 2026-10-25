@@ -67,6 +67,9 @@ class Listing:
     latitude: float | None = None
     longitude: float | None = None
     heating: str | None = None
+    # Kadaster `Eigendomssituatie`, verbatim (e.g. "Volle eigendom"); distinct values across
+    # parcels are joined with "; ".
+    ownership_situation: str | None = None
     description: str | None = None
     price_history: tuple[PricePoint, ...] = ()
     photo_urls: tuple[str, ...] = ()

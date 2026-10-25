@@ -1,3 +1,4 @@
+from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import high_equity_profile, low_income_profile, typical_profile
 
@@ -36,7 +37,7 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
     assert built_from | {"documents": None} == {
         "snapshot_id": snapshot["id"],
         "profile_version": 1,
-        "flag_rules_version": 5,
+        "flag_rules_version": FLAG_RULES_VERSION,
         "observation_run": 1,
         "documents": None,
     }

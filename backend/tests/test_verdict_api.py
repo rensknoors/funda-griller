@@ -2,6 +2,7 @@ import pytest
 
 from app.ports import LlmError, SourceFact
 
+from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
@@ -197,7 +198,7 @@ def test_a_verdict_is_versioned_against_case_profile_and_model(client, listing_p
 
     assert first["built_from"]["snapshot_id"] == snapshot_id
     assert first["built_from"]["profile_version"] == 1
-    assert first["built_from"]["flag_rules_version"] == 5
+    assert first["built_from"]["flag_rules_version"] == FLAG_RULES_VERSION
     assert first["built_from"]["model"] == settings.verdict_model
     assert (first["version"], second["version"]) == (1, 2)
     state = client.get(VERDICT).json()
