@@ -9,7 +9,10 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_DIR = REPO_ROOT / "config"
+# Absolute, so the backend finds them whatever directory it runs from; the later file wins.
+ENV_FILES = (REPO_ROOT / ".env", REPO_ROOT / "backend" / ".env")
 DEFAULTS_FILE = CONFIG_DIR / "defaults.toml"
 
 
@@ -29,11 +32,11 @@ class _DefaultsFileSource(PydanticBaseSettingsSource):
 
 
 class Settings(BaseSettings):
-    """All deploy-time knobs. Env vars use the FG_ prefix; `.env` is read too."""
+    """All deploy-time knobs. Env vars use the FG_ prefix; `.env` at the repo root and in backend/ are read too."""
 
     model_config = SettingsConfigDict(
         env_prefix="FG_",
-        env_file=".env",
+        env_file=ENV_FILES,
         env_nested_delimiter="__",
         extra="ignore",
     )

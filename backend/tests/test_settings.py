@@ -1,4 +1,8 @@
+from pathlib import Path
+
 from app.settings import Settings
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_models_keys_and_source_ttls_come_from_environment(monkeypatch):
@@ -46,3 +50,12 @@ def test_environment_overrides_config_file_defaults(monkeypatch):
 
     assert settings.vision_model == "vision-x"
     assert settings.verdict_model == "gemini-3.8-flash"
+
+
+def test_dotenv_files_are_found_from_any_working_directory(tmp_path, monkeypatch):
+    # dev.sh runs the backend from backend/, the README once said to put .env at the repo root.
+    monkeypatch.chdir(tmp_path)
+
+    env_files = [Path(f) for f in Settings.model_config["env_file"]]
+
+    assert env_files == [REPO_ROOT / ".env", REPO_ROOT / "backend" / ".env"]

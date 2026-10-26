@@ -4,6 +4,8 @@ import base64
 import io
 import json
 
+import urllib.error
+
 import pytest
 
 from pypdf import PdfReader
@@ -84,6 +86,22 @@ def test_a_reply_without_candidates_is_an_llm_error():
     client, _ = client_with(json.dumps({"promptFeedback": {"blockReason": "SAFETY"}}).encode())
 
     with pytest.raises(LlmError):
+        client.rate(CASE, PROFILE)
+
+
+def test_an_http_error_names_the_status_and_googles_message():
+    body = json.dumps({"error": {"code": 404, "message": "models/verdict-model is not found"}}).encode()
+    error = urllib.error.HTTPError("https://example", 404, "Not Found", {}, io.BytesIO(body))
+    client, _ = client_with(error)
+
+    with pytest.raises(LlmError, match="404.*models/verdict-model is not found"):
+        client.rate(CASE, PROFILE)
+
+
+def test_a_missing_api_key_says_so():
+    client, _ = client_with(gemini_reply(json.dumps(ANSWER)), api_key=None)
+
+    with pytest.raises(LlmError, match="no Gemini API key"):
         client.rate(CASE, PROFILE)
 
 
