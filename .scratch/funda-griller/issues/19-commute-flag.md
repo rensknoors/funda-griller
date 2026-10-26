@@ -29,3 +29,4 @@
   - One fact per destination: a destination the geocoder cannot place or with no route is stored as `{destination, minutes: null, unavailable}` and shown as "onbekend" instead of being dropped; it raises no Flag.
   - The router's key is checked (`TravelTimeRouter.check_available`) before any address is geocoded, so a commute Source skipped for `no_api_key` sends no address to PDOK.
   - Deal-breaker aliases trimmed to "te ver" and "reistijd" ("woon-werk", "woon-werkverkeer", "pendelen", "forenzen" went beyond the ticket); `commute_too_long` version 2, Flag rule set version 9. Flag evidence nests the travel time under `commute`.
+- Host moved (2026-10-26): `api.openrouteservice.org` is deprecated and shuts down 2-6 November 2026, so the router calls `https://api.heigit.org/openrouteservice/v2/matrix/{profile}`. Same key, paths and response shape (ask.openrouteservice.org/t/7912).

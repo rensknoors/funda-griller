@@ -14,7 +14,7 @@ Backend on http://localhost:8000, frontend on http://localhost:5173 (shows wheth
 
 Configuration: copy `.env.example` to `backend/.env`.
 
-Commute travel times (the `commute` Source) need a free OpenRouteService key (`FG_OPENROUTESERVICE_API_KEY`; Standard plan, 500 matrix requests a day, attribution required, no commercial use). Without it the Source is skipped before any address is geocoded. Commute destination addresses are geocoded by PDOK's Locatieserver (government, no account) and cached in the local SQLite file; OpenRouteService receives coordinates only. Car and bike are computed, the faster counts; public transport is not included.
+Commute travel times (the `commute` Source) need a free OpenRouteService key (`FG_OPENROUTESERVICE_API_KEY`; Standard plan, 500 matrix requests a day, attribution required, no commercial use). Without it the Source is skipped before any address is geocoded. Commute destination addresses are geocoded by PDOK's Locatieserver (government, no account) and cached in the local SQLite file; OpenRouteService receives coordinates only. Routing calls go to `api.heigit.org/openrouteservice` (the old `api.openrouteservice.org` host shuts down in November 2026; existing keys work on the new one). Car and bike are computed, the faster counts; public transport is not included.
 
 ## Test
 
