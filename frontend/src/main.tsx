@@ -1,4 +1,4 @@
-import "@fontsource-variable/source-sans-3";
+import "@fontsource-variable/archivo/wdth.css";
 import "./styles.css";
 import { createRoot } from "react-dom/client";
 

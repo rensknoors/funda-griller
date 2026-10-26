@@ -1,6 +1,8 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
 
+import { Stamp } from "./Stamp";
+
 import {
   type CaseDocument,
   type FindingFact,
@@ -39,15 +41,13 @@ const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "shor
 /** "door verkoper" stamp: a seller's claim, with the Document and page to check it against. */
 export function FindingStamp({ fundaId, finding }: { fundaId: string; finding: FindingFact }) {
   return (
-    <a
-      className="stamp stamp-finding"
+    <Stamp
+      kind="finding"
       href={documentFileUrl(fundaId, finding.document_id, finding.page)}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`Bevinding door verkoper: ${finding.document_name}, pagina ${finding.page}`}
+      label={`Bevinding door verkoper: ${finding.document_name}, pagina ${finding.page}`}
     >
-      <span aria-hidden="true">❝ VRK</span> {finding.document_name} p. {finding.page} · door verkoper
-    </a>
+      {finding.document_name} p. {finding.page} · door verkoper
+    </Stamp>
   );
 }
 
@@ -56,7 +56,7 @@ export function VerkoperInformatie({ fundaId, findings }: { fundaId: string; fin
   return (
     <details open className="fact-group">
       <summary>
-        <h3 id="verkoper-informatie-title">Verkoper-informatie</h3>
+        <h2 id="verkoper-informatie-title">Verkoper-informatie</h2>
         <span className="muted">{plural(findings.length, "bevinding", "bevindingen")} · door verkoper</span>
       </summary>
       {findings.length === 0 ? (
@@ -65,7 +65,7 @@ export function VerkoperInformatie({ fundaId, findings }: { fundaId: string; fin
         <ol className="facts">
           {findings.map((finding, index) => (
             <li key={`${finding.document_id}-${index}`} className="fact finding">
-              <span className="vak-number">{index + 1}</span>
+              <span className="vak-number" />
               <span className="fact-label">{FINDING_LABELS[finding.key] ?? finding.key}</span>
               <span className="fact-value">
                 “{finding.statement}”
@@ -130,7 +130,7 @@ export function Documenten(props: {
 
   return (
     <section aria-labelledby="documenten-title" className="documenten">
-      <h3 id="documenten-title">Documenten</h3>
+      <h2 id="documenten-title">Documenten</h2>
       <p className="muted measure">
         Documenten blijven op deze computer en worden alleen naar het taalmodel gestuurd om
         bevindingen te lezen.
@@ -146,7 +146,7 @@ export function Documenten(props: {
               {document.kind === "brochure" && <span className="chip">funda</span>}
               <span className={document.status === "analysed" ? "muted" : "document-problem"}>
                 {" "}
-                {document.status !== "analysed" && <span aria-hidden="true">! </span>}
+                
                 {statusLine(document)}
               </span>
               {document.rejected_findings > 0 && (
@@ -204,7 +204,7 @@ export function Documenten(props: {
       {busy !== null && busy !== "upload" && <span className="muted"> Bezig…</span>}
       {failed && (
         <p role="alert" className="notice error">
-          <span aria-hidden="true">! </span>Dat lukte niet. Probeer het opnieuw.
+          Dat lukte niet. Probeer het opnieuw.
         </p>
       )}
 

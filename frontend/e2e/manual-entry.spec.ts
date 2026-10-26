@@ -30,7 +30,7 @@ test("blocked fetch offers manual entry, and the entered woning opens as a dossi
   await expect(row.getByText("Handmatig ingevoerd")).toBeVisible();
   await expect(row.getByText("€ 425.000")).toBeVisible();
 
-  await page.getByRole("button", { name: "Oudegracht 2" }).click();
+  await page.getByRole("link", { name: "Oudegracht 2" }).click();
   await expect(page.getByRole("heading", { name: "Dossier: Oudegracht 2" })).toBeVisible();
   await expect(page.getByText("Handmatig ingevoerd")).toBeVisible();
 });

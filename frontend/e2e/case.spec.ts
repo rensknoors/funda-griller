@@ -18,12 +18,12 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
   await page.goto("/");
   await page.getByLabel("Funda-link").fill(LISTING_URL);
   await page.getByRole("button", { name: "Ophalen" }).click();
-  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
 
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
   await expect(page.getByText("Maximale hypotheek", { exact: true })).toBeVisible();
   await expect(page.getByText("€ 496.660")).toBeVisible();
-  await expect(page.getByText("▲ +€ 109.519").first()).toBeVisible();
+  await expect(page.getByText("+€ 109.519", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/^Regels 2026/)).toBeVisible();
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();
@@ -33,7 +33,7 @@ test("dossier shows bronnen: official energielabel, third-party WOZ, coverage an
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
 
   await expect(page.getByText(/6 bronnen: 3 gelukt, 0 mislukt, 3 overgeslagen/)).toBeVisible();
   await expect(page.getByLabel(/Bron: Energielabelregister, opgehaald/)).toBeVisible();
@@ -50,7 +50,7 @@ test("dossier shows flood and soil risk under omgeving, its risico signaal, and 
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
 
   const omgeving = page.locator("details", { has: page.getByRole("heading", { name: "Omgeving" }) });
   await expect(omgeving.getByText("Waterdiepte bij overstroming (kleine kans)")).toBeVisible();

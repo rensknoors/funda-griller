@@ -17,7 +17,7 @@ test("dossier shows the reistijd per pendelbestemming and a minpunt when it is t
   await request.put("/api/buyer-profile", { data: { ...PROFILE, commute_destinations: [WERK, sport] } });
   await request.post("/api/listings", { data: { url: LISTING_URL } });
   await page.goto("/");
-  await page.getByRole("button", { name: "Dorpsstraat 41" }).click();
+  await page.getByRole("link", { name: "Dorpsstraat 41" }).click();
 
   await expect(page.getByText(/Reistijd: gelukt/)).toBeVisible();
   const reistijd = page.locator("details", { has: page.getByRole("heading", { name: "Reistijd" }) });
@@ -46,7 +46,7 @@ test("a pendelbestemming added to the Koperprofiel is shown as not fetched until
   await request.post("/api/listings", { data: { url: LISTING_URL } });
   await request.put("/api/buyer-profile", { data: { ...PROFILE, commute_destinations: [WERK, school] } });
   await page.goto("/");
-  await page.getByRole("button", { name: "Dorpsstraat 41" }).click();
+  await page.getByRole("link", { name: "Dorpsstraat 41" }).click();
 
   const reistijd = page.locator("details", { has: page.getByRole("heading", { name: "Reistijd" }) });
   await expect(reistijd.getByText(/Reistijd naar School: nog niet opgehaald/)).toBeVisible();

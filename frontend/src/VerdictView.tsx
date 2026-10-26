@@ -1,8 +1,8 @@
+import { RefreshCw, Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
   type BidAdvice,
-  type FlagClass,
   type Listing,
   type Verdict,
   type VerdictError,
@@ -14,16 +14,16 @@ import {
   runVerdict,
 } from "./api";
 import { TIER_LABEL } from "./comparison";
-import { euro } from "./format";
+import { euro, signedEuro } from "./format";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
 import { coverageNote } from "./Vergelijkbaar";
+import { FlagGlyph } from "./FlagGlyph";
+import { type Neighbours, WoningHeader } from "./WoningHeader";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: VerdictState };
 
 const dateTime = new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium", timeStyle: "short" });
-
-const FLAG_GLYPHS: Record<FlagClass, string> = { pro: "+", con: "−", risk: "!" };
 
 const CHANGED_COPY: Record<VerdictInput, string> = {
   case: "het dossier",
@@ -41,7 +41,7 @@ const ERROR_COPY: Record<VerdictError["kind"], string> = {
 
 export function VerdictView(props: {
   listing: Listing;
-  onBackToCase: () => void;
+  neighbours: Neighbours;
   onShowFlag: (flagId: string) => void;
 }) {
   const { listing } = props;
@@ -59,6 +59,8 @@ export function VerdictView(props: {
 
   useEffect(() => {
     let current = true;
+    setState({ kind: "laden" });
+    setRunError(null);
     fetchVerdicts(listing.funda_id)
       .then((data) => current && setState({ kind: "klaar", data }))
       .catch(() => current && setState({ kind: "fout" }));
@@ -87,17 +89,28 @@ export function VerdictView(props: {
   const latest = data?.verdicts[0];
 
   return (
-    <section aria-labelledby="verdict-title" className="oordeel">
-      <header className="dossier-head">
-        <h2 id="verdict-title" ref={heading} tabIndex={-1}>
-          Oordeel: {address}
-        </h2>
-        <div className="row">
-          <button type="button" onClick={props.onBackToCase}>
-            Terug naar dossier
-          </button>
-        </div>
-      </header>
+    <section aria-labelledby="oordeel-title" className="oordeel">
+      <WoningHeader
+        listing={listing}
+        page="oordeel"
+        neighbours={props.neighbours}
+        headingRef={heading}
+        meta={
+          latest ? (
+            <span>
+              Versie {latest.version} · {dateTime.format(new Date(latest.created_at))}
+            </span>
+          ) : null
+        }
+        actions={
+          data && latest && !running && !data.out_of_date ? (
+            <button type="button" onClick={handleRun}>
+              <RefreshCw size={15} aria-hidden="true" />
+              Oordeel opnieuw draaien
+            </button>
+          ) : undefined
+        }
+      />
 
       {snapshot.status !== "available" && (
         <div role="status" className="status-banner">
@@ -112,7 +125,7 @@ export function VerdictView(props: {
       {state.kind === "laden" && <TierSkeleton status="Oordeel laden" />}
       {state.kind === "fout" && (
         <p role="alert" className="notice error">
-          <span aria-hidden="true">! </span>Oordeel laden mislukt. Ga terug naar het dossier en
+          Oordeel laden mislukt. Ga terug naar het dossier en
           open het oordeel opnieuw.
         </p>
       )}
@@ -131,7 +144,6 @@ export function VerdictView(props: {
       {running && <TierSkeleton status="Model leest dossier…" />}
       {runError && (
         <p role="alert" className="notice error">
-          <span aria-hidden="true">! </span>
           {ERROR_COPY[runError.kind]}{" "}
           {runError.kind === "invalid_verdict" && (
             <span className="muted">({runError.problems.join(", ")})</span>
@@ -140,7 +152,7 @@ export function VerdictView(props: {
             <span className="muted">({runError.reason})</span>
           )}{" "}
           {runError.kind !== "no_buyer_profile" && (
-            <button type="button" onClick={handleRun} disabled={running}>
+            <button type="button" className="small" onClick={handleRun} disabled={running}>
               Opnieuw proberen
             </button>
           )}
@@ -150,27 +162,23 @@ export function VerdictView(props: {
 
       {data && latest && !running && (
         <>
-          {data.out_of_date && (
-            <div role="status" className="achterhaald-banner">
-              <span className="chip stale-chip">Achterhaald</span>{" "}
-              <strong>Dit oordeel is gebaseerd op een oudere versie</strong> van{" "}
-              {data.changed.map((input) => CHANGED_COPY[input]).join(" en ")}.{" "}
-              <button type="button" className="primary" onClick={handleRun}>
-                Oordeel opnieuw draaien
-              </button>
-            </div>
-          )}
-          <TierBlock verdict={latest} outOfDate={data.out_of_date} />
+          <TierBlock verdict={latest}>
+            {data.out_of_date && (
+              <div role="status" className="achterhaald-banner">
+                <span className="chip stale-chip">Achterhaald</span>
+                <p>
+                  <strong>Dit oordeel is gebaseerd op een oudere versie</strong> van{" "}
+                  {data.changed.map((input) => CHANGED_COPY[input]).join(" en ")}.
+                </p>
+                <button type="button" onClick={handleRun}>
+                  Oordeel opnieuw draaien
+                </button>
+              </div>
+            )}
+          </TierBlock>
           <Redenering verdict={latest} onShowFlag={props.onShowFlag} />
           {latest.bid_advice && <Biedadvies advice={latest.bid_advice} rulesYear={latest.built_from.rules_year} />}
           <VersieStempel verdicts={data.verdicts} />
-          {!data.out_of_date && (
-            <p className="row">
-              <button type="button" onClick={handleRun}>
-                Oordeel opnieuw draaien
-              </button>
-            </p>
-          )}
         </>
       )}
     </section>
@@ -189,13 +197,13 @@ function TierSkeleton({ status }: { status: string }) {
   );
 }
 
-function TierBlock({ verdict, outOfDate }: { verdict: Verdict; outOfDate: boolean }) {
+/** The tier owns a full band; an Achterhaald Oordeel keeps its colour and says so inside the band. */
+function TierBlock({ verdict, children }: { verdict: Verdict; children?: React.ReactNode }) {
   return (
-    <section
-      aria-labelledby="tier-title"
-      className={`tier-block tier-block-${verdict.tier}${outOfDate ? " out-of-date" : ""}`}
-    >
-      <h3 id="tier-title">Oordeel</h3>
+    <section aria-labelledby="tier-title" className={`tier-block tier-block-${verdict.tier}${children ? " out-of-date" : ""}`}>
+      <h2 id="tier-title" className="visually-hidden">
+        Oordeel
+      </h2>
       <TierMark tier={verdict.tier} size="large" />
       {verdict.tier === "hard_no" && verdict.deal_breaker ? (
         <>
@@ -209,6 +217,7 @@ function TierBlock({ verdict, outOfDate }: { verdict: Verdict; outOfDate: boolea
       ) : (
         verdict.summary && <p className="tier-summary">{verdict.summary}</p>
       )}
+      {children}
     </section>
   );
 }
@@ -216,7 +225,7 @@ function TierBlock({ verdict, outOfDate }: { verdict: Verdict; outOfDate: boolea
 function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (flagId: string) => void }) {
   return (
     <section aria-labelledby="redenering-title">
-      <h3 id="redenering-title">Redenering</h3>
+      <h2 id="redenering-title">Redenering</h2>
       <p className="prose">{verdict.reasoning}</p>
       {verdict.cited_flags.length > 0 && (
         <p className="signaal-chips">
@@ -228,9 +237,7 @@ function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (fl
               className={`signaal-chip flag-${flag.class}`}
               onClick={() => onShowFlag(flag.id)}
             >
-              <span className="flag-glyph" aria-hidden="true">
-                {FLAG_GLYPHS[flag.class]}
-              </span>{" "}
+              <FlagGlyph flagClass={flag.class} />
               {flag.title}
             </button>
           ))}
@@ -244,7 +251,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
   const headroom = advice.asking_price !== null ? advice.affordable_maximum - advice.asking_price : null;
   return (
     <section aria-labelledby="biedadvies-title">
-      <h3 id="biedadvies-title">Biedadvies</h3>
+      <h2 id="biedadvies-title">Biedadvies</h2>
       <div className="bid-vakken">
         <div className="figure">
           <p className="vak-label">Openingsbod</p>
@@ -296,7 +303,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
             <ul className="conditions">
               {advice.conditions.map((condition) => (
                 <li key={condition}>
-                  <span aria-hidden="true">☐ </span>
+                  <Square size={15} aria-hidden="true" className="inline-icon" />
                   {condition}
                 </li>
               ))}
@@ -310,7 +317,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
         <div className="figure">
           <dt>Ruimte boven vraag</dt>
           <dd className="num">
-            {headroom === null ? "–" : `${headroom >= 0 ? "▲ +" : "▼ "}${euro.format(headroom)}`}
+            {headroom === null ? "–" : signedEuro(headroom)}
           </dd>
         </div>
       </dl>
@@ -404,7 +411,7 @@ function VersieStempel({ verdicts }: { verdicts: Verdict[] }) {
   const [latest, ...older] = verdicts;
   return (
     <section aria-labelledby="versie-title">
-      <h3 id="versie-title">Versie</h3>
+      <h2 id="versie-title">Versie</h2>
       <p>
         <VersionLine verdict={latest} />
       </p>

@@ -36,7 +36,7 @@ test("list compares woningen by oordeel, price and key figures", async ({ page }
   await expect(buchterweg.getByText("Harde afwijzing")).toBeVisible();
   await expect(buchterweg.getByText("Deal-breaker: Garage")).toBeVisible();
   await expect(buchterweg.getByText("€ 595.000")).toBeVisible();
-  await expect(buchterweg.getByText("▲ +51,8%")).toBeVisible();
+  await expect(buchterweg.getByText("+51,8%", { exact: true })).toBeVisible();
   await expect(buchterweg.getByText("152 / 410")).toBeVisible();
   await expect(buchterweg.getByText("A", { exact: true })).toBeVisible();
   await expect(row(page, "Markt 3").getByText("Nog geen oordeel")).toBeVisible();

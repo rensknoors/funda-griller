@@ -1,3 +1,4 @@
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 
@@ -17,6 +18,7 @@ import {
 } from "./profile";
 import { apiFetch, fetchOutOfDateVerdicts } from "./api";
 import { euro } from "./format";
+import { href } from "./route";
 import { ErrorText, Vak, type VakInputProps } from "./Vak";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; form: FormState; firstRun: boolean };
@@ -66,7 +68,12 @@ export function BuyerProfileForm({ onSaved }: { onSaved?: () => void } = {}) {
 
   return (
     <div className="koperprofiel">
-      <h2 id="koperprofiel-title">Koperprofiel</h2>
+      <div className="hero">
+        <div className="page-head">
+          <h1 id="koperprofiel-title">Koperprofiel</h1>
+          <p className="page-lede">Je huishouden, financiën en wensen. Hieruit volgen je betaalruimte en de signalen per woning.</p>
+        </div>
+      </div>
       {load.kind === "laden" && (
         <div className="skeleton" aria-busy="true">
           <span className="visually-hidden">Koperprofiel laden</span>
@@ -78,7 +85,7 @@ export function BuyerProfileForm({ onSaved }: { onSaved?: () => void } = {}) {
       )}
       {load.kind === "fout" && (
         <div role="alert" className="banner">
-          <span aria-hidden="true">! </span>Koperprofiel laden mislukt.{" "}
+          Koperprofiel laden mislukt.{" "}
           <button type="button" onClick={retry}>
             Opnieuw proberen
           </button>
@@ -129,7 +136,6 @@ function ProfileForm({
   }, [form, touched]);
 
   const order = vakOrder(form);
-  const numberOf = (field: string) => order.indexOf(field) + 1;
   const position = (field: string) => {
     const exact = order.indexOf(field);
     return exact >= 0 ? exact : order.findIndex((vak) => vak.startsWith(`${field}.`));
@@ -196,7 +202,7 @@ function ProfileForm({
     if (field) touch([field]);
   };
 
-  const vak = (field: string, label: string) => ({ field, label, number: numberOf(field), error: errorOf(field) });
+  const vak = (field: string, label: string) => ({ field, label, error: errorOf(field) });
   const amountInput = (key: "gross_annual_income" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs") =>
     (props: VakInputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
 
@@ -220,13 +226,14 @@ function ProfileForm({
               <ProfileVak {...vak(`household.${index}.birth_date`, `Geboortedatum lid ${index + 1}`)}>
                 {(props) => <input {...props} type="date" value={member.birth_date} onChange={(event) => update({ birth_date: event.target.value })} />}
               </ProfileVak>
-              <button type="button" onClick={() => set("household", form.household.filter((_, i) => i !== index))}>
-                Verwijder lid {index + 1}
+              <button type="button" className="icon-button" aria-label={`Verwijder lid ${index + 1}`} title="Verwijderen" onClick={() => set("household", form.household.filter((_, i) => i !== index))}>
+                <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
           );
         })}
-        <button type="button" onClick={() => set("household", [...form.household, { role: "adult", birth_date: "" }])}>
+        <button type="button" className="add-button" onClick={() => set("household", [...form.household, { role: "adult", birth_date: "" }])}>
+          <Plus size={16} aria-hidden="true" />
           Lid toevoegen
         </button>
       </>
@@ -273,31 +280,36 @@ function ProfileForm({
           const update = (patch: Partial<typeof destination>) =>
             set("commute_destinations", form.commute_destinations.map((d, i) => (i === index ? { ...d, ...patch } : d)));
           return (
-            <div className="row" key={index}>
-              <ProfileVak {...vak(`commute_destinations.${index}.label`, `Pendelbestemming ${index + 1}: naam`)} hint={SHARED_TEXT_NOTE}>
-                {(props) => <input {...props} value={destination.label} onChange={(event) => update({ label: event.target.value })} />}
-              </ProfileVak>
-              <ProfileVak {...vak(`commute_destinations.${index}.address`, `Pendelbestemming ${index + 1}: adres`)}>
-                {(props) => <input {...props} value={destination.address} onChange={(event) => update({ address: event.target.value })} />}
-              </ProfileVak>
-              <ProfileVak {...vak(`commute_destinations.${index}.max_minutes`, `Pendelbestemming ${index + 1}: maximaal aantal minuten`)}>
-                {(props) => <input {...props} inputMode="numeric" value={destination.max_minutes} onChange={(event) => update({ max_minutes: event.target.value })} />}
-              </ProfileVak>
-              <button type="button" onClick={() => set("commute_destinations", form.commute_destinations.filter((_, i) => i !== index))}>
-                Verwijder pendelbestemming {index + 1}
-              </button>
+            <div className="commute-destination" key={index} role="group" aria-label={`Pendelbestemming ${index + 1}`}>
+              <div className="commute-route">
+                <span className="commute-word" aria-hidden="true">Naar</span>
+                <ProfileVak {...vak(`commute_destinations.${index}.address`, `Adres van pendelbestemming ${index + 1}`)}>
+                  {(props) => <input {...props} value={destination.address} onChange={(event) => update({ address: event.target.value })} />}
+                </ProfileVak>
+                <span className="commute-word" aria-hidden="true">max.</span>
+                <ProfileVak {...vak(`commute_destinations.${index}.max_minutes`, `Maximaal aantal minuten naar pendelbestemming ${index + 1}`)}>
+                  {(props) => <input {...props} inputMode="numeric" value={destination.max_minutes} onChange={(event) => update({ max_minutes: event.target.value })} />}
+                </ProfileVak>
+                <span className="commute-word" aria-hidden="true">min</span>
+                <button type="button" className="icon-button" aria-label={`Verwijder pendelbestemming ${index + 1}`} title="Verwijderen" onClick={() => set("commute_destinations", form.commute_destinations.filter((_, i) => i !== index))}>
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="commute-name">
+                <ProfileVak {...vak(`commute_destinations.${index}.label`, `Naam van pendelbestemming ${index + 1}`)} hint={SHARED_TEXT_NOTE}>
+                  {(props) => <input {...props} value={destination.label} onChange={(event) => update({ label: event.target.value })} />}
+                </ProfileVak>
+              </div>
             </div>
           );
         })}
-        <button type="button" onClick={() => set("commute_destinations", [...form.commute_destinations, { label: "", address: "", max_minutes: "" }])}>
+        <button type="button" className="add-button" onClick={() => set("commute_destinations", [...form.commute_destinations, { label: "", address: "", max_minutes: "" }])}>
+          <Plus size={16} aria-hidden="true" />
           Pendelbestemming toevoegen
         </button>
 
         <fieldset className="vak" aria-invalid={Boolean(errorOf("renovation_tolerance"))}>
           <legend>
-            <span className="vak-number" aria-hidden="true">
-              {numberOf("renovation_tolerance")}
-            </span>{" "}
             Verbouwtolerantie
           </legend>
           {TOLERANCE_LABELS.map((label, index) => (
@@ -380,7 +392,7 @@ function ProfileForm({
             }}
           >
             <summary>
-              <h3 id={`${section.id}-title`}>{section.title}</h3>
+              <h2 id={`${section.id}-title`}>{section.title}</h2>
               <span className="section-hint">{section.hint}</span>
             </summary>
             <div className="section-body">{sectionBody[section.id]}</div>
@@ -393,7 +405,7 @@ function ProfileForm({
       <footer className="profile-footer">
         {problemCount > 0 && (
           <p role="status" className="problems">
-            <span aria-hidden="true">! </span>
+            
             {problemCount} {problemCount === 1 ? "vak is" : "vakken zijn"} niet correct ingevuld.{" "}
             <a
               href={`#${fieldId(visible[0])}`}
@@ -418,7 +430,7 @@ function ProfileForm({
                   <>
                     Dit verandert {save.changedVerdicts} {save.changedVerdicts === 1 ? "oordeel" : "oordelen"}.
                     Achterhaalde oordelen draaien pas opnieuw als je dat vraagt.{" "}
-                    <a href="#woningen">Naar de woningen</a>
+                    <a href={href({ view: "woningen" })}>Naar de woningen</a>
                   </>
                 )}
               </>
@@ -427,7 +439,7 @@ function ProfileForm({
         )}
         {save.kind === "failed" && (
           <div role="alert" className="banner">
-            <span aria-hidden="true">! </span>Opslaan mislukt. Je invoer is bewaard.{" "}
+            Opslaan mislukt. Je invoer is bewaard.{" "}
             <button type="button" onClick={() => void submit()}>
               Opnieuw proberen
             </button>
@@ -475,7 +487,7 @@ function Gevolgen({ state }: { state: GevolgenState | null }) {
     <aside className="gevolgen" aria-labelledby="gevolgen-title">
       <details open>
         <summary>
-          <h3 id="gevolgen-title">Gevolgen</h3>
+          <h2 id="gevolgen-title">Gevolgen</h2>
         </summary>
         {state === null && <p className="muted">Vul inkomen in om je budget te zien</p>}
         {state?.kind === "pending" && <p className="muted">Gevolgen berekenen…</p>}
@@ -523,7 +535,7 @@ function WensList(props: {
   field: "must_haves" | "nice_to_haves" | "deal_breakers";
   legend: string;
   rows: string[];
-  vak: (field: string, label: string) => { field: string; label: string; number: number; error?: string };
+  vak: (field: string, label: string) => { field: string; label: string; error?: string };
   onChange: (rows: string[]) => void;
 }) {
   const { rows, onChange } = props;
@@ -558,19 +570,22 @@ function WensList(props: {
                 />
               )}
             </ProfileVak>
-            <button type="button" aria-label={`${name} omhoog`} disabled={index === 0} onClick={() => move(index, index - 1)}>
-              ↑
-            </button>
-            <button type="button" aria-label={`${name} omlaag`} disabled={index === rows.length - 1} onClick={() => move(index, index + 1)}>
-              ↓
-            </button>
-            <button type="button" onClick={() => onChange(rows.filter((_, i) => i !== index))}>
-              Verwijder {props.legend.toLowerCase()} {index + 1}
-            </button>
+            <div className="row-tools">
+              <button type="button" className="icon-button" aria-label={`${name} omhoog`} disabled={index === 0} onClick={() => move(index, index - 1)}>
+                <ArrowUp size={16} aria-hidden="true" />
+              </button>
+              <button type="button" className="icon-button" aria-label={`${name} omlaag`} disabled={index === rows.length - 1} onClick={() => move(index, index + 1)}>
+                <ArrowDown size={16} aria-hidden="true" />
+              </button>
+              <button type="button" className="icon-button" aria-label={`Verwijder ${props.legend.toLowerCase()} ${index + 1}`} title="Verwijderen" onClick={() => onChange(rows.filter((_, i) => i !== index))}>
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
+            </div>
           </div>
         );
       })}
-      <button type="button" onClick={() => onChange([...rows, ""])}>
+      <button type="button" className="add-button" onClick={() => onChange([...rows, ""])}>
+        <Plus size={16} aria-hidden="true" />
         {props.legend} toevoegen
       </button>
     </fieldset>

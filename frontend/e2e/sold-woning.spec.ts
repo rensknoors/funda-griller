@@ -9,12 +9,12 @@ test("a sold woning says Verkocht in the dossier and on the oordeel", async ({ p
   await request.post("/api/listings/55500001/restore");
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Markt 3" }).click();
+  await page.getByRole("link", { name: "Markt 3" }).click();
 
   const dossier = page.getByRole("region", { name: "Dossier: Markt 3" });
   await expect(dossier.locator("header").getByText("Verkocht")).toBeVisible();
   await expect(dossier.getByRole("listitem").filter({ hasText: "Status" }).getByText("Verkocht")).toBeVisible();
 
-  await page.getByRole("button", { name: "Oordeel bekijken" }).click();
+  await page.getByRole("link", { name: "Oordeel", exact: true }).click();
   await expect(page.getByText("Deze woning is verkocht. Een biedadvies is niet meer van toepassing.")).toBeVisible();
 });

@@ -14,14 +14,6 @@ export const TIER_LABEL: Record<TierKey, string> = {
   hard_no: "Harde afwijzing",
 };
 
-export const TIER_GLYPH: Record<TierKey, string> = {
-  must_buy: "✓",
-  consider: "○",
-  none: "·",
-  skip: "–",
-  hard_no: "✕",
-};
-
 export type SortKey = "tier" | "price" | "woz" | "comparables" | "area" | "headroom" | "stale";
 export type Sort = { key: SortKey; direction: "ascending" | "descending" };
 
