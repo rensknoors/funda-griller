@@ -437,7 +437,7 @@ function Betaalruimte({
             value={affordability.headroom !== null ? signedEuro(affordability.headroom) : "–"}
           >
             {affordability.renovation_direct > 0 &&
-              `na aftrek van ${euro.format(affordability.renovation_direct)} direct nodig onderhoud`}
+              `na aftrek van ${euro.format(affordability.renovation_direct)} Direct nodig onderhoud`}
           </Figure>
         </dl>
       )}

@@ -422,6 +422,7 @@ def test_a_high_direct_nodig_total_raises_a_con_flag_citing_it(client, listing_p
     flag = next(f for f in client.get(CASE).json()["flags"] if f["rule_id"] == "renovation_direct_high")
 
     assert flag["class"] == "con"
+    assert flag["title"] == "Veel Direct nodig onderhoud: meer dan € 25.000 (geschat)"
     assert [(e["key"], e["value"]) for e in flag["evidence"]] == [
         ("renovation_direct_midpoint", 31_000),
         ("threshold", 25_000),
@@ -495,3 +496,13 @@ def test_an_old_boiler_or_wiring_from_the_vragenlijst_is_priced_by_the_shipped_t
     upload_vragenlijst(client, llm_client, {**LEAK, "topic": topic})
 
     assert items(client)[item]["urgency"] == "within_5_years"
+
+
+def test_a_cost_table_item_with_an_unknown_basis_is_refused_when_the_table_is_loaded(
+    client, listing_provider, settings
+):
+    settings.renovation_costs_path.write_text(COST_TABLE.replace('basis = "per_m2"', 'basis = "per_room"'))
+    listing_provider.listings[LIVE_URL] = live_listing(brochure_url=None)
+
+    with pytest.raises(ValueError, match="per_room"):
+        client.post("/api/listings", json={"url": LIVE_URL})

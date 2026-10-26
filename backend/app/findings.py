@@ -9,6 +9,11 @@ Findings are kept and marked unverified. Anything else is dropped and counted, n
 import re
 from collections.abc import Sequence
 
+# A Document's kind: one the user added (the Vragenlijst, Lijst van zaken, ...) or the funda
+# brochure fetched with the Listing.
+USER_DOCUMENT_KIND = "user"
+BROCHURE_KIND = "brochure"
+
 # What a Finding can be about. `present` says whether the seller states it applies to the house
 # (asbestos present, a past leak, leased solar panels, erfpacht, a subsidy to repay or transfer,
 # something that stays or goes, a cv-ketel or electrical wiring the seller says is old or due for

@@ -8,7 +8,6 @@ from app import store
 from app.buyer_profile import BuyerProfile
 from app.case import VersionedProfile
 from app.export import ExportInput, filename, render
-from app.gemini_client import VERDICT_PROMPT_VERSION
 from app.wiring import Wiring
 
 
@@ -28,7 +27,6 @@ def routes(w: Wiring) -> APIRouter:
             verdicts=w.verdict_state(funda_id, case),
             profile=latest,
             include_profile=profile,
-            verdict_prompt_version=VERDICT_PROMPT_VERSION,
             now=w.clock(),
         )
         return Response(

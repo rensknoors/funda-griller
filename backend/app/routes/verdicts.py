@@ -20,11 +20,9 @@ def routes(w: Wiring) -> APIRouter:
     router = APIRouter(prefix="/api")
     settings = w.settings
 
-    verdict_state = w.verdict_state
-
     @router.get("/listings/{funda_id}/verdict", response_model=None)
     def read_verdict(funda_id: str) -> dict:
-        return verdict_state(funda_id, w.current_case(w.listing(funda_id)))
+        return w.verdict_state(funda_id, w.current_case(w.listing(funda_id)))
 
     @router.post("/listings/{funda_id}/verdict", status_code=201, response_model=None)
     def run_verdict(funda_id: str) -> dict | JSONResponse:
@@ -55,7 +53,7 @@ def routes(w: Wiring) -> APIRouter:
         after a Buyer Profile edit. Nothing re-runs by itself."""
         out_of_date = []
         for funda_id in store.listings_with_verdicts(settings.database_path):
-            state = verdict_state(funda_id, w.current_case(w.listing(funda_id)))
+            state = w.verdict_state(funda_id, w.current_case(w.listing(funda_id)))
             if state["out_of_date"]:
                 newest = state["verdicts"][0]
                 out_of_date.append(

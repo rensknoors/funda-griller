@@ -16,7 +16,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 10
+version = 11
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -260,7 +260,7 @@ deal_breaker_aliases = ["opknapper", "renovatie"]
 id = "renovation_direct_high"
 version = 1
 class = "con"
-title = "Veel direct nodig onderhoud (geschat)"
+title = "Veel Direct nodig onderhoud: meer dan € 25.000 (geschat)"
 kind = "above"
 fact = "renovation.direct_midpoint"
 threshold = 25000

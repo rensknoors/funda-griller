@@ -272,7 +272,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
                 <span className="muted">
                   (koperprofiel en regels {rulesYear}, incl. kosten koper
                   {renovationDirect > 0 && (
-                    <>, na aftrek van {euro.format(renovationDirect)} direct nodig onderhoud</>
+                    <>, na aftrek van {euro.format(renovationDirect)} Direct nodig onderhoud</>
                   )}
                   )
                 </span>
@@ -370,7 +370,7 @@ function weakGroundingNote(derivation: WalkAwayDerivation): string {
   return BASIS_LABELS[derivation.basis].weak;
 }
 
-/** "Vraagprijs € 595.000 − € 6.000 direct nodig + 5%: € 618.450": the basis, the Direct nodig
+/** "Vraagprijs € 595.000 − € 6.000 Direct nodig + 5%: € 618.450": the basis, the Direct nodig
  * renovation cost taken off it, and its margin. */
 function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | null {
   if (derivation.basis_maximum === null || derivation.margin === null) return null;
@@ -378,7 +378,7 @@ function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | 
   const value = basis.value(advice);
   if (value == null) return null;
   const renovation = derivation.renovation_direct
-    ? ` − ${euro.format(derivation.renovation_direct)} direct nodig`
+    ? ` − ${euro.format(derivation.renovation_direct)} Direct nodig`
     : "";
   return `${basis.line} ${euro.format(value)}${renovation} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
 }

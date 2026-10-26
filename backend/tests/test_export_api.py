@@ -6,6 +6,7 @@ import re
 
 import pytest
 
+from app import store
 from app.gemini_client import VERDICT_PROMPT_VERSION
 from app.ports import SourceFact
 from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
@@ -124,7 +125,9 @@ def test_facts_are_grouped_by_provenance_with_their_trust_markers(
     assert "WOZ-waarde: € 392.000 (Bron: woz, derde partij, indicatief, peildatum 2025-01-01" in facts
     assert "**Verouderd**" in facts
     assert "Keuken, geschatte leeftijd (jaar): ≈ 25 (geschat, foto 1) — Oude keuken." in facts
-    assert "Erfpacht (van toepassing): Erfpacht afgekocht tot 2050. (door verkoper, Brochure (funda), p. 2)" in facts
+    assert "Erfpacht (van toepassing): Erfpacht afgekocht tot 2050. (door verkoper, p. 2)" in facts
+    # Documents are shown only in the app's own UI: no verbatim quote, no document name.
+    assert "Ligging en indeling" not in markdown and "Brochure" not in markdown
     assert "Vraagprijs t.o.v. WOZ: +51,8%" in markdown
     listed = markdown.split("## Vergelijkbare woningen")[1].split("## Signalen")[0]
     assert "- Dorpsstraat 101, Holtum: € 500.000, 125 m², € 4.000 per m², verkocht" in listed
@@ -416,3 +419,120 @@ def test_without_renovation_items_the_export_says_none_were_found(client, listin
     raming = section(client.get(EXPORT).text, "Verbouwingsraming")
 
     assert "Geen verbouwingsposten gevonden" in raming
+
+
+def test_a_hard_no_without_the_profile_does_not_print_the_deal_breaker(client, listing_provider):
+    profile = typical_profile() | {"deal_breakers": ["Geen erfpacht"]}
+    capture(client, listing_provider, profile, description="Appartement op erfpacht.")
+    client.post(VERDICT)
+
+    markdown = client.get(f"{EXPORT}?profile=false").text
+
+    assert "Geen erfpacht" not in markdown
+    assert "raakt een Deal-breaker uit het Koperprofiel" in section(markdown, "Oordeel")
+
+
+def amount_forms(amount):
+    """How a model may write an amount: "€ 412.345", "€412.345", "412.345", "€412k"."""
+    dotted = f"{amount:,}".replace(",", ".")
+    return [f"€ {dotted}", f"€{dotted}", dotted, f"€{round(amount / 1000)}k"]
+
+
+def test_household_amounts_in_the_verdict_text_are_rounded_or_left_out(client, listing_provider, llm_client):
+    capture(client, listing_provider, private_profile())
+    affordability = client.get("/api/listings/80907644/case").json()["affordability"]
+    maximum, monthly, equity = affordability["affordable_maximum"], affordability["monthly_cost"], affordability["equity"]
+    forms = " / ".join(amount_forms(maximum))
+    llm_client.verdict = model_says() | {
+        "summary": f"Betaalbaar tot {forms}.",
+        "reasoning": f"Maandlasten {amount_forms(monthly)[0]} per maand, overwaarde {amount_forms(equity)[1]}.",
+        "bid_advice": {"opening_bid": 585_000, "conditions": [f"Niet boven {amount_forms(maximum)[0]}"]},
+    }
+    client.post(VERDICT)
+
+    with_profile = client.get(EXPORT).text
+    without = client.get(f"{EXPORT}?profile=false").text
+
+    for markdown in (with_profile, without):
+        for exact in (maximum, monthly, equity):
+            assert not mentions(markdown, exact), exact
+        assert f"{round(maximum / 1000)}k" not in markdown
+    rounded = f"≈ € {round(maximum / 5000) * 5000:,}".replace(",", ".")
+    assert f"Betaalbaar tot {rounded} / {rounded} / {rounded} / {rounded}." in with_profile
+    assert f"Maandlasten ≈ € {round(monthly / 50) * 50:,} per maand".replace(",", ".") in with_profile
+    assert f"Niet boven {rounded}" in with_profile
+    assert "Betaalbaar tot [weggelaten] / [weggelaten] / [weggelaten] / [weggelaten]." in without
+    assert "Maandlasten [weggelaten] per maand, overwaarde [weggelaten]." in without
+    assert "Niet boven [weggelaten]" in without
+
+
+def test_without_the_profile_an_affordability_bound_maximumbod_is_rounded_down(client, listing_provider, llm_client):
+    poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
+    capture(client, listing_provider, poorer)
+    llm_client.verdict = lambda case, _: model_says(opening_bid=case["walk_away"]["walk_away_maximum"] - 10_000)
+    maximum = client.post(VERDICT).json()["bid_advice"]["walk_away_maximum"]
+
+    bid = section(client.get(f"{EXPORT}?profile=false").text, "Biedadvies")
+
+    assert not mentions(bid, maximum)
+    assert f"Maximumbod: € {maximum // 5000 * 5000:,} (afgerond)".replace(",", ".") in bid
+    assert "Direct nodig" not in bid
+
+
+def test_kosten_koper_is_rounded(client, listing_provider):
+    capture(client, listing_provider, private_profile())
+    total = client.get("/api/listings/80907644/case").json()["affordability"]["kosten_koper"]["total"]
+
+    markdown = client.get(EXPORT).text
+
+    assert not mentions(markdown, total)
+    assert f"Kosten koper bij de vraagprijs: ≈ € {round(total / 5000) * 5000:,}".replace(",", ".") in markdown
+
+
+def test_the_header_prints_the_prompt_version_the_verdict_was_made_with(
+    client, listing_provider, llm_client, monkeypatch
+):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says()
+    verdict = client.post(VERDICT).json()
+    monkeypatch.setattr("app.assembly.VERDICT_PROMPT_VERSION", VERDICT_PROMPT_VERSION + 1)
+
+    markdown = client.get(EXPORT).text
+
+    assert verdict["prompt_version"] == VERDICT_PROMPT_VERSION
+    assert f"Promptversie Oordeel: {VERDICT_PROMPT_VERSION}\n" in markdown
+
+
+def test_an_older_verdict_without_a_prompt_version_prints_onbekend(client, listing_provider, llm_client, settings):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says()
+    verdict = client.post(VERDICT).json()
+    # A Verdict stored before the prompt version was recorded.
+    older = {k: v for k, v in verdict.items() if k not in ("id", "version", "created_at", "prompt_version")}
+    store.add_verdict(settings.database_path, "80907644", verdict["created_at"], older)
+
+    assert "Promptversie Oordeel: onbekend" in client.get(EXPORT).text
+
+
+def test_the_header_names_the_cost_table_version_and_the_legend_the_renovation_estimate(
+    client, listing_provider, renovation
+):
+    capture(client, listing_provider)
+
+    markdown = client.get(EXPORT).text
+
+    assert "- Versie kostentabel verbouwing: 7" in section(markdown, "Herkomst van dit dossier")
+    assert "- Verbouwingsraming = Renovation Estimate" in markdown
+
+
+def test_boiler_and_wiring_findings_have_dutch_labels(client, listing_provider, llm_client):
+    llm_client.findings = [
+        {"topic": "boiler_old", "present": True, "statement": "Ketel uit 2005.", "quote": "Ligging en indeling", "page": 2},
+        {"topic": "wiring_old", "present": True, "statement": "Oude groepenkast.", "quote": "Ligging en indeling", "page": 2},
+    ]
+    capture(client, listing_provider)
+
+    facts = section(client.get(EXPORT).text, "Feiten")
+
+    assert "- Cv-ketel oud (van toepassing): Ketel uit 2005." in facts
+    assert "- Elektra oud (van toepassing): Oude groepenkast." in facts

@@ -10,6 +10,7 @@ from app.assembly import assemble_case
 from app.buyer_profile import BuyerProfile
 from app.case import VersionedProfile
 from app.commute import CommuteSource
+from app.findings import BROCHURE_KIND
 from app.comparison import summarise
 from app.observations import observe
 from app.photos import keep_photos, photo_set
@@ -113,12 +114,12 @@ class Wiring:
         settings = self.settings
         if not url or self.ports.document_downloader is None:
             return
-        brochures = [d for d in store.documents(settings.database_path, funda_id) if d["kind"] == "brochure"]
+        brochures = [d for d in store.documents(settings.database_path, funda_id) if d["kind"] == BROCHURE_KIND]
         if any(d["source_url"] == url for d in brochures):
             return
         for old in brochures:
             self.discard_document(funda_id, old)
-        document_id = store.add_document(settings.database_path, funda_id, "brochure", "Brochure (funda)", now)
+        document_id = store.add_document(settings.database_path, funda_id, BROCHURE_KIND, "Brochure (funda)", now)
         store.update_document(settings.database_path, document_id, source_url=url)
         documents.download_and_analyse(
             self.document_reader,

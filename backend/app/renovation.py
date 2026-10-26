@@ -24,6 +24,15 @@ class CostTable:
     assumed_living_area: int
     items: tuple[dict, ...]
 
+    def __post_init__(self) -> None:
+        unknown = [f"{item['id']}: {item['basis']}" for item in self.items if item["basis"] not in BASES]
+        if unknown:
+            raise ValueError(f"Unknown cost basis in the cost table: {', '.join(unknown)}")
+
+
+# How an item's cost scales: a fixed amount, per m² living area, or by living-area size band.
+BASES = ("fixed", "per_m2", "size_band")
+
 
 def estimate(table: CostTable, facts: dict[str, dict], missing_inputs: list[str], computed_at: str) -> dict:
     """The Renovation Estimate over the Case facts (keyed as for the Flag rules). One item per cost
@@ -85,8 +94,8 @@ def _priced(table: CostTable, item: dict, urgency: str, evidence: list[dict], li
     elif basis == "per_m2":
         size = area if area is not None else table.assumed_living_area
         low, high = item["low"] * size, item["high"] * size
-    else:  # size_band
-        band = 1 if area is None else 0 if area < table.size_bands[0] else 1 if area <= table.size_bands[1] else 2
+    else:  # size_band: CostTable refuses any other basis when the table is loaded.
+        band = _size_band(area, table.size_bands)
         low, high = item["low"][band], item["high"][band]
     sized = basis != "fixed" and living_area is not None
     return {
@@ -103,6 +112,18 @@ def _priced(table: CostTable, item: dict, urgency: str, evidence: list[dict], li
         "estimated": True,
         "evidence": evidence + ([living_area] if sized and living_area not in evidence else []),
     }
+
+
+def _size_band(area: float | None, limits: tuple[int, int]) -> int:
+    """0 small, 1 middle, 2 large. An unknown living area takes the middle band."""
+    small_below, large_above = limits
+    if area is None:
+        return 1
+    if area < small_below:
+        return 0
+    if area > large_above:
+        return 2
+    return 1
 
 
 def _total(items: list[dict]) -> dict:

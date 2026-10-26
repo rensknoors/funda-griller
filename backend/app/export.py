@@ -2,9 +2,11 @@
 file, written for another LLM chat to read. Pure: renders stored data, calls no model.
 
 The reading LLM is unknown and may train on its input, so the Buyer Profile part is always
-anonymised (`Anonymiser`): euro amounts derived from the household's finances are rounded and
-commute destination labels become "Bestemming 1, 2, …". Without `include_profile` the reduced
-Buyer Profile and every affordability figure are left out. Photos and Documents are never linked.
+anonymised (`Anonymiser`): euro amounts derived from the household's finances are rounded (also
+where the Verdict's free text names them) and commute destination labels become "Bestemming 1, 2,
+…". Without `include_profile` the reduced Buyer Profile and every affordability figure are left
+out, and household amounts in the Verdict text read "[weggelaten]". Photos and Documents are never
+linked, named or quoted: they are shown only in the app's own UI.
 
 Each section is one function from `ExportInput` to Markdown lines; adding a section is adding one
 function to `SECTIONS`.
@@ -13,7 +15,7 @@ function to `SECTIONS`.
 import re
 import unicodedata
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.buyer_profile import reduce_profile
@@ -34,7 +36,6 @@ class ExportInput:
     # The latest Buyer Profile; read for destination labels to anonymise even when not included.
     profile: VersionedProfile | None
     include_profile: bool
-    verdict_prompt_version: int
     now: datetime
 
     @property
@@ -49,14 +50,22 @@ class ExportInput:
     @property
     def anonymiser(self) -> "Anonymiser":
         destinations = self.profile.profile.commute_destinations if self.profile else []
-        return Anonymiser({d.label: f"Bestemming {n}" for n, d in enumerate(destinations, start=1)})
+        return Anonymiser(
+            {d.label: f"Bestemming {n}" for n, d in enumerate(destinations, start=1)},
+            _household_amounts(self),
+            self.with_profile,
+        )
 
 
 @dataclass(frozen=True)
 class Anonymiser:
-    """`destinations` maps a commute destination label to its stand-in."""
+    """`destinations` maps a commute destination label to its stand-in. `amounts` are the euro
+    amounts that follow from the household's finances, each with its rounding step; in model-written
+    text they are rounded when `show_amounts`, else replaced by "[weggelaten]"."""
 
     destinations: dict[str, str]
+    amounts: dict[int, int] = field(default_factory=dict)
+    show_amounts: bool = True
 
     def label(self, label: str) -> str:
         return self.destinations.get(label, label)
@@ -67,11 +76,71 @@ class Anonymiser:
             text = text.replace(label, self.destinations[label])
         return text
 
+    def scrub_text(self, text: str) -> str:
+        """Model-written text (Verdict summary, reasoning, conditions): destination labels and the
+        known household amounts, in any notation the model may use, replaced. Each match becomes a
+        placeholder first, so a replacement is never matched again."""
+        text = self.scrub(text)
+        replacements: list[str] = []
+
+        def placeholder(amount: int, step: int) -> Callable[[re.Match], str]:
+            def replace(_: re.Match) -> str:
+                replacements.append(f"≈ {euro(round(amount / step) * step)}" if self.show_amounts else WITHHELD)
+                return f"\x00{len(replacements) - 1}\x00"
+
+            return replace
+
+        for amount, step in sorted(self.amounts.items(), reverse=True):
+            text = _amount_pattern(amount).sub(placeholder(amount, step), text)
+        return re.sub("\x00(\\d+)\x00", lambda m: replacements[int(m[1])], text)
+
+
+WITHHELD = "[weggelaten]"
+
+
+def _amount_pattern(amount: int) -> re.Pattern:
+    """An amount as "€ 412.345", "€412.345", "412.345", "412,345", "412345" or "€ 412.345,-" and,
+    from ten thousand up, "€412k"; never as part of a longer number."""
+    dotted = f"{amount:,}".replace(",", ".")
+    forms = [re.escape(dotted), re.escape(f"{amount:,}"), str(amount)]
+    if amount >= 10_000:
+        forms.append(f"{round(amount / 1000)}[kK]\\b")
+    return re.compile(rf"(?<![\d.,])(?:€\s?)?(?:{'|'.join(forms)})(?:,-|,00)?(?![\d]|[.,]\d)")
+
+
+def _household_amounts(export: "ExportInput") -> dict[int, int]:
+    """Amounts derived from the household's finances that the Verdict text may name, mapped to
+    their rounding step: affordable maximum, home equity, own and available funds, mortgage,
+    kosten koper (it reveals starter status), headroom and monthly costs. With the profile the
+    exact Maximumbod is shown anyway, so it is left as written."""
+    affordability = export.case["affordability"]
+    if affordability is None or export.profile is None:
+        return {}
+    assets = export.profile.profile.assets
+    own_funds = assets.savings + assets.investments
+    euros = [
+        affordability["affordable_maximum"],
+        affordability["equity"],
+        affordability["max_mortgage"],
+        affordability["mortgage_needed"],
+        affordability["headroom"],
+        (affordability["kosten_koper"] or {}).get("total"),
+        assets.savings,
+        assets.investments,
+        own_funds,
+        affordability["equity"] + own_funds,
+    ]
+    advice = export.verdict["bid_advice"] if export.verdict else None
+    monthly = [affordability["monthly_cost"], advice.get("monthly_cost_at_walk_away_maximum") if advice else None]
+    amounts = {abs(a): AMOUNT_STEP for a in euros if a} | {abs(a): MONTHLY_STEP for a in monthly if a}
+    if export.with_profile and advice:
+        amounts.pop(advice["walk_away_maximum"], None)
+    return amounts
+
 
 def filename(export: ExportInput) -> str:
     """`2026-10-26-keizersgracht-12-amsterdam.md`: export date, then address and city."""
-    place = " ".join(str(export.snapshot.get(key) or "") for key in ("address", "city")).strip()
-    slug = re.sub(r"[^a-z0-9]+", "-", _ascii(place).lower()).strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "-", _ascii(_place(export.snapshot) or "").lower()).strip("-")
     return f"{export.now.date().isoformat()}-{slug or export.case['funda_id']}.md"
 
 
@@ -80,6 +149,11 @@ def render(export: ExportInput) -> str:
 
 
 # --- Formatting --------------------------------------------------------------------------------
+
+
+def _place(record: dict) -> str | None:
+    """"Keizersgracht 12, Amsterdam" from a record's address and city; None when it has neither."""
+    return ", ".join(str(record[key]) for key in ("address", "city") if record.get(key)) or None
 
 
 def _ascii(text: str) -> str:
@@ -167,6 +241,8 @@ FACT_LABELS = {
     "subsidy": "Subsidie",
     "stays_or_goes": "Blijft of gaat mee",
     "foundation": "Fundering",
+    "boiler_old": "Cv-ketel oud",
+    "wiring_old": "Elektra oud",
     "other": "Overig",
     "headroom": "Ruimte onder je betaalbare maximum",
     "max_minutes": "Maximale reistijd (min)",
@@ -217,17 +293,23 @@ def _commute_text(travel: dict, anonymiser: Anonymiser) -> str:
 
 
 def _value(key: str, value: object, anonymiser: Anonymiser) -> str:
+    """A fact's value, with commute destination labels anonymised."""
     if isinstance(value, dict) and "destination" in value:
         return _commute_text(value, anonymiser)
-    if isinstance(value, bool):
-        return _yes_no(value)
-    if isinstance(value, (int, float)):
-        return euro(value) if key in MONEY_FACTS else _number(value)
     if isinstance(value, list):
         return "; ".join(
             f"{anonymiser.label(v['label'])} (max {v['max_minutes']} min)" if isinstance(v, dict) else str(v)
             for v in value
         ) or "geen"
+    return _plain_value(key, value)
+
+
+def _plain_value(key: str, value: object) -> str:
+    """A yes/no, number, amount, status or level, in Dutch."""
+    if isinstance(value, bool):
+        return _yes_no(value)
+    if isinstance(value, (int, float)):
+        return euro(value) if key in MONEY_FACTS else _number(value)
     if key == "status" and isinstance(value, str):
         return STATUS_LABELS.get(value, value)
     return LEVELS.get(str(value), str(value))
@@ -237,8 +319,7 @@ def _value(key: str, value: object, anonymiser: Anonymiser) -> str:
 
 
 def title(export: ExportInput) -> list[str]:
-    snapshot = export.snapshot
-    place = ", ".join(str(snapshot[k]) for k in ("address", "city") if snapshot.get(k)) or export.case["funda_id"]
+    place = _place(export.snapshot) or export.case["funda_id"]
     notices = [f"> **Let op:** {notice}" for notice in _notices(export)]
     return [f"# Dossier: {place}", *([""] + notices if notices else [])]
 
@@ -297,6 +378,7 @@ def preamble(export: ExportInput) -> list[str]:
         "- Vergelijkbare woning = Comparable (Dun = thin)",
         "- Oordeel = Verdict (Zeker kopen = Must buy, Overwegen = Consider, Overslaan = Skip, Harde afwijzing = Hard no)",
         "- Biedadvies = Bid Advice (Openingsbod = opening bid, Maximumbod = Walk-away Maximum, Voorwaarden = conditions)",
+        "- Verbouwingsraming = Renovation Estimate (Direct nodig, Binnen 5 jaar, Optioneel)",
         "- Koperprofiel = Buyer Profile",
         "- Verouderd = Stale (een feit); Achterhaald = Out of date (een Oordeel of Dossier)",
     ]
@@ -312,6 +394,7 @@ def provenance(export: ExportInput) -> list[str]:
         f"- Advertentie vastgelegd op: {export.snapshot.get('fetched_at')} (snapshot {built['snapshot_id']})",
         f"- Versie Koperprofiel: {built['profile_version'] if built['profile_version'] is not None else 'geen'}",
         f"- Versie signaalregels: {built['flag_rules_version']}",
+        f"- Versie kostentabel verbouwing: {built['cost_table_version']}",
         f"- Rekenregels betaalbaarheid: {export.case['rules']['year']}",
         f"- Fotoanalyse: {built['observation_run'] if built['observation_run'] is not None else 'geen'}",
         f"- Documenten: {len(built['documents'])}",
@@ -321,16 +404,23 @@ def provenance(export: ExportInput) -> list[str]:
         lines += [
             f"- Oordeel: versie {verdict['version']} van {verdict['created_at']}",
             f"- Model Oordeel: {model}",
-            f"- Promptversie Oordeel: {export.verdict_prompt_version}",
+            f"- Promptversie Oordeel: {_prompt_version(verdict)}",
         ]
     lines.append(f"- Koperprofiel meegestuurd: {'ja (geanonimiseerd)' if export.with_profile else 'nee'}")
     return lines
 
 
+def _prompt_version(verdict: dict) -> str:
+    """Stored on each model Verdict; older Verdicts did not record it."""
+    if verdict.get("deterministic"):
+        return "geen (deterministisch)"
+    return str(verdict["prompt_version"]) if verdict.get("prompt_version") is not None else "onbekend"
+
+
 def woning(export: ExportInput) -> list[str]:
     snapshot = export.snapshot
     rows = [
-        ("Adres", ", ".join(str(snapshot[k]) for k in ("address", "city") if snapshot.get(k)) or None),
+        ("Adres", _place(snapshot)),
         ("Vraagprijs", euro(snapshot["asking_price"]) if snapshot.get("asking_price") is not None else None),
         ("Woonoppervlak", f"{snapshot['living_area']} m²" if snapshot.get("living_area") else None),
         ("Perceeloppervlak", f"{snapshot['plot_area']} m²" if snapshot.get("plot_area") else None),
@@ -376,15 +466,15 @@ def _source_line(fact: dict, anonymiser: Anonymiser) -> str:
 def _observation_line(fact: dict) -> str:
     note = f" — {fact['note']}" if fact.get("note") else ""
     photos = ", ".join(str(p["number"]) for p in fact.get("photos", []))
-    return f"- {_label(fact['key'])}: ≈ {LEVELS.get(str(fact['value']), _value(fact['key'], fact['value'], Anonymiser({})))} (geschat, foto {photos}){note}"
+    return f"- {_label(fact['key'])}: ≈ {_plain_value(fact['key'], fact['value'])} (geschat, foto {photos}){note}"
 
 
 def _finding_line(fact: dict) -> str:
+    """No quote and no document name: Documents are shown only in the app's own UI."""
     checked = "" if fact.get("verified") else ", tekst niet te controleren (scan)"
-    quote = f" Citaat: “{fact['quote']}”" if fact.get("quote") else ""
     return (
         f"- {_label(fact['key'])} ({'van toepassing' if fact['value'] else 'niet van toepassing'}): "
-        f"{fact['statement']} (door verkoper, {fact['document_name']}, p. {fact['page']}{checked}).{quote}"
+        f"{fact['statement']} (door verkoper, p. {fact['page']}{checked})."
     )
 
 
@@ -458,7 +548,7 @@ def _affordability_lines(affordability: dict) -> list[str]:
     if affordability["monthly_cost"] is not None:
         lines.append(f"  - Maandlasten bij de vraagprijs: {rounded_monthly(affordability['monthly_cost'])}")
     if affordability["kosten_koper"]:
-        lines.append(f"  - Kosten koper bij de vraagprijs: {euro(affordability['kosten_koper']['total'])}")
+        lines.append(f"  - Kosten koper bij de vraagprijs: {rounded_euro(affordability['kosten_koper']['total'])}")
     return lines
 
 
@@ -483,7 +573,7 @@ def comparables(export: ExportInput) -> list[str]:
 
 
 def _comparable_line(comparable: dict) -> str:
-    place = ", ".join(str(comparable[k]) for k in ("address", "city") if comparable.get(k)) or "adres onbekend"
+    place = _place(comparable) or "adres onbekend"
     price, area = comparable.get("asking_price"), comparable.get("living_area")
     per_m2 = f", {euro(price / area)} per m²" if price and area else ""
     price_text = euro(price) if price else "prijs onbekend"
@@ -528,7 +618,7 @@ def _origin(item: dict) -> str:
         stale = ", Verouderd" if item.get("stale") else ""
         return f"Bron: {item['source']}, {TRUST_LABELS.get(item['trust'], item['trust'])}{stale}"
     if origin == "finding":
-        return f"Bevinding, door verkoper, {item['document_name']} p. {item['page']}"
+        return f"Bevinding, door verkoper, p. {item['page']}"
     return {
         "listing": "Advertentie",
         "observation": "Waarneming, geschat",
@@ -600,12 +690,19 @@ def verdict(export: ExportInput) -> list[str]:
     if export.verdicts["out_of_date"]:
         lines += ["**Achterhaald**: gemaakt op oudere gegevens dan het Dossier hierboven.", ""]
     lines.append(f"**{TIER_LABELS.get(current['tier'], current['tier'])}** (versie {current['version']}, {current['created_at']})")
-    if current.get("deterministic"):
-        lines += ["", f"Vastgesteld zonder taalmodel: de woning raakt deal-breaker ‘{current['deal_breaker']}’."]
-    scrub = export.anonymiser.scrub
-    if current.get("summary"):
-        lines += ["", scrub(current["summary"])]
-    lines += ["", scrub(current["reasoning"])]
+    scrub = export.anonymiser.scrub_text
+    if current.get("deterministic") and not export.with_profile:
+        # Its summary and reasoning name the Deal-breaker, which is Buyer Profile text.
+        lines += [
+            "",
+            "Vastgesteld zonder taalmodel: de woning raakt een Deal-breaker uit het Koperprofiel (niet meegestuurd).",
+        ]
+    else:
+        if current.get("deterministic"):
+            lines += ["", f"Vastgesteld zonder taalmodel: de woning raakt deal-breaker ‘{current['deal_breaker']}’."]
+        if current.get("summary"):
+            lines += ["", scrub(current["summary"])]
+        lines += ["", scrub(current["reasoning"])]
     shown_flags = {flag["id"] for flag in export.case["flags"] if export.with_profile or not _from_profile(flag)}
     cited = [f for f in current.get("cited_flags") or [] if f["id"] in shown_flags]
     if cited:
@@ -622,11 +719,21 @@ def bid_advice(export: ExportInput) -> list[str]:
         return [*lines, "Geen Biedadvies bij dit Oordeel." if current else "Geen Biedadvies: er is nog geen Oordeel."]
     lines += [
         f"- Openingsbod: {euro(advice['opening_bid'])}",
-        f"- Maximumbod: {euro(advice['walk_away_maximum'])}",
+        f"- Maximumbod: {_walk_away_maximum(advice, export.with_profile)}",
         "- Voorwaarden:",
-        *[f"  - {export.anonymiser.scrub(condition)}" for condition in advice["conditions"]],
+        *[f"  - {export.anonymiser.scrub_text(condition)}" for condition in advice["conditions"]],
     ]
     return lines + (_derivation(advice) if export.with_profile else [])
+
+
+def _walk_away_maximum(advice: dict, with_profile: bool) -> str:
+    """Exact, except without the profile when affordability binds: it is then the household's
+    affordable maximum, so it is rounded down."""
+    maximum = advice["walk_away_maximum"]
+    binding = (advice.get("derivation") or {}).get("binding")
+    if with_profile or binding != "affordability":
+        return euro(maximum)
+    return f"{euro(maximum // AMOUNT_STEP * AMOUNT_STEP)} (afgerond)"
 
 
 BASES = {

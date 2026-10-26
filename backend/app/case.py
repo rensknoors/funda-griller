@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from app.affordability import Rules, compute
 from app.buyer_profile import BuyerProfile
-from app.findings import document_summaries, finding_facts
+from app.findings import USER_DOCUMENT_KIND, document_summaries, finding_facts
 from app.flags import RuleSet, evaluate, hard_no
 from app.renovation import CostTable, estimate
 
@@ -105,7 +105,7 @@ def build_case(
     # household, and its Direct nodig midpoint lowers what the household can pay for this house.
     renovation = estimate(
         cost_table,
-        _rule_inputs(snapshot, facts, None, vs_comparables, None),
+        _rule_inputs(snapshot, facts, None, vs_comparables, None, None),
         _missing_renovation_inputs(facts, photos, observed, documents, energy_label),
         computed_at,
     )
@@ -126,13 +126,9 @@ def build_case(
         if profile
         else None
     )
-    rule_inputs = _rule_inputs(snapshot, facts, affordability, vs_comparables, profile)
-    rule_inputs["renovation.direct_midpoint"] = {
-        "key": "renovation_direct_midpoint",
-        "value": renovation["direct_midpoint"],
-        "provenance": "computed",
-    }
-    flags = evaluate(flag_rules, rule_inputs, computed_at)
+    flags = evaluate(
+        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, renovation, profile), computed_at
+    )
     return {
         "funda_id": funda_id,
         "built_from": {
@@ -169,12 +165,12 @@ def _missing_renovation_inputs(
     facts: list[dict], photos: list[dict], observed: dict | None, documents: Sequence[dict], energy_label: object
 ) -> list[str]:
     """What the Renovation Estimate had no facts from: Observations (no photos, or none read yet), a
-    Document of the seller's own (the Vragenlijst; the funda brochure does not count) and an
+    Document the user added (the Vragenlijst and the like; the funda brochure does not count) and an
     energielabel from the register or the Listing."""
     missing = []
     if not photos or observed is None:
         missing.append("observations")
-    if not any(d["kind"] != "brochure" and d["status"] == "analysed" for d in documents):
+    if not any(d["kind"] == USER_DOCUMENT_KIND and d["status"] == "analysed" for d in documents):
         missing.append("vragenlijst")
     if not energy_label:
         missing.append("energielabel")
@@ -349,9 +345,11 @@ def _rule_inputs(
     facts: list[dict],
     affordability: dict | None,
     vs_comparables: dict,
+    renovation: dict | None,
     profile: BuyerProfile | None,
 ) -> dict:
-    """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values."""
+    """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values.
+    `renovation` (the Renovation Estimate) is None while the estimate itself is being built."""
     inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
     # Source facts are keyed `<source>.<key>` (e.g. `woz.woz_value`), so the register's
     # energielabel never shadows the Listing's claim; the value with the latest `as_of` wins.
@@ -397,6 +395,12 @@ def _rule_inputs(
         inputs["asking_vs_comparables_percent"] = {
             "key": "asking_vs_comparables_percent",
             "value": vs_comparables["percent"],
+            "provenance": "computed",
+        }
+    if renovation:
+        inputs["renovation.direct_midpoint"] = {
+            "key": "renovation_direct_midpoint",
+            "value": renovation["direct_midpoint"],
             "provenance": "computed",
         }
     if profile:
