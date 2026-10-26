@@ -16,7 +16,7 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
     },
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Dorpsstraat 40" }).click();
+  await page.getByRole("link", { name: "Dorpsstraat 40" }).click();
 
   const group = page.locator("details", { has: page.getByRole("heading", { name: "Vergelijkbare woningen" }) });
   await expect(group.getByText("Nog niet opgehaald")).toBeVisible();
@@ -30,15 +30,15 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
   await expect(group.getByText(/^€\s638\.400$/)).toBeVisible();
   await expect(page.getByLabel("Kerncijfers").getByText("-6,8%")).toBeVisible();
 
-  await page.getByRole("button", { name: "Oordeel bekijken" }).click();
+  await page.getByRole("link", { name: "Oordeel", exact: true }).click();
   await page.getByRole("button", { name: "Oordeel opvragen" }).click();
   const advies = page.getByRole("region", { name: "Biedadvies" });
   await advies.getByText("Hoe berekend").click();
   await expect(advies.getByText(/Vergelijkbare woningen €\s638\.400 \+ 10%: €\s702\.240/)).toBeVisible();
   await expect(advies.getByText(/Zwak onderbouwd/)).toBeHidden();
 
-  await page.getByRole("button", { name: "Terug naar dossier" }).click();
-  await page.getByRole("button", { name: "Terug naar woningen" }).click();
+  await page.getByRole("link", { name: "Dossier", exact: true }).click();
+  await page.getByRole("link", { name: "Terug naar woningen" }).click();
   const row = page.getByRole("table", { name: "Woningen" }).getByRole("row", { name: /Dorpsstraat 40/ });
-  await expect(row.getByText(/▼ \D?6,8%/)).toBeVisible();
+  await expect(row.getByText(/^\D?6,8%$/)).toBeVisible();
 });

@@ -14,15 +14,7 @@ export const TIER_LABEL: Record<TierKey, string> = {
   hard_no: "Harde afwijzing",
 };
 
-export const TIER_GLYPH: Record<TierKey, string> = {
-  must_buy: "✓",
-  consider: "○",
-  none: "·",
-  skip: "–",
-  hard_no: "✕",
-};
-
-export type SortKey = "tier" | "price" | "woz" | "comparables" | "area" | "headroom" | "stale";
+export type SortKey = "tier" | "price" | "woz" | "comparables" | "area" | "headroom" | "renovation" | "stale";
 export type Sort = { key: SortKey; direction: "ascending" | "descending" };
 
 export type Filters = {
@@ -50,6 +42,8 @@ const SORT_VALUE: Record<SortKey, (listing: Listing) => number | null> = {
   comparables: (l) => l.comparison.asking_vs_comparables_percent,
   area: (l) => l.comparison.living_area,
   headroom: (l) => l.comparison.headroom,
+  // Rows from before the Verbouwingsraming have no Direct nodig total.
+  renovation: (l) => l.comparison.renovation_direct?.midpoint ?? null,
   stale: (l) => l.comparison.stale_count,
 };
 

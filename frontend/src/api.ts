@@ -32,6 +32,8 @@ export type Comparison = {
   asking_vs_woz_percent: number | null;
   asking_vs_comparables_percent: number | null;
   headroom: number | null;
+  /** The Renovation Estimate's Direct nodig total. */
+  renovation_direct: RenovationTotal;
   flag_counts: { pro: number; con: number; risk: number };
   stale_count: number;
   last_fetched_at: string;
@@ -217,6 +219,8 @@ export type FindingTopic =
   | "subsidy"
   | "stays_or_goes"
   | "foundation"
+  | "boiler_old"
+  | "wiring_old"
   | "other";
 
 /** A seller-stated fact from a Document, with the page it is on. */
@@ -327,8 +331,11 @@ export type Affordability = {
   mortgage_needed: number | null;
   monthly_cost: number | null;
   headroom: number | null;
-  /** Highest purchase price the household can pay, kosten koper included. */
+  /** Highest purchase price the household can pay, kosten koper included, after setting aside
+   * `renovation_direct`. */
   affordable_maximum: number;
+  /** The Renovation Estimate's Direct nodig midpoint, taken from the available funds. */
+  renovation_direct: number;
   /** The energielabel the borrowing capacity was computed with (register over Listing). */
   energy_label: string | null;
   provenance: "computed";
@@ -371,6 +378,7 @@ export type Case = {
     snapshot_id: number;
     profile_version: number | null;
     flag_rules_version: number;
+    cost_table_version: number;
     observation_run: number | null;
     documents: { id: number; sha256: string | null; status: DocumentStatus }[];
   };
@@ -381,9 +389,48 @@ export type Case = {
   documents: CaseDocument[];
   metrics: Metrics;
   affordability: Affordability | null;
+  renovation_estimate: RenovationEstimate;
   flags: Flag[];
   hard_no: HardNo | null;
   rules: { year: number; is_current_year: boolean };
+};
+
+/** Direct nodig, Binnen 5 jaar, Optioneel. */
+export type Urgency = "direct" | "within_5_years" | "optional";
+
+export type RenovationTotal = { low: number; high: number; midpoint: number };
+
+/** One priced item of the Renovation Estimate: an estimate, citing the facts that triggered it. */
+export type RenovationItem = {
+  id: string;
+  label: string;
+  urgency: Urgency;
+  low: number;
+  high: number;
+  basis: "fixed" | "per_m2" | "size_band";
+  /** No living area in the Listing: priced at the middle size. */
+  size_assumed: boolean;
+  /** A survey priced on the build year alone, not the repair. */
+  inspection: boolean;
+  source: string;
+  price_year: number;
+  estimated: true;
+  evidence: Evidence[];
+};
+
+/** Inputs the Renovation Estimate had nothing from, so it may miss items. */
+export type RenovationInput = "observations" | "vragenlijst" | "energielabel";
+
+/** Verbouwingsraming: the same for every Koperprofiel; its Direct nodig midpoint lowers the
+ * affordable maximum and the Walk-away Maximum. */
+export type RenovationEstimate = {
+  cost_table_version: number;
+  items: RenovationItem[];
+  classes: Record<Urgency, RenovationTotal>;
+  direct_midpoint: number;
+  missing_inputs: RenovationInput[];
+  provenance: "computed";
+  computed_at: string;
 };
 
 export async function fetchCase(fundaId: string): Promise<Case> {
@@ -449,10 +496,13 @@ export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
 /**
  * The Walk-away Maximum is the lower of the betaalruimte and its basis plus a margin. The basis is
  * the comparables value when they are sufficient, else the asking price; with neither, the
- * betaalruimte alone. Anything but comparables is weakly grounded.
+ * betaalruimte alone. Anything but comparables is weakly grounded. The Direct nodig renovation
+ * cost comes off the basis first.
  */
 export type WalkAwayDerivation = {
   basis: "comparables" | "asking_price" | "affordability";
+  /** Absent on Verdicts made before the Renovation Estimate. */
+  renovation_direct?: number;
   margin: number | null;
   basis_maximum: number | null;
   binding: "basis" | "affordability";
@@ -512,6 +562,10 @@ export type VerdictError =
   /** `reason` is the backend's explanation, e.g. no API key or an unknown model. */
   | { kind: "llm_unavailable"; reason?: string }
   | { kind: "unknown" };
+
+/** The Markdown export of a Woning: Dossier and current Oordeel; the koperprofiel always anonymised. */
+export const exportUrl = (fundaId: string, withProfile: boolean) =>
+  `/api/listings/${fundaId}/export.md?profile=${withProfile}`;
 
 export async function fetchVerdicts(fundaId: string): Promise<VerdictState> {
   const response = await apiFetch(`/api/listings/${fundaId}/verdict`);

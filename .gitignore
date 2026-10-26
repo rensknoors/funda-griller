@@ -36,3 +36,9 @@ PROTOTYPE_out_live/
 
 # Third-party PDFs used as local test fixtures (the real funda brochure); never committed
 backend/tests/fixtures/local/
+
+# Verdict regression entries freeze the full Buyer Profile (income, assets, home); only the
+# fictional examples and the README are committed
+config/verdict_regression/*
+!config/verdict_regression/README.md
+!config/verdict_regression/example-*.json

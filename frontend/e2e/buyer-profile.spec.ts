@@ -15,7 +15,7 @@ async function openSection(page: Page, name: string) {
 
 test("first run opens Huishouden only, with one-line hints and the Gevolgen hint", async ({ page }) => {
   await firstRun(page);
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
 
   await expect(page.getByLabel("Geboortedatum lid 1")).toBeVisible();
   await expect(page.getByLabel("Bruto jaarinkomen huishouden (€)")).toBeHidden();
@@ -29,7 +29,7 @@ test("first run opens Huishouden only, with one-line hints and the Gevolgen hint
 
 test("Gevolgen panel follows the vakken live, with the rules year", async ({ page }) => {
   await firstRun(page);
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
   await openSection(page, "Inkomen");
   await page.getByLabel("Bruto jaarinkomen huishouden (€)").fill("95000");
 
@@ -51,7 +51,7 @@ test("Gevolgen panel follows the vakken live, with the rules year", async ({ pag
 
 test("a vak is checked on blur; save stays disabled until it is fixed", async ({ page }) => {
   await firstRun(page);
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
   await openSection(page, "Inkomen");
   const income = page.getByLabel("Bruto jaarinkomen huishouden (€)");
 
@@ -72,27 +72,9 @@ test("a vak is checked on blur; save stays disabled until it is fixed", async ({
   await expect(page.getByRole("button", { name: "Opslaan" })).toBeEnabled();
 });
 
-test("vak numbers run 1, 2, 3 … without gaps, including repeated rows", async ({ page }) => {
-  await firstRun(page);
-  await page.goto("/");
-  await page.getByRole("button", { name: "Lid toevoegen" }).click();
-  await openSection(page, "Wensen");
-  await page.getByRole("button", { name: "Must-have toevoegen" }).click();
-  await page.getByRole("button", { name: "Must-have toevoegen" }).click();
-  await openSection(page, "Reizen en verbouwen");
-  await page.getByRole("button", { name: "Pendelbestemming toevoegen" }).click();
-  await openSection(page, "Inkomen");
-  await openSection(page, "Vermogen en eigen woning");
-
-  const numbers = await page.locator(".vak-number").allTextContents();
-
-  // 2 members x 2, income, 2 assets, 2 must-haves, 3 commute vakken, tolerance.
-  expect(numbers).toEqual(Array.from({ length: 13 }, (_, i) => String(i + 1)));
-});
-
 test("wensen can be reordered with the keyboard", async ({ page }) => {
   await firstRun(page);
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
   await openSection(page, "Wensen");
   await page.getByRole("button", { name: "Must-have toevoegen" }).click();
   await page.getByLabel("Must-have 1", { exact: true }).fill("tuin");
@@ -117,7 +99,7 @@ test("loading shows a skeleton; a load failure offers Opnieuw proberen", async (
     await new Promise((resolve) => setTimeout(resolve, 300));
     return fail ? route.fulfill({ status: 500, body: "boom" }) : route.fulfill({ status: 404, json: {} });
   });
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
 
   await expect(page.getByText("Koperprofiel laden")).toBeAttached();
   await expect(page.getByRole("alert").filter({ hasText: "Koperprofiel laden mislukt" })).toBeVisible();
@@ -134,7 +116,7 @@ test("a failed save keeps the input and can be retried", async ({ page }) => {
   await page.route(PROFILE, (route) =>
     route.request().method() === "PUT" && failSave ? route.fulfill({ status: 500, body: "boom" }) : route.fallback(),
   );
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
   await fillValidProfile(page);
 
   await page.getByRole("button", { name: "Opslaan" }).click();
@@ -149,7 +131,7 @@ test("a failed save keeps the input and can be retried", async ({ page }) => {
 });
 
 test("koperprofiel is saved and reloaded with every section open", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
   await fillValidProfile(page);
   await page.getByRole("button", { name: "Must-have toevoegen" }).click();
   await page.getByLabel("Must-have 1", { exact: true }).fill("tuin");
@@ -167,7 +149,7 @@ test("koperprofiel is saved and reloaded with every section open", async ({ page
 test("on a narrow screen the section index is a select", async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 900 });
   await firstRun(page);
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
 
   await expect(page.getByRole("navigation", { name: "Onderdelen" })).toBeHidden();
   await page.getByLabel("Ga naar onderdeel").selectOption("wensen");
@@ -175,13 +157,13 @@ test("on a narrow screen the section index is a select", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Must-have toevoegen" })).toBeVisible();
 });
 
-test("the form is set in self-hosted Source Sans 3", async ({ page }) => {
+test("the form is set in self-hosted Archivo", async ({ page }) => {
   await firstRun(page);
-  await page.goto("/");
+  await page.goto("/#/koperprofiel");
 
   const loaded = await page.evaluate(async () => {
     await document.fonts.ready;
-    return [...document.fonts].some((face) => face.family.includes("Source Sans 3") && face.status === "loaded");
+    return [...document.fonts].some((face) => face.family.includes("Archivo") && face.status === "loaded");
   });
 
   expect(loaded).toBe(true);

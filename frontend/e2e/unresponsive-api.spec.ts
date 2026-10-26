@@ -12,7 +12,8 @@ test("a hung API ends in error states instead of endless loading", async ({ page
     timeout: 15_000,
   });
   await expect(page.getByText("Woningen laden mislukt.")).toBeVisible();
-  await expect(page.getByText("Koperprofiel laden mislukt.")).toBeVisible();
+  await page.getByRole("navigation", { name: "Hoofdmenu" }).getByRole("link", { name: "Koperprofiel" }).click();
+  await expect(page.getByText("Koperprofiel laden mislukt.")).toBeVisible({ timeout: 15_000 });
 });
 
 test("a capture with no answer says the server is not responding and frees Ophalen", async ({ page }) => {

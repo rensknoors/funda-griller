@@ -1,6 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
 
+import { Stamp } from "./Stamp";
 import { type Case, type CasePhoto, type ObservationFact, rerunObservations } from "./api";
 
 const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
@@ -64,7 +65,7 @@ export function FotoWaarnemingen(props: { data: Case; fundaId: string; onCase: (
   return (
     <details open className="fact-group">
       <summary>
-        <h3 id="foto-waarnemingen-title">Foto-waarnemingen</h3>
+        <h2 id="foto-waarnemingen-title">Foto-waarnemingen</h2>
         <span className="muted">
           {observations.length} waarnemingen · {observations.length} geschat
         </span>
@@ -93,13 +94,13 @@ export function FotoWaarnemingen(props: { data: Case; fundaId: string; onCase: (
       {statusCopy && <p className="empty">{statusCopy}</p>}
       {failed && (
         <p role="alert" className="notice error">
-          <span aria-hidden="true">! </span>Opnieuw analyseren mislukt. Probeer het later opnieuw.
+          Opnieuw analyseren mislukt. Probeer het later opnieuw.
         </p>
       )}
       <ol className="facts">
         {observations.map((fact, index) => (
           <li key={fact.key} className="fact">
-            <span className="vak-number">{index + 1}</span>
+            <span className="vak-number" />
             <span className="fact-label" title={fact.note ?? undefined}>
               {OBSERVATION_LABELS[fact.key] ?? fact.key}
             </span>
@@ -107,11 +108,10 @@ export function FotoWaarnemingen(props: { data: Case; fundaId: string; onCase: (
               {observationValue(fact.key, fact.value)}
               {fact.note && <span className="muted"> · {fact.note}</span>}
             </span>
-            <span
-              className="stamp stamp-observation"
-              aria-label={`Waarneming, geschat door model, uit foto ${photoList(fact.photos)}, ${dayMonth.format(new Date(fact.extracted_at))}`}
+            <Stamp
+              kind="observation"
+              label={`Waarneming, geschat door model, uit foto ${photoList(fact.photos)}, ${dayMonth.format(new Date(fact.extracted_at))}`}
             >
-              <span aria-hidden="true">◔ OBS</span>{" "}
               {fact.photos.map((photo, i) => (
                 <span key={photo.number}>
                   {i === 0 ? "foto " : ", "}
@@ -126,7 +126,7 @@ export function FotoWaarnemingen(props: { data: Case; fundaId: string; onCase: (
                 </span>
               ))}{" "}
               · geschat
-            </span>
+            </Stamp>
           </li>
         ))}
       </ol>

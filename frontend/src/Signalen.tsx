@@ -1,8 +1,11 @@
 /** Signalen: the Flags grouped as pros, cons and risks, each expandable to its rule and evidence,
  * and the Harde afwijzing banner when a deal-breaker is hit. */
 
+import { Ban } from "lucide-react";
+
 import type { CaseFact, Evidence, Flag, FlagClass, FindingFact, HardNo } from "./api";
 import { FINDING_LABELS } from "./Documenten";
+import { FlagGlyph } from "./FlagGlyph";
 import { ENVIRONMENT_FACTS, FACT_LABELS, PROVENANCE_LABELS, commuteText, formatNumber } from "./facts";
 import { OBSERVATION_LABELS, observationValue, photoList } from "./FotoWaarnemingen";
 
@@ -21,19 +24,21 @@ const EVIDENCE_LABELS: Record<string, string> = {
   deal_breaker: "Deal-breaker",
   named_energy_labels: "Genoemde energielabels",
   max_minutes: "Maximale reistijd",
+  renovation_direct_midpoint: "Direct nodig onderhoud (midden)",
 };
 
-const FLAG_BANDS: { flagClass: FlagClass; glyph: string; label: string }[] = [
-  { flagClass: "pro", glyph: "+", label: "Pluspunt" },
-  { flagClass: "con", glyph: "−", label: "Minpunt" },
-  { flagClass: "risk", glyph: "!", label: "Risico" },
+const FLAG_BANDS: { flagClass: FlagClass; label: string }[] = [
+  { flagClass: "pro", label: "Pluspunt" },
+  { flagClass: "con", label: "Minpunt" },
+  { flagClass: "risk", label: "Risico" },
 ];
+
 
 export function HardNoBanner({ hardNo, flags }: { hardNo: HardNo; flags: Flag[] }) {
   const cause = flags.find((flag) => flag.id === hardNo.flag_id);
   return (
     <div role="status" className="hard-no">
-      <span className="hard-no-mark" aria-hidden="true">✕</span>
+      <Ban size={28} aria-hidden="true" className="hard-no-mark" />
       <div>
         <p className="hard-no-tier">Harde afwijzing</p>
         <p>
@@ -63,16 +68,16 @@ export function Signalen({
 }) {
   return (
     <section aria-labelledby="signalen-title">
-      <h3 id="signalen-title">Signalen</h3>
+      <h2 id="signalen-title">Signalen</h2>
       {flags.length === 0 && <p className="empty">Geen signalen bij deze woning volgens regelset {rulesVersion}.</p>}
       {FLAG_BANDS.map((band) => {
         const inBand = flags.filter((flag) => flag.class === band.flagClass);
         if (inBand.length === 0) return null;
         return (
           <div key={band.flagClass} className={`flag-band flag-${band.flagClass}`}>
-            <h4>
-              <span className="flag-glyph" aria-hidden="true">{band.glyph}</span> {band.label} ({inBand.length})
-            </h4>
+            <h3>
+              <FlagGlyph flagClass={band.flagClass} /> {band.label} ({inBand.length})
+            </h3>
             <ul className="flags">
               {inBand.map((flag) => (
                 <li key={flag.id} id={signaalAnchor(flag.id)} className={flag.id === focusFlagId ? "focused" : undefined}>
@@ -97,7 +102,7 @@ export function Signalen({
   );
 }
 
-function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
+export function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
   if (item.provenance === "finding") {
     return (
       <li>

@@ -94,7 +94,7 @@ export function sectionOf(field: string): SectionId {
   return SECTIONS.find((section) => section.fields.includes(root))?.id ?? "huishouden";
 }
 
-/** Every vak in page order; a vak's number is its position plus one, so numbers stay unique and gapless. */
+/** Every vak in page order, so problems are listed and focused top to bottom. */
 export function vakOrder(form: FormState): string[] {
   const rows = (prefix: string, count: number, parts: string[] = [""]) =>
     Array.from({ length: count }, (_, i) => parts.map((part) => `${prefix}.${i}${part}`)).flat();

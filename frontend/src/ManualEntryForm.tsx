@@ -45,23 +45,21 @@ export function ManualEntryForm(props: {
   }
 
   const problemCount = Object.keys(errors).length;
-  let number = 0;
-  const next = () => ++number;
 
   return (
     <form className="manual-entry" aria-label="Woning handmatig invoeren" onSubmit={handleSubmit} noValidate>
-      <h3>Woning handmatig invoeren</h3>
+      <h2>Woning handmatig invoeren</h2>
       <p className="muted">
         Neem de gegevens over uit de advertentie. Het dossier wordt er net zo uit opgebouwd als uit een opgehaalde
         advertentie. Foto's worden alleen lokaal bewaard.
       </p>
       <div className="manual-grid">
-        <Vak number={next()} label="Funda-link" error={errors.url}>
+        <Vak label="Funda-link" error={errors.url}>
           {(input) => (
             <input {...input} name="url" type="url" required defaultValue={props.url} />
           )}
         </Vak>
-        <Vak number={next()} label="Status" error={errors.raw_status}>
+        <Vak label="Status" error={errors.raw_status}>
           {(input) => (
             <select {...input} name="raw_status" required defaultValue="Beschikbaar">
               {STATUSES.map((status) => (
@@ -70,20 +68,20 @@ export function ManualEntryForm(props: {
             </select>
           )}
         </Vak>
-        <Vak number={next()} label="Adres" error={errors.address}>
+        <Vak label="Adres" error={errors.address}>
           {(input) => <input {...input} name="address" />}
         </Vak>
-        <Vak number={next()} label="Plaats" error={errors.city}>
+        <Vak label="Plaats" error={errors.city}>
           {(input) => <input {...input} name="city" />}
         </Vak>
         {NUMBER_FIELDS.map(([name, label]) => (
-          <Vak key={name} number={next()} label={label} error={errors[name]}>
+          <Vak key={name} label={label} error={errors[name]}>
             {(input) => (
               <input {...input} name={name} inputMode="numeric" />
             )}
           </Vak>
         ))}
-        <Vak number={next()} label="Energielabel" error={errors.energy_label}>
+        <Vak label="Energielabel" error={errors.energy_label}>
           {(input) => (
             <select {...input} name="energy_label" defaultValue="">
               <option value="">Onbekend</option>
@@ -93,19 +91,19 @@ export function ManualEntryForm(props: {
             </select>
           )}
         </Vak>
-        <Vak number={next()} label="Verwarming" error={errors.heating}>
+        <Vak label="Verwarming" error={errors.heating}>
           {(input) => <input {...input} name="heating" />}
         </Vak>
-        <Vak number={next()} label="Eigendomssituatie" error={errors.ownership_situation}>
+        <Vak label="Eigendomssituatie" error={errors.ownership_situation}>
           {(input) => (
             <input {...input} name="ownership_situation" placeholder="Volle eigendom" />
           )}
         </Vak>
       </div>
-      <Vak number={next()} label="Omschrijving" error={errors.description}>
+      <Vak label="Omschrijving" error={errors.description}>
         {(input) => <textarea {...input} name="description" rows={4} />}
       </Vak>
-      <Vak number={next()} label="Foto's" error={errors.photos}>
+      <Vak label="Foto's" error={errors.photos}>
         {(input) => (
           <input {...input} name="photos" type="file" accept="image/*" multiple />
         )}

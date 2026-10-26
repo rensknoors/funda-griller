@@ -8,14 +8,15 @@
 # `max_minutes`, never addresses), commute travel times as `commute.travel_minutes:<label>`,
 # Observations from the Listing photos as `observation.<key>` (estimated by the vision model; keys in app/observations.py) and Findings
 # from Documents as `finding.<topic>` (true when the seller states it applies; a disclosure wins
-# over a denial; topics in app/findings.py). A list of keys means "first one present", so an
+# over a denial; topics in app/findings.py), and the Renovation Estimate's Direct nodig midpoint as
+# `renovation.direct_midpoint`. A list of keys means "first one present", so an
 # official register value wins over the Listing's claim. A rule whose facts are absent raises
 # nothing.
 #
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 9
+version = 11
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -253,6 +254,17 @@ kind = "equals"
 fact = "observation.renovation_needed"
 values = ["full"]
 deal_breaker_aliases = ["opknapper", "renovatie"]
+
+# Renovation Estimate (config/renovation_costs.toml): the midpoint of what is Direct nodig.
+[[rules]]
+id = "renovation_direct_high"
+version = 1
+class = "con"
+title = "Veel Direct nodig onderhoud: meer dan € 25.000 (geschat)"
+kind = "above"
+fact = "renovation.direct_midpoint"
+threshold = 25000
+deal_breaker_aliases = ["opknapper", "kluswoning"]
 
 # One Flag per Buyer Profile must-have that names a feature below and that the Listing does not
 # say it has. Must-haves naming no feature are not checked.

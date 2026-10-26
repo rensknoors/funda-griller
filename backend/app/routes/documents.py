@@ -6,10 +6,8 @@ from fastapi import APIRouter, File, Response, UploadFile
 from fastapi.responses import FileResponse
 
 from app import documents, store
+from app.findings import USER_DOCUMENT_KIND
 from app.wiring import NotFound, Wiring
-
-# The kind of a Document the user added themselves (the other kind is the funda brochure).
-USER_KIND = "user"
 
 
 def routes(w: Wiring) -> APIRouter:
@@ -31,7 +29,7 @@ def routes(w: Wiring) -> APIRouter:
         w.listing(funda_id)
         now = w.clock().isoformat()
         name = (file.filename or "Document").strip() or "Document"
-        document_id = store.add_document(settings.database_path, funda_id, USER_KIND, name, now)
+        document_id = store.add_document(settings.database_path, funda_id, USER_DOCUMENT_KIND, name, now)
         documents.store_content(w.document_reader, funda_id, w.document(funda_id, document_id), file.file.read(), now)
         return public(funda_id, document_id)
 
@@ -39,7 +37,7 @@ def routes(w: Wiring) -> APIRouter:
     def replace_document(funda_id: str, document_id: int, file: Annotated[UploadFile, File()]) -> dict:
         """Re-upload: the new file replaces the old one and its Findings."""
         document = w.document(funda_id, document_id)
-        if file.filename and document["kind"] == USER_KIND:
+        if file.filename and document["kind"] == USER_DOCUMENT_KIND:
             store.update_document(settings.database_path, document_id, name=file.filename.strip() or document["name"])
         documents.store_content(w.document_reader, funda_id, document, file.file.read(), w.clock().isoformat())
         return public(funda_id, document_id)

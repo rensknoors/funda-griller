@@ -6,8 +6,9 @@ from datetime import datetime, timedelta
 
 from app.affordability import Rules, compute
 from app.buyer_profile import BuyerProfile
-from app.findings import document_summaries, finding_facts
+from app.findings import USER_DOCUMENT_KIND, document_summaries, finding_facts
 from app.flags import RuleSet, evaluate, hard_no
+from app.renovation import CostTable, estimate
 
 LISTING_FACTS = (
     "address",
@@ -63,6 +64,7 @@ def build_case(
     versioned_profile: VersionedProfile | None,
     rules: Rules,
     flag_rules: RuleSet,
+    cost_table: CostTable,
     now: datetime,
     sources: SourceInputs,
     observation_runs: dict | None = None,
@@ -82,19 +84,6 @@ def build_case(
     register_label = _value(source_facts, "energielabel", "energy_label")
     # The register's label, when known, outranks the Listing's claim.
     energy_label = register_label if isinstance(register_label, str) else snapshot.get("energy_label")
-    affordability = (
-        {
-            **asdict(compute(profile, snapshot.get("asking_price"), energy_label, rules, today)),
-            # The label the borrowing capacity was computed with, so figures at other prices (the
-            # Walk-away Maximum) rest on the same assumption.
-            "energy_label": energy_label,
-            "provenance": "computed",
-            "computed_on": today.isoformat(),
-            "computed_at": computed_at,
-        }
-        if profile
-        else None
-    )
     facts = [
         {
             "key": key,
@@ -112,8 +101,33 @@ def build_case(
     vs_comparables = _asking_vs_comparables(
         snapshot, source_facts, comparables_fetched, sources.comparables_min_count
     )
+    # The Renovation Estimate reads no Buyer Profile and no affordability: it is the same for every
+    # household, and its Direct nodig midpoint lowers what the household can pay for this house.
+    renovation = estimate(
+        cost_table,
+        _rule_inputs(snapshot, facts, None, vs_comparables, None, None),
+        _missing_renovation_inputs(facts, photos, observed, documents, energy_label),
+        computed_at,
+    )
+    affordability = (
+        {
+            **asdict(
+                compute(
+                    profile, snapshot.get("asking_price"), energy_label, rules, today, renovation["direct_midpoint"]
+                )
+            ),
+            # The label the borrowing capacity was computed with, so figures at other prices (the
+            # Walk-away Maximum) rest on the same assumption.
+            "energy_label": energy_label,
+            "provenance": "computed",
+            "computed_on": today.isoformat(),
+            "computed_at": computed_at,
+        }
+        if profile
+        else None
+    )
     flags = evaluate(
-        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, profile), computed_at
+        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, renovation, profile), computed_at
     )
     return {
         "funda_id": funda_id,
@@ -121,6 +135,7 @@ def build_case(
             "snapshot_id": snapshot["id"],
             "profile_version": versioned_profile.version if versioned_profile else None,
             "flag_rules_version": flag_rules.version,
+            "cost_table_version": cost_table.version,
             "observation_run": observed["id"] if observed else None,
             "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
         },
@@ -139,10 +154,27 @@ def build_case(
             }.items()
         },
         "affordability": affordability,
+        "renovation_estimate": renovation,
         "flags": flags,
         "hard_no": hard_no(flag_rules, profile.deal_breakers, flags) if profile else None,
         "rules": {"year": rules.year, "is_current_year": rules.year == today.year},
     }
+
+
+def _missing_renovation_inputs(
+    facts: list[dict], photos: list[dict], observed: dict | None, documents: Sequence[dict], energy_label: object
+) -> list[str]:
+    """What the Renovation Estimate had no facts from: Observations (no photos, or none read yet), a
+    Document the user added (the Vragenlijst and the like; the funda brochure does not count) and an
+    energielabel from the register or the Listing."""
+    missing = []
+    if not photos or observed is None:
+        missing.append("observations")
+    if not any(d["kind"] == USER_DOCUMENT_KIND and d["status"] == "analysed" for d in documents):
+        missing.append("vragenlijst")
+    if not energy_label:
+        missing.append("energielabel")
+    return missing
 
 
 def _source_status(source: str, runs: dict | None) -> dict:
@@ -313,9 +345,11 @@ def _rule_inputs(
     facts: list[dict],
     affordability: dict | None,
     vs_comparables: dict,
+    renovation: dict | None,
     profile: BuyerProfile | None,
 ) -> dict:
-    """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values."""
+    """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values.
+    `renovation` (the Renovation Estimate) is None while the estimate itself is being built."""
     inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
     # Source facts are keyed `<source>.<key>` (e.g. `woz.woz_value`), so the register's
     # energielabel never shadows the Listing's claim; the value with the latest `as_of` wins.
@@ -361,6 +395,12 @@ def _rule_inputs(
         inputs["asking_vs_comparables_percent"] = {
             "key": "asking_vs_comparables_percent",
             "value": vs_comparables["percent"],
+            "provenance": "computed",
+        }
+    if renovation:
+        inputs["renovation.direct_midpoint"] = {
+            "key": "renovation_direct_midpoint",
+            "value": renovation["direct_midpoint"],
             "provenance": "computed",
         }
     if profile:

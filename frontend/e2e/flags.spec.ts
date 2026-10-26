@@ -19,10 +19,11 @@ test("dossier groups signalen and shows the deal-breaker behind a harde afwijzin
   // Captured already when another spec ran first; a 409 is fine.
   await request.post("/api/listings", { data: { url: LISTING_URL } });
   await page.goto("/");
-  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
+  await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
 
   await expect(page.getByText("Harde afwijzing")).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("Deal-breaker: Boven budget");
+  await expect(page.getByRole("status").filter({ hasText: "Deal-breaker" })).toContainText("Deal-breaker: Boven budget");
   const signalen = page.getByRole("region", { name: "Signalen" });
   // Headroom, missing tuin, and the asking price far above the fixture WOZ.
   await expect(signalen.getByRole("heading", { name: /Minpunt \(3\)/ })).toBeVisible();

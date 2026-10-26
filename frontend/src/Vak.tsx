@@ -8,10 +8,9 @@ export type VakInputProps = {
   "aria-invalid": boolean;
 };
 
-/** One numbered form box: vak number and label, the control, an optional hint, and its error line.
+/** One labelled form field: the label, the control, an optional hint, and its error line.
  * `field` names the form field (for jump links and focus); `id` overrides the generated id. */
 export function Vak(props: {
-  number: number;
   label: string;
   error?: string;
   hint?: string;
@@ -25,9 +24,6 @@ export function Vak(props: {
   return (
     <div className="vak" data-invalid={props.error ? "" : undefined}>
       <div className="vak-head">
-        <span className="vak-number" aria-hidden="true">
-          {props.number}
-        </span>
         <label htmlFor={id}>{props.label}</label>
       </div>
       {props.children({ id, "data-field": props.field, "aria-describedby": describedBy, "aria-invalid": Boolean(props.error) })}
@@ -44,7 +40,7 @@ export function Vak(props: {
 export function ErrorText({ id, children }: { id?: string; children: ReactNode }) {
   return (
     <p className="vak-error" id={id}>
-      <span aria-hidden="true">! </span>
+      
       {children}
     </p>
   );

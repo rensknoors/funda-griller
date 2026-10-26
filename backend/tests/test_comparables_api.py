@@ -158,6 +158,7 @@ def test_sufficient_comparables_derive_the_walk_away_maximum(client, listing_pro
     }
     assert advice["derivation"] == {
         "basis": "comparables",
+        "renovation_direct": 0,
         "margin": 0.10,
         "basis_maximum": 668_800,
         "binding": "basis",
@@ -207,6 +208,7 @@ def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_th
     assert advice["comparables"]["maximum"] is None
     assert advice["derivation"] == {
         "basis": "asking_price",
+        "renovation_direct": 0,
         "margin": 0.05,
         "basis_maximum": 624_750,
         "binding": "basis",
@@ -227,6 +229,7 @@ def test_with_neither_comparables_nor_an_asking_price_only_affordability_bounds_
     assert advice["walk_away_maximum"] == AFFORDABLE_MAXIMUM
     assert advice["derivation"] == {
         "basis": "affordability",
+        "renovation_direct": 0,
         "margin": None,
         "basis_maximum": None,
         "binding": "affordability",

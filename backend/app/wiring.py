@@ -10,12 +10,14 @@ from app.assembly import assemble_case
 from app.buyer_profile import BuyerProfile
 from app.case import VersionedProfile
 from app.commute import CommuteSource
+from app.findings import BROCHURE_KIND
 from app.comparison import summarise
 from app.observations import observe
 from app.photos import keep_photos, photo_set
 from app.ports import ListingProvider, Ports, SourceClient
 from app.settings import Settings
 from app.source_runner import run_sources
+from app.verdict import changed_inputs, inputs_of
 
 # Sources fetched only when the user asks for them, never on capture or a Listing refetch:
 # comparables cost one provider fetch per comparable.
@@ -112,12 +114,12 @@ class Wiring:
         settings = self.settings
         if not url or self.ports.document_downloader is None:
             return
-        brochures = [d for d in store.documents(settings.database_path, funda_id) if d["kind"] == "brochure"]
+        brochures = [d for d in store.documents(settings.database_path, funda_id) if d["kind"] == BROCHURE_KIND]
         if any(d["source_url"] == url for d in brochures):
             return
         for old in brochures:
             self.discard_document(funda_id, old)
-        document_id = store.add_document(settings.database_path, funda_id, "brochure", "Brochure (funda)", now)
+        document_id = store.add_document(settings.database_path, funda_id, BROCHURE_KIND, "Brochure (funda)", now)
         store.update_document(settings.database_path, document_id, source_url=url)
         documents.download_and_analyse(
             self.document_reader,
@@ -148,6 +150,12 @@ class Wiring:
             store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
             store.documents(settings.database_path, funda_id),
         )
+
+    def verdict_state(self, funda_id: str, case: dict) -> dict:
+        """A Listing's Verdicts, newest first, and whether the newest is out of date (Achterhaald)."""
+        history = store.verdicts(self.settings.database_path, funda_id)
+        changed = changed_inputs(history[0], inputs_of(case, self.settings.verdict_model)) if history else []
+        return {"verdicts": history, "out_of_date": bool(changed), "changed": changed}
 
     def with_comparison(self, listing: dict) -> dict:
         """The Listing plus its comparison-view row: the latest Verdict's tier, or none until a

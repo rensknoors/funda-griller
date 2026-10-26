@@ -1,3 +1,4 @@
+import { CircleCheck, CircleMinus, CircleX, Clock, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -15,13 +16,16 @@ import {
 import { Documenten, VerkoperInformatie } from "./Documenten";
 import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
-import { euro, percentChange, signedEuro, signedPercent } from "./format";
+import { type Tone, euro, headroomTone, percentChange, priceTone, signedEuro, signedPercent } from "./format";
 import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
 import { plural } from "./plural";
 import { tierOf } from "./comparison";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
+import { STAMP_LEGEND, Stamp } from "./Stamp";
+import { Verbouwingskosten } from "./Verbouwingskosten";
+import { type Neighbours, WoningHeader } from "./WoningHeader";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
 
@@ -39,10 +43,10 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 const sourceLabel = (source: string) => SOURCE_LABELS[source] ?? source;
 
-const STATUS_COPY: Record<SourceStatus["status"], { glyph: string; word: string }> = {
-  succeeded: { glyph: "✓", word: "gelukt" },
-  failed: { glyph: "✕", word: "mislukt" },
-  skipped: { glyph: "–", word: "overgeslagen" },
+const STATUS_COPY: Record<SourceStatus["status"], { icon: typeof CircleCheck; word: string }> = {
+  succeeded: { icon: CircleCheck, word: "gelukt" },
+  failed: { icon: CircleX, word: "mislukt" },
+  skipped: { icon: CircleMinus, word: "overgeslagen" },
 };
 const REASON_COPY: Record<string, string> = {
   no_api_key: "geen API-sleutel ingesteld",
@@ -65,14 +69,13 @@ function sourceFactLabel(fact: SourceFact): string {
 
 export function CaseView(props: {
   listing: Listing;
+  neighbours: Neighbours;
   busy: boolean;
-  onClose: () => void;
   onRefetch: (fundaId: string) => void;
-  onOpenVerdict: () => void;
   /** A Signaal to scroll to and expand once the Dossier has loaded (from an Oordeel chip). */
   focusFlagId?: string | null;
 }) {
-  const { listing, onClose, focusFlagId } = props;
+  const { listing, focusFlagId } = props;
   const [state, setState] = useState<LoadState>({ kind: "laden" });
   const [refetching, setRefetching] = useState<string | null>(null);
   const [refetchFailed, setRefetchFailed] = useState(false);
@@ -125,45 +128,39 @@ export function CaseView(props: {
   const staleCount = sourceFacts.filter((f) => f.stale).length;
 
   return (
-    <section aria-labelledby="case-title" className="dossier">
-      <header className="dossier-head">
-        <div>
-          <h2 id="case-title" ref={heading} tabIndex={-1}>
-            Dossier: {address}
-          </h2>
-          <p className="dossier-status">
+    <section aria-labelledby="dossier-title" className="dossier">
+      <WoningHeader
+        listing={listing}
+        page="dossier"
+        neighbours={props.neighbours}
+        headingRef={heading}
+        meta={
+          <>
             <TierMark tier={tierOf(listing)} />
             {latest.status !== "available" && (
               <span className="chip status-chip">{statusLabel(latest.status, latest.raw_status)}</span>
             )}
-          </p>
-          <p className="muted">
-            Advertentie van {shortDate(latest.fetched_at)}
-            {latest.entry === "manual" && <> · Handmatig ingevoerd</>}
-            {state.kind === "klaar" && state.data.built_from.profile_version !== null && (
-              <> · Koperprofiel versie {state.data.built_from.profile_version}</>
-            )}
+            <span>
+              Advertentie van {shortDate(latest.fetched_at)}
+              {latest.entry === "manual" && <> · Handmatig ingevoerd</>}
+              {state.kind === "klaar" && state.data.built_from.profile_version !== null && (
+                <> · Koperprofiel versie {state.data.built_from.profile_version}</>
+              )}
+            </span>
             {staleCount > 0 && (
-              <>
-                {" "}
-                · <span className="chip stale-chip">⏲ {staleCount} verouderd</span>
-              </>
+              <span className="chip stale-chip">
+                <Clock size={13} aria-hidden="true" /> {staleCount} verouderd
+              </span>
             )}
-          </p>
-        </div>
-        <div className="row">
+          </>
+        }
+        actions={
           <button type="button" disabled={props.busy} onClick={() => props.onRefetch(listing.funda_id)}>
+            <RefreshCw size={15} aria-hidden="true" />
             Opnieuw ophalen
           </button>
-          <button type="button" onClick={props.onOpenVerdict}>
-            Oordeel bekijken
-          </button>
-          <button type="button" onClick={onClose}>
-            Terug naar woningen
-          </button>
-        </div>
-      </header>
-      <HerkomstLegend />
+        }
+      />
       {state.kind === "klaar" && state.data.hard_no && (
         <HardNoBanner hardNo={state.data.hard_no} flags={state.data.flags} />
       )}
@@ -185,18 +182,23 @@ export function CaseView(props: {
       )}
       {state.kind === "fout" && (
         <p role="alert" className="notice error">
-          <span aria-hidden="true">! </span>Dossier laden mislukt. Sluit het dossier en open het
+          Dossier laden mislukt. Sluit het dossier en open het
           opnieuw.
         </p>
       )}
       {state.kind === "klaar" && (
-        <>
-          <Brondekking
-            sources={state.data.sources}
-            refetching={refetching}
-            failed={refetchFailed}
-            onRefetch={handleSourceRefetch}
-          />
+        <div className="dossier-body">
+          <aside className="dossier-rail" aria-label="Overzicht">
+            <OnThisPage commute={state.data.sources.some((s) => s.source === "commute")} />
+            <Brondekking
+              sources={state.data.sources}
+              refetching={refetching}
+              failed={refetchFailed}
+              onRefetch={handleSourceRefetch}
+            />
+            <HerkomstLegend />
+          </aside>
+          <div className="dossier-main">
           <Signalen
             flags={state.data.flags}
             facts={state.data.facts}
@@ -204,6 +206,7 @@ export function CaseView(props: {
             focusFlagId={focusFlagId ?? null}
           />
           <Betaalruimte affordability={state.data.affordability} rules={state.data.rules} />
+          <Verbouwingskosten estimate={state.data.renovation_estimate} facts={state.data.facts} />
           <FactGroup
             title="Kenmerken"
             id="kenmerken"
@@ -289,7 +292,8 @@ export function CaseView(props: {
             onCase={(data) => setState({ kind: "klaar", data })}
           />
           <Documenten fundaId={listing.funda_id} documents={state.data.documents} onChanged={reloadCase} />
-        </>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -304,34 +308,39 @@ function Brondekking(props: {
   const count = (status: SourceStatus["status"]) =>
     props.sources.filter((s) => s.status === status).length;
   return (
-    <section aria-labelledby="brondekking-title" className="brondekking">
-      <h3 id="brondekking-title">
-        Brondekking: {props.sources.length} bronnen: {count("succeeded")} gelukt, {count("failed")}{" "}
-        mislukt, {count("skipped")} overgeslagen
-      </h3>
+    <section aria-labelledby="brondekking-title" className="rail-block brondekking">
+      <h2 id="brondekking-title" className="rail-title">
+        Brondekking
+        <span className="rail-count">
+          {props.sources.length} bronnen: {count("succeeded")} gelukt, {count("failed")} mislukt,{" "}
+          {count("skipped")} overgeslagen
+        </span>
+      </h2>
       <ul className="source-list">
         {props.sources.map((source) => {
           const copy = STATUS_COPY[source.status];
+          const Icon = copy.icon;
           return (
             <li key={source.source} className={`source-status ${source.status}`}>
-              <span>
-                <span aria-hidden="true">{copy.glyph} </span>
-                {sourceLabel(source.source)}: {copy.word}
+              <Icon size={16} aria-hidden="true" className="source-icon" />
+              <span className="source-text">
+                <span className="source-name">
+                  {sourceLabel(source.source)}: {copy.word}
+                </span>
                 {source.status !== "succeeded" && source.reason && REASON_COPY[source.reason] && (
                   <span className="muted"> ({REASON_COPY[source.reason]})</span>
                 )}
-                {source.attempted_at && (
-                  <span className="muted"> · {shortDate(source.attempted_at)}</span>
-                )}
+                {source.attempted_at && <span className="muted"> · {shortDate(source.attempted_at)}</span>}
               </span>
               <button
                 type="button"
-                className="small"
+                className="icon-button"
                 disabled={props.refetching !== null}
                 aria-label={`${sourceLabel(source.source)} opnieuw ophalen`}
+                title="Opnieuw ophalen"
                 onClick={() => props.onRefetch(source.source)}
               >
-                {props.refetching === source.source ? "Bezig…" : "Opnieuw ophalen"}
+                <RefreshCw size={15} aria-hidden="true" className={props.refetching === source.source ? "spinning" : undefined} />
               </button>
             </li>
           );
@@ -339,7 +348,7 @@ function Brondekking(props: {
       </ul>
       {props.failed && (
         <p role="alert" className="notice error">
-          <span aria-hidden="true">! </span>Opnieuw ophalen mislukt. Probeer het later opnieuw.
+          Opnieuw ophalen mislukt. Probeer het later opnieuw.
         </p>
       )}
     </section>
@@ -360,15 +369,21 @@ function KeyFigures({
       <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
       <Figure
         label="t.o.v. WOZ"
+        tone={priceTone(metrics.asking_vs_woz?.percent)}
         value={metrics.asking_vs_woz ? signedPercent(metrics.asking_vs_woz.percent) : "–"}
       >
         {metrics.asking_vs_woz && "~ WOZ onofficieel"}
       </Figure>
-      <Figure label="t.o.v. vergelijkbaar" value={comparablesFigure(metrics.asking_vs_comparables)}>
+      <Figure
+        label="t.o.v. vergelijkbaar"
+        tone={priceTone(metrics.asking_vs_comparables.percent)}
+        value={comparablesFigure(metrics.asking_vs_comparables)}
+      >
         {coverageNote(metrics.asking_vs_comparables)}
       </Figure>
       <Figure
         label="Ruimte boven vraag"
+        tone={headroomTone(affordability?.headroom)}
         value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
       />
       <Figure
@@ -388,7 +403,7 @@ function Betaalruimte({
 }) {
   return (
     <section aria-labelledby="betaalruimte-title">
-      <h3 id="betaalruimte-title">Betaalruimte</h3>
+      <h2 id="betaalruimte-title">Betaalruimte</h2>
       {affordability === null ? (
         <p className="empty">
           Vul je koperprofiel in om je budget bij deze woning te zien: maximale hypotheek,
@@ -414,12 +429,16 @@ function Betaalruimte({
           >
             {affordability.mortgage_needed !== null &&
               affordability.mortgage_needed > affordability.max_mortgage &&
-              "! hypotheek nodig is hoger dan de maximale hypotheek"}
+              "Let op: de benodigde hypotheek is hoger dan de maximale hypotheek"}
           </Figure>
           <Figure
             label="Ruimte boven vraag"
+            tone={headroomTone(affordability.headroom)}
             value={affordability.headroom !== null ? signedEuro(affordability.headroom) : "–"}
-          />
+          >
+            {affordability.renovation_direct > 0 &&
+              `na aftrek van ${euro.format(affordability.renovation_direct)} Direct nodig onderhoud`}
+          </Figure>
         </dl>
       )}
       <p className="muted rules-year">
@@ -435,34 +454,61 @@ function Betaalruimte({
   );
 }
 
-/** The herkomst codes in one line, pinned under the Dossier header so the stamps are learnable. */
+/** What each herkomst label means, beside the facts so the labels are learnable. */
 function HerkomstLegend() {
-  const entries: [string, string, string][] = [
-    ["■ ADV", "advertentie, volgens funda", ""],
-    ["◆ BRN", "register, officieel", "stamp-official"],
-    ["◇ 3DE", "derde partij, onofficieel", "stamp-third-party"],
-    ["❝ VRK", "door verkoper, controleer het origineel", "stamp-finding"],
-    ["◔ OBS", "waarneming van foto's, geschat", "stamp-observation"],
-    ["= BER", "berekend", "stamp-computed"],
-    ["⇄ VGL", "vergelijkbare woning", ""],
-  ];
   return (
-    <dl className="herkomst-legend" aria-label="Herkomst">
-      {entries.map(([code, word, variant]) => (
-        <div key={code}>
-          <dt className={`stamp ${variant}`}>{code}</dt>
-          <dd>{word}</dd>
-        </div>
-      ))}
-    </dl>
+    <section aria-labelledby="herkomst-title" className="rail-block">
+      <h2 id="herkomst-title" className="rail-title">Herkomst</h2>
+      <dl className="herkomst-legend">
+        {STAMP_LEGEND.map(([kind, word, meaning]) => (
+          <div key={kind}>
+            <dt>
+              <Stamp kind={kind}>{word}</Stamp>
+            </dt>
+            <dd>{meaning}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
-function Figure(props: { label: string; value: string; children?: React.ReactNode }) {
+const SECTIONS: [id: string, title: string][] = [
+  ["signalen-title", "Signalen"],
+  ["betaalruimte-title", "Betaalruimte"],
+  ["verbouwingskosten-title", "Verbouwingskosten"],
+  ["kenmerken-title", "Kenmerken"],
+  ["prijs-en-waarde-title", "Prijs en waarde"],
+  ["vergelijkbaar-title", "Vergelijkbare woningen"],
+  ["energie-title", "Energie"],
+  ["omgeving-title", "Omgeving"],
+  ["reistijd-title", "Reistijd"],
+  ["verkoper-informatie-title", "Verkoper-informatie"],
+  ["foto-waarnemingen-title", "Foto-waarnemingen"],
+  ["documenten-title", "Documenten"],
+];
+
+/** The Dossier's sections as jump links; the Dossier is long and every section is a reason to come back. */
+function OnThisPage({ commute }: { commute: boolean }) {
+  return (
+    <nav aria-label="Op deze pagina" className="rail-block on-this-page">
+      <h2 className="rail-title">Op deze pagina</h2>
+      <ol>
+        {SECTIONS.filter(([id]) => commute || id !== "reistijd-title").map(([id, title]) => (
+          <li key={id}>
+            <a href={`#${id}`}>{title}</a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+function Figure(props: { label: string; value: string; tone?: Tone; children?: React.ReactNode }) {
   return (
     <div className="figure">
       <dt>{props.label}</dt>
-      <dd className="num">{props.value}</dd>
+      <dd className={props.tone ? `num tone-${props.tone}` : "num"}>{props.value}</dd>
       {props.children && <dd className="muted note">{props.children}</dd>}
     </div>
   );
@@ -472,7 +518,7 @@ function FactGroup({ title, id, facts }: { title: string; id: string; facts: Lis
   return (
     <details open className="fact-group">
       <summary>
-        <h3 id={`${id}-title`}>{title}</h3>
+        <h2 id={`${id}-title`}>{title}</h2>
         <span className="muted">{plural(facts.length, "feit", "feiten")}</span>
       </summary>
       <ol className="facts">
@@ -481,9 +527,9 @@ function FactGroup({ title, id, facts }: { title: string; id: string; facts: Lis
             <span className="vak-number">{index + 1}</span>
             <span className="fact-label">{FACT_LABELS[fact.key] ?? fact.key}</span>
             <span className="fact-value">{formatValue(fact)}</span>
-            <span className="stamp" aria-label={`Bron: advertentie, opgehaald ${shortDate(fact.fetched_at)}`}>
-              <span aria-hidden="true">■ ADV</span> Advertentie · {shortDate(fact.fetched_at)}
-            </span>
+            <Stamp kind="listing" label={`Bron: advertentie, opgehaald ${shortDate(fact.fetched_at)}`}>
+              Advertentie · {shortDate(fact.fetched_at)}
+            </Stamp>
           </li>
         ))}
       </ol>
@@ -512,20 +558,19 @@ function SourceGroup(props: {
   return (
     <details open className="fact-group">
       <summary>
-        <h3 id={`${props.id}-title`}>{props.title}</h3>
+        <h2 id={`${props.id}-title`}>{props.title}</h2>
         <span className="muted">
           {plural(props.facts.length, "feit", "feiten")}{stale > 0 && ` · ${stale} verouderd`}
         </span>
       </summary>
       {empty.map((status) => (
         <p key={status.source} className="empty">
-          <span aria-hidden="true">{STATUS_COPY[status.status].glyph} </span>
           Bron {STATUS_COPY[status.status].word}, geen gegevens van {sourceLabel(status.source)}.
         </p>
       ))}
       <ol className="facts">
         {props.facts.map((fact, index) => (
-          <SourceFactRow key={`${fact.key}-${fact.as_of ?? index}`} fact={fact} number={index + 1} />
+          <SourceFactRow key={`${fact.key}-${fact.as_of ?? index}`} fact={fact} />
         ))}
         {props.children}
       </ol>
@@ -533,33 +578,33 @@ function SourceGroup(props: {
   );
 }
 
-function SourceFactRow({ fact, number }: { fact: SourceFact; number: number }) {
+function SourceFactRow({ fact }: { fact: SourceFact }) {
   const official = fact.trust === "official";
   const fetched = shortDate(fact.fetched_at);
   const label = `Bron: ${sourceLabel(fact.source)}${official ? "" : ", onofficieel"}, opgehaald ${fetched}${fact.stale ? ", verouderd" : ""}`;
   return (
     <li className={`fact${fact.stale ? " stale" : ""}`}>
-      <span className="vak-number">{number}</span>
+      <span className="vak-number" />
       <span className="fact-label">{sourceFactLabel(fact)}</span>
       <span className="fact-value">
         {official ? "" : "~ "}
         {formatValue(fact)}
       </span>
-      <span
-        className={`stamp ${official ? "stamp-official" : "stamp-third-party"}`}
-        aria-label={label}
+      <Stamp
+        kind={official ? "official" : "third-party"}
+        label={label}
         title={fact.ttl_days !== null ? `Verouderd na ${fact.ttl_days} dagen` : undefined}
       >
-        <span aria-hidden="true">{official ? "◆ BRN" : "◇ 3DE"}</span> {sourceLabel(fact.source)}
+        {sourceLabel(fact.source)}
         {!official && " · onofficieel"} ·{" "}
         {fact.stale ? (
           <>
-            <s>{fetched}</s> <span aria-hidden="true">⏲</span> Verouderd
+            <s>{fetched}</s> <Clock size={13} aria-hidden="true" className="inline-icon" /> Verouderd
           </>
         ) : (
           fetched
         )}
-      </span>
+      </Stamp>
     </li>
   );
 }
@@ -571,9 +616,9 @@ function ComputedRow(props: { label: string; value: string; note: string }) {
       <span className="vak-number">=</span>
       <span className="fact-label">{props.label}</span>
       <span className="fact-value">{props.value}</span>
-      <span className="stamp stamp-computed" aria-label={`Berekend: ${props.note}`}>
-        <span aria-hidden="true">= BER</span> Berekend · {props.note}
-      </span>
+      <Stamp kind="computed" label={`Berekend: ${props.note}`}>
+        Berekend · {props.note}
+      </Stamp>
     </li>
   );
 }

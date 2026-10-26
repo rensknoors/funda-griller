@@ -10,7 +10,7 @@ test("documenten: brochure attached, an uploaded Vragenlijst yields a door-verko
 }) => {
   await request.post("/api/listings", { data: { url: LISTING_URL } });
   await page.goto("/");
-  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
 
   const documenten = page.getByRole("region", { name: "Documenten" });
   await expect(documenten.getByRole("link", { name: "Brochure (funda)" })).toBeVisible();

@@ -1,11 +1,14 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
+import { ArrowDown, ArrowUp, Clock, Ellipsis, Landmark, Newspaper, TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
 import type { Listing } from "./api";
-import { euro, signedEuro, signedPercent } from "./format";
+import { euro, euroRange, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
 import { plural } from "./plural";
 import { TierMark } from "./TierMark";
+import { href } from "./route";
+import { FlagGlyph } from "./FlagGlyph";
 import {
   NO_FILTERS,
   TIER_ORDER,
@@ -38,7 +41,6 @@ export function ListingsTable(props: {
   rowErrors: Record<string, string>;
   /** The Listing just refetched; its row flashes once. */
   flashId: string | null;
-  onOpen: (fundaId: string) => void;
   onRefetch: (fundaId: string) => void;
   onArchive: (fundaId: string) => void;
   onRestore: (fundaId: string) => void;
@@ -67,9 +69,12 @@ export function ListingsTable(props: {
     <th scope="col" className={className} aria-sort={sort.key === key ? sort.direction : undefined} title={title}>
       <button type="button" className="sort" onClick={() => sortBy(key)}>
         {label}
-        <span aria-hidden="true" className="sort-glyph">
-          {sort.key === key ? (sort.direction === "ascending" ? " ↑" : " ↓") : ""}
-        </span>
+        {sort.key === key &&
+          (sort.direction === "ascending" ? (
+            <ArrowUp size={13} strokeWidth={2.25} aria-hidden="true" className="sort-glyph" />
+          ) : (
+            <ArrowDown size={13} strokeWidth={2.25} aria-hidden="true" className="sort-glyph" />
+          ))}
       </button>
     </th>
   );
@@ -80,12 +85,12 @@ export function ListingsTable(props: {
         <fieldset className="tier-filter">
           <legend>Oordeel</legend>
           {TIER_ORDER.map((tier) => (
-            <label key={tier}>
+            <label key={tier} className="tier-toggle">
               <input
                 type="checkbox"
                 checked={filters.tiers.includes(tier)}
                 onChange={(event) => toggleTier(tier, event.target.checked)}
-              />{" "}
+              />
               <TierMark tier={tier} size="compact" />
             </label>
           ))}
@@ -152,16 +157,22 @@ export function ListingsTable(props: {
             {header("tier", "Oordeel")}
             <th scope="col">Adres</th>
             {header("price", "Vraagprijs", "num")}
-            {header("woz", "t.o.v. WOZ", "num", "Vraagprijs boven (▲) of onder (▼) de laatste WOZ-waarde")}
+            {header("woz", "t.o.v. WOZ", "num", "Vraagprijs boven (+) of onder (−) de laatste WOZ-waarde")}
             {header(
               "comparables",
               "t.o.v. vergelijkbaar",
               "num col-detail",
-              "Vraagprijs per m² boven (▲) of onder (▼) de mediaan van vergelijkbare woningen",
+              "Vraagprijs per m² boven (+) of onder (−) de mediaan van vergelijkbare woningen",
             )}
             {header("area", "m² woon / perceel", "num col-detail")}
             <th scope="col" className="col-detail">Label</th>
-            {header("headroom", "Ruimte boven vraag", "num", "Betaalruimte boven (▲) of tekort onder (▼) de vraagprijs")}
+            {header("headroom", "Ruimte boven vraag", "num", "Betaalruimte boven (+) of tekort onder (−) de vraagprijs")}
+            {header(
+              "renovation",
+              "Direct nodig",
+              "num col-detail",
+              "Geschatte kosten van direct nodig onderhoud (Verbouwingsraming)",
+            )}
             <th scope="col" className="col-detail">Signalen</th>
             {header("stale", "Data")}
             <th scope="col">
@@ -177,7 +188,6 @@ export function ListingsTable(props: {
               busy={props.busy}
               failure={props.rowErrors[listing.funda_id]}
               flash={props.flashId === listing.funda_id}
-              onOpen={props.onOpen}
               onRefetch={props.onRefetch}
               onArchive={() => setArchiveTarget(listing)}
               onRestore={props.onRestore}
@@ -203,7 +213,8 @@ export function ListingsTable(props: {
               De woning verdwijnt uit de lijst; momentopnamen en dossier blijven bewaard. Terugzetten
               kan via Toon gearchiveerd.
             </Dialog.Description>
-            <div className="row">
+            <div className="dialog-actions">
+              <Dialog.Close>Annuleren</Dialog.Close>
               <button
                 type="button"
                 className="destructive"
@@ -214,7 +225,6 @@ export function ListingsTable(props: {
               >
                 Archiveren
               </button>
-              <Dialog.Close>Annuleren</Dialog.Close>
             </div>
           </Dialog.Popup>
         </Dialog.Portal>
@@ -241,7 +251,6 @@ function ListingRow(props: {
   busy: boolean;
   failure: string | undefined;
   flash: boolean;
-  onOpen: (fundaId: string) => void;
   onRefetch: (fundaId: string) => void;
   onArchive: () => void;
   onRestore: (fundaId: string) => void;
@@ -266,7 +275,7 @@ function ListingRow(props: {
       event.preventDefault();
       sibling.focus();
     } else if (event.key === "Enter") {
-      props.onOpen(listing.funda_id);
+      window.location.hash = href({ view: "dossier", fundaId: listing.funda_id });
     } else if (event.key === "x" && !listing.archived) {
       props.onArchive();
     }
@@ -278,25 +287,24 @@ function ListingRow(props: {
         <TierMark tier={tierOf(listing)} />
       </td>
       <th scope="row">
-        <button type="button" className="link" onClick={() => props.onOpen(listing.funda_id)}>
+        <a className="address-link" href={href({ view: "dossier", fundaId: listing.funda_id })}>
           <span className={sold ? "struck" : undefined}>{address}</span>
-        </button>
-        {latest.city && <span className="muted"> {latest.city}</span>}{" "}
-        <span className="chip">{statusLabel(row.status, latest.raw_status)}</span>
-        {row.status_change && (
-          <span className="muted"> was {statusLabel(row.status_change.from, "")}</span>
-        )}
-        {latest.entry === "manual" && <>{" "}<span className="chip">Handmatig ingevoerd</span></>}
-        {listing.archived && <>{" "}<span className="chip">Gearchiveerd</span></>}
+        </a>
+        <span className="address-meta">
+          {latest.city && <span className="muted">{latest.city}</span>}
+          <span className={`chip status-${row.status}`}>{statusLabel(row.status, latest.raw_status)}</span>
+          {row.status_change && <span className="muted">was {statusLabel(row.status_change.from, "")}</span>}
+          {latest.entry === "manual" && <span className="chip">Handmatig ingevoerd</span>}
+          {listing.archived && <span className="chip">Gearchiveerd</span>}
+        </span>
         {row.hard_no_reason && <span className="hard-no-reason">Deal-breaker: {row.hard_no_reason}</span>}
         {props.failure && (
           <span role="alert" className="row-error">
-            <span aria-hidden="true">! </span>
             {props.failure}
           </span>
         )}
       </th>
-      <td className="num">
+      <td className="num" data-label="Vraagprijs">
         {row.asking_price != null ? euro.format(row.asking_price) : "–"}
         {row.previous_asking_price != null && row.asking_price != null && (
           <span
@@ -304,48 +312,74 @@ function ListingRow(props: {
             title={`Was ${euro.format(row.previous_asking_price)}`}
             aria-label={`${row.asking_price < row.previous_asking_price ? "verlaagd" : "verhoogd"}, was ${euro.format(row.previous_asking_price)}`}
           >
-            {row.asking_price < row.previous_asking_price ? " ▼" : " ▲"}
+            {row.asking_price < row.previous_asking_price ? (
+              <TrendingDown size={14} aria-hidden="true" className="inline-icon" />
+            ) : (
+              <TrendingUp size={14} aria-hidden="true" className="inline-icon" />
+            )}
           </span>
         )}
       </td>
-      <td className="num">{signedPercent(row.asking_vs_woz_percent)}</td>
-      <td className="num col-detail">{signedPercent(row.asking_vs_comparables_percent)}</td>
+      <td className={`num tone-${priceTone(row.asking_vs_woz_percent) ?? "none"}`} data-label="t.o.v. WOZ">
+        {signedPercent(row.asking_vs_woz_percent)}
+      </td>
+      <td className={`num col-detail tone-${priceTone(row.asking_vs_comparables_percent) ?? "none"}`}>
+        {signedPercent(row.asking_vs_comparables_percent)}
+      </td>
       <td className="num col-detail">
         {row.living_area ?? "–"} / {row.plot_area ?? "–"}
       </td>
       <td className="col-detail">
         {row.energy_label ? (
           <>
-            <span>{row.energy_label.value}</span>
-            <span className="muted" title={row.energy_label.official ? "Uit het energielabelregister" : "Volgens de advertentie"}>
-              {row.energy_label.official ? " ◆" : " ■"}
+            <span className="energy-badge">{row.energy_label.value}</span>
+            {row.energy_label.official ? (
+              <Landmark size={14} aria-hidden="true" className="label-source" />
+            ) : (
+              <Newspaper size={14} aria-hidden="true" className="label-source" />
+            )}
+            <span className="visually-hidden">
+              {row.energy_label.official ? "uit het energielabelregister" : "volgens de advertentie"}
             </span>
           </>
         ) : (
           "–"
         )}
       </td>
-      <td className="num">{row.headroom != null ? signedEuro(row.headroom) : "–"}</td>
+      <td className={`num tone-${headroomTone(row.headroom) ?? "none"}`} data-label="Ruimte boven vraag">{row.headroom != null ? signedEuro(row.headroom) : "–"}</td>
+      <td className="num col-detail" data-label="Direct nodig">
+        {row.renovation_direct
+          ? row.renovation_direct.high > 0
+            ? euroRange(row.renovation_direct.low, row.renovation_direct.high)
+            : "geen"
+          : "–"}
+      </td>
       <td className="col-detail signal-counts">
-        <span aria-label={plural(row.flag_counts.pro, "pluspunt", "pluspunten")}>+{row.flag_counts.pro}</span>{" "}
-        <span aria-label={plural(row.flag_counts.con, "minpunt", "minpunten")}>−{row.flag_counts.con}</span>{" "}
-        <span aria-label={plural(row.flag_counts.risk, "risico", "risico's")} className={row.flag_counts.risk > 0 ? "risk" : undefined}>
-          !{row.flag_counts.risk}
-        </span>
+        {(["pro", "con", "risk"] as const).map((flagClass) => {
+          const count = row.flag_counts[flagClass];
+          const [one, many] = { pro: ["pluspunt", "pluspunten"], con: ["minpunt", "minpunten"], risk: ["risico", "risico's"] }[flagClass];
+          return (
+            <span key={flagClass} className={`signal-count${count === 0 ? " zero" : ""}`}>
+              <FlagGlyph flagClass={flagClass} />
+              <span aria-hidden="true">{count}</span>
+              <span className="visually-hidden">{plural(count, one, many)}</span>
+            </span>
+          );
+        })}
       </td>
       <td>
         {row.stale_count > 0 && (
           <span className="chip stale-chip">
-            <span aria-hidden="true">⏲ </span>
+            <Clock size={13} aria-hidden="true" />
             {row.stale_count} verouderd
           </span>
-        )}{" "}
-        <span className="muted">{dateTime.format(new Date(row.last_fetched_at))}</span>
+        )}
+        <span className="muted fetched-at">{dateTime.format(new Date(row.last_fetched_at))}</span>
       </td>
       <td>
         <Menu.Root>
           <Menu.Trigger className="row-menu" aria-label="Acties" disabled={props.busy}>
-            ⋯
+            <Ellipsis size={18} aria-hidden="true" />
           </Menu.Trigger>
           <Menu.Portal>
             <Menu.Positioner align="end">

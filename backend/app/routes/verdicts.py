@@ -10,7 +10,7 @@ from app.assembly import make_verdict
 from app.buyer_profile import BuyerProfile
 from app.case import VersionedProfile
 from app.ports import LlmError
-from app.verdict import InvalidVerdict, changed_inputs, inputs_of
+from app.verdict import InvalidVerdict
 from app.wiring import Wiring
 
 logger = logging.getLogger(__name__)
@@ -20,15 +20,9 @@ def routes(w: Wiring) -> APIRouter:
     router = APIRouter(prefix="/api")
     settings = w.settings
 
-    def verdict_state(funda_id: str, case: dict) -> dict:
-        """A Listing's Verdicts, newest first, and whether the newest is out of date (Achterhaald)."""
-        history = store.verdicts(settings.database_path, funda_id)
-        changed = changed_inputs(history[0], inputs_of(case, settings.verdict_model)) if history else []
-        return {"verdicts": history, "out_of_date": bool(changed), "changed": changed}
-
     @router.get("/listings/{funda_id}/verdict", response_model=None)
     def read_verdict(funda_id: str) -> dict:
-        return verdict_state(funda_id, w.current_case(w.listing(funda_id)))
+        return w.verdict_state(funda_id, w.current_case(w.listing(funda_id)))
 
     @router.post("/listings/{funda_id}/verdict", status_code=201, response_model=None)
     def run_verdict(funda_id: str) -> dict | JSONResponse:
@@ -59,7 +53,7 @@ def routes(w: Wiring) -> APIRouter:
         after a Buyer Profile edit. Nothing re-runs by itself."""
         out_of_date = []
         for funda_id in store.listings_with_verdicts(settings.database_path):
-            state = verdict_state(funda_id, w.current_case(w.listing(funda_id)))
+            state = w.verdict_state(funda_id, w.current_case(w.listing(funda_id)))
             if state["out_of_date"]:
                 newest = state["verdicts"][0]
                 out_of_date.append(

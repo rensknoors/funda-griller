@@ -12,7 +12,7 @@ from app import store
 from app.buyer_profile import describe_errors
 from app.ports import InvalidListingUrl, ListingError, ListingRemoved, Ports, ProviderBlocked
 from app.production_ports import build_production_ports
-from app.routes import buyer_profile, documents, listings, verdicts
+from app.routes import buyer_profile, documents, export, listings, verdicts
 from app.settings import Settings
 from app.wiring import NotFound, Wiring
 
@@ -44,7 +44,7 @@ def create_app(
     app.state.settings = settings
     app.state.ports = ports
     wiring = Wiring(settings, ports, clock)
-    for resource in (listings, documents, verdicts, buyer_profile):
+    for resource in (listings, documents, verdicts, export, buyer_profile):
         app.include_router(resource.routes(wiring))
 
     @app.exception_handler(ListingError)

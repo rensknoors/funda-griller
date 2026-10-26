@@ -1,5 +1,6 @@
 import type { AskingVsComparables, Comparable, SourceFact, SourceStatus } from "./api";
 import { euro, percentChange, signedPercent } from "./format";
+import { Stamp } from "./Stamp";
 
 const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
 
@@ -40,7 +41,7 @@ export function Vergelijkbaar(props: {
   return (
     <details open className="fact-group">
       <summary>
-        <h3 id="vergelijkbaar-title">Vergelijkbare woningen</h3>
+        <h2 id="vergelijkbaar-title">Vergelijkbare woningen</h2>
         <span className="muted">
           {coverageNote(metric)}
           {stale && " · verouderd"}
@@ -58,12 +59,12 @@ export function Vergelijkbaar(props: {
       </div>
       {props.status?.status === "failed" && (
         <p className="empty">
-          <span aria-hidden="true">✕ </span>Bron mislukt, geen gegevens van vergelijkbare woningen.
+          Bron mislukt, geen gegevens van vergelijkbare woningen.
         </p>
       )}
       {(metric.coverage === "none" || metric.coverage === "thin") && (
         <p className="empty" role="note">
-          <span aria-hidden="true">! </span>
+          
           {coverageNote(metric)}. Te weinig om het Maximumbod op te baseren
           {metric.coverage === "thin" && ` (minimaal ${metric.min_count})`}; dat volgt alleen je betaalruimte.
         </p>
@@ -77,9 +78,9 @@ export function Vergelijkbaar(props: {
               {percentChange.format(metric.percent)}% ({euro.format(metric.price_per_m2 ?? 0)} tegen mediaan{" "}
               {euro.format(metric.median_price_per_m2)} per m²)
             </span>
-            <span className="stamp stamp-computed" aria-label={`Berekend uit ${metric.count} vergelijkbare woningen`}>
-              <span aria-hidden="true">= BER</span> Berekend · {metric.count} woningen
-            </span>
+            <Stamp kind="computed" label={`Berekend uit ${metric.count} vergelijkbare woningen`}>
+              Berekend · {metric.count} woningen
+            </Stamp>
           </li>
         )}
         {metric.comparables_value !== null && (
@@ -87,16 +88,16 @@ export function Vergelijkbaar(props: {
             <span className="vak-number">=</span>
             <span className="fact-label">Waarde volgens vergelijkbaar</span>
             <span className="fact-value">{euro.format(metric.comparables_value)}</span>
-            <span className="stamp stamp-computed" aria-label="Berekend: mediaan per m² maal woonoppervlak">
-              <span aria-hidden="true">= BER</span> Berekend · mediaan × m²
-            </span>
+            <Stamp kind="computed" label="Berekend: mediaan per m² maal woonoppervlak">
+              Berekend · mediaan × m²
+            </Stamp>
           </li>
         )}
         {comparables.map((fact, index) => {
           const c = fact.value as Comparable;
           return (
             <li key={c.funda_id} className="fact comparable">
-              <span className="vak-number">{index + 1}</span>
+              <span className="vak-number" />
               <span className="fact-label">
                 {c.url ? (
                   <a href={c.url} target="_blank" rel="noreferrer">
@@ -115,14 +116,14 @@ export function Vergelijkbaar(props: {
                   <span className="muted"> · {euro.format(Math.round(c.asking_price / c.living_area))}/m²</span>
                 )}
               </span>
-              <span
-                className="stamp"
-                aria-label={`Bron: funda vergelijkbare woningen, ${c.recently_sold ? "recent verkocht" : "recent te koop gezet"}, opgehaald ${fetchedAt ? dayMonth.format(new Date(fetchedAt)) : ""}`}
+              <Stamp
+                kind="comparable"
+                label={`Bron: funda vergelijkbare woningen, ${c.recently_sold ? "recent verkocht" : "recent te koop gezet"}, opgehaald ${fetchedAt ? dayMonth.format(new Date(fetchedAt)) : ""}`}
               >
-                <span aria-hidden="true">⇄ VGL</span> {c.recently_sold ? "Recent verkocht" : "Recent te koop"}
+                {c.recently_sold ? "Recent verkocht" : "Recent te koop"}
                 {c.raw_status && ` (${c.raw_status})`} · laatste vraagprijs
                 {fact.stale && " · verouderd"}
-              </span>
+              </Stamp>
             </li>
           );
         })}

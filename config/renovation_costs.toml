@@ -1,0 +1,265 @@
+# Renovation cost table: what the Renovation Estimate (Verbouwingsraming) prices, and the Case facts
+# that trigger each item. Versioned like the Flag rules: bump `version` on any change to this file;
+# the Case records it, so a change marks Verdicts built on the old table Achterhaald.
+#
+# Figures are public average prices (low–high, incl. btw), seeded from consumer price guides and
+# Milieu Centraal; maintain them by hand and update `price_year` with the figure. They are estimates
+# for decision support, not quotes.
+#
+# Per item:
+#   id, label (Dutch UI), urgency: "direct" (Direct nodig), "within_5_years" (Binnen 5 jaar) or
+#     "optional" (Optioneel); a trigger may set its own `urgency`, and the most urgent one that
+#     holds wins.
+#   basis: "fixed" (low/high in euros), "per_m2" (low/high per m² living area) or "size_band"
+#     (low/high as three figures for a living area below, within and above `size_bands`). Without
+#     a living area the middle band, or `assumed_living_area`, is used and the item says so.
+#   triggers: conditions in the Flag rule vocabulary (app/flags.py) over the same fact keys
+#     (`observation.<key>`, `finding.<topic>`, `energielabel.energy_label`, Listing facts such as
+#     `construction_year` and `heating`). `also` lists extra conditions that must hold too. An item
+#     no trigger holds for is left out, never guessed.
+#   supersedes: ids dropped when this item is present.
+#   inspection: true for a survey priced on the build year alone ("op basis van bouwjaar"), not
+#     the repair itself.
+#   source, price_year: where the figures come from and the year they are priced at.
+version = 1
+size_bands = [80, 150]
+assumed_living_area = 115
+
+# --- Direct nodig -------------------------------------------------------------------------------
+
+[[items]]
+id = "damp_repair"
+label = "Vocht- en schimmelprobleem verhelpen"
+urgency = "direct"
+basis = "fixed"
+low = 1500
+high = 7500
+source = "Milieu Centraal; consumentenprijsgidsen"
+price_year = 2025
+triggers = [{ kind = "equals", fact = "observation.damp_or_mould", values = [true] }]
+
+[[items]]
+id = "leak_repair"
+label = "Lekkage herstellen"
+urgency = "direct"
+basis = "fixed"
+low = 1000
+high = 5000
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [{ kind = "equals", fact = "finding.leak", values = [true] }]
+
+[[items]]
+id = "foundation_repair"
+label = "Funderingsherstel"
+urgency = "direct"
+basis = "fixed"
+low = 20000
+high = 80000
+source = "KCAF; consumentenprijsgidsen"
+price_year = 2025
+supersedes = ["foundation_survey"]
+triggers = [{ kind = "equals", fact = "finding.foundation", values = [true] }]
+
+[[items]]
+id = "asbestos_removal"
+label = "Asbest laten verwijderen"
+urgency = "direct"
+basis = "fixed"
+low = 2000
+high = 10000
+source = "Consumentenprijsgidsen"
+price_year = 2025
+supersedes = ["asbestos_survey"]
+triggers = [{ kind = "equals", fact = "finding.asbestos", values = [true] }]
+
+[[items]]
+id = "full_renovation"
+label = "Volledige renovatie"
+urgency = "direct"
+basis = "per_m2"
+low = 600
+high = 1200
+source = "Consumentenprijsgidsen"
+price_year = 2025
+supersedes = ["kitchen", "bathroom", "cosmetic_refresh"]
+triggers = [{ kind = "equals", fact = "observation.renovation_needed", values = ["full"] }]
+
+[[items]]
+id = "roof"
+label = "Dak vernieuwen"
+urgency = "within_5_years"
+basis = "size_band"
+low = [8000, 12000, 18000]
+high = [15000, 24000, 35000]
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [
+  { kind = "equals", fact = "observation.roof_condition", values = ["fair"] },
+  { kind = "equals", fact = "observation.roof_condition", values = ["poor"], urgency = "direct" },
+]
+
+[[items]]
+id = "facade"
+label = "Gevel herstellen (voegwerk, metselwerk)"
+urgency = "within_5_years"
+basis = "size_band"
+low = [4000, 7000, 10000]
+high = [9000, 15000, 22000]
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [
+  { kind = "equals", fact = "observation.facade_condition", values = ["fair"] },
+  { kind = "equals", fact = "observation.facade_condition", values = ["poor"], urgency = "direct" },
+]
+
+[[items]]
+id = "foundation_survey"
+label = "Funderingsonderzoek"
+urgency = "direct"
+basis = "fixed"
+low = 1000
+high = 3500
+inspection = true
+source = "KCAF"
+price_year = 2025
+triggers = [{ kind = "below", fact = "construction_year", threshold = 1930 }]
+
+# --- Binnen 5 jaar ------------------------------------------------------------------------------
+
+[[items]]
+id = "kitchen"
+label = "Nieuwe keuken"
+urgency = "within_5_years"
+basis = "fixed"
+low = 8000
+high = 20000
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [{ kind = "above", fact = "observation.kitchen_age_years", threshold = 20 }]
+
+[[items]]
+id = "bathroom"
+label = "Nieuwe badkamer"
+urgency = "within_5_years"
+basis = "fixed"
+low = 10000
+high = 25000
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [{ kind = "above", fact = "observation.bathroom_age_years", threshold = 20 }]
+
+[[items]]
+id = "insulation"
+label = "Isoleren (dak, gevel, vloer)"
+urgency = "within_5_years"
+basis = "per_m2"
+low = 60
+high = 140
+source = "Milieu Centraal"
+price_year = 2025
+triggers = [
+  { kind = "label_worse_than", fact = ["energielabel.energy_label", "energy_label"], threshold = "D" },
+]
+
+[[items]]
+id = "glazing"
+label = "HR++-glas"
+urgency = "within_5_years"
+basis = "per_m2"
+low = 30
+high = 70
+source = "Milieu Centraal"
+price_year = 2025
+triggers = [
+  { kind = "label_worse_than", fact = ["energielabel.energy_label", "energy_label"], threshold = "D" },
+]
+
+[[items]]
+id = "boiler"
+label = "Cv-ketel vervangen"
+urgency = "within_5_years"
+basis = "fixed"
+low = 2000
+high = 4000
+source = "Milieu Centraal"
+price_year = 2025
+triggers = [{ kind = "equals", fact = "finding.boiler_old", values = [true] }]
+
+[[items]]
+id = "wiring"
+label = "Elektra vernieuwen"
+urgency = "within_5_years"
+basis = "per_m2"
+low = 40
+high = 80
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [{ kind = "equals", fact = "finding.wiring_old", values = [true] }]
+
+[[items]]
+id = "asbestos_survey"
+label = "Asbestinventarisatie"
+urgency = "within_5_years"
+basis = "fixed"
+low = 500
+high = 1500
+inspection = true
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [{ kind = "below", fact = "construction_year", threshold = 1994 }]
+
+[[items]]
+id = "energy_advice"
+label = "Energieadvies (isolatie onbekend)"
+urgency = "within_5_years"
+basis = "fixed"
+low = 300
+high = 800
+inspection = true
+source = "Milieu Centraal"
+price_year = 2025
+triggers = [
+  { kind = "below", fact = "construction_year", threshold = 1975, also = [
+    { kind = "absent", fact = ["energielabel.energy_label", "energy_label"] },
+  ] },
+]
+
+# --- Optioneel ----------------------------------------------------------------------------------
+
+[[items]]
+id = "cosmetic_refresh"
+label = "Cosmetisch opknappen (vloeren, wanden, schilderwerk)"
+urgency = "optional"
+basis = "per_m2"
+low = 30
+high = 90
+source = "Consumentenprijsgidsen"
+price_year = 2025
+triggers = [{ kind = "equals", fact = "observation.renovation_needed", values = ["cosmetic"] }]
+
+[[items]]
+id = "heat_pump"
+label = "(Hybride) warmtepomp"
+urgency = "optional"
+basis = "fixed"
+low = 4000
+high = 15000
+source = "Milieu Centraal"
+price_year = 2025
+triggers = [
+  { kind = "equals", fact = ["energielabel.energy_label", "energy_label"], values = ["C", "D"] },
+]
+
+[[items]]
+id = "solar_panels"
+label = "Zonnepanelen"
+urgency = "optional"
+basis = "fixed"
+low = 4000
+high = 7000
+source = "Milieu Centraal"
+price_year = 2025
+triggers = [
+  { kind = "equals", fact = ["energielabel.energy_label", "energy_label"], values = ["C", "D"] },
+]

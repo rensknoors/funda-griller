@@ -23,8 +23,10 @@ class Affordability:
     monthly_cost: int | None
     headroom: int | None
     # Highest purchase price the household can pay, kosten koper included (not the Walk-away
-    # Maximum, which also weighs what the house is worth).
+    # Maximum, which also weighs what the house is worth), after setting aside `renovation_direct`.
     affordable_maximum: int
+    # The Renovation Estimate's Direct nodig midpoint, taken from the funds available for this house.
+    renovation_direct: int = 0
 
 
 @dataclass(frozen=True)
@@ -95,9 +97,14 @@ def _own_funds(profile: BuyerProfile | FinanceDraft) -> int:
 
 
 def _budget(
-    profile: BuyerProfile | FinanceDraft, max_mortgage: int, equity: int, rules: Rules, today: date
+    profile: BuyerProfile | FinanceDraft,
+    max_mortgage: int,
+    equity: int,
+    rules: Rules,
+    today: date,
+    renovation_direct: int = 0,
 ) -> int:
-    available = max_mortgage + equity + _own_funds(profile) - rules.fixed_costs
+    available = max_mortgage + equity + _own_funds(profile) - rules.fixed_costs - renovation_direct
     affordable_maximum = available / (1 + rules.transfer_tax_rate)
     if _is_starter(profile, rules, today):
         affordable_maximum = max(affordable_maximum, min(rules.starter_price_limit, available))
@@ -111,16 +118,25 @@ def consequences(draft: FinanceDraft, rules: Rules, today: date) -> Consequences
 
 
 def compute(
-    profile: BuyerProfile, asking_price: int | None, energy_label: str | None, rules: Rules, today: date
+    profile: BuyerProfile,
+    asking_price: int | None,
+    energy_label: str | None,
+    rules: Rules,
+    today: date,
+    renovation_direct: int = 0,
 ) -> Affordability:
+    """`renovation_direct` (the Direct nodig midpoint of the house's Renovation Estimate) is set
+    aside from the available funds before the affordable maximum is worked out."""
     starter = _is_starter(profile, rules, today)
     max_mortgage, bonus = _max_mortgage(profile.gross_annual_income, energy_label, rules)
     equity = home_equity(profile)
     own_funds = _own_funds(profile)
-    affordable_maximum = _budget(profile, max_mortgage, equity, rules, today)
+    affordable_maximum = _budget(profile, max_mortgage, equity, rules, today, renovation_direct)
 
     if asking_price is None:
-        return Affordability(max_mortgage, bonus, equity, None, None, None, None, affordable_maximum)
+        return Affordability(
+            max_mortgage, bonus, equity, None, None, None, None, affordable_maximum, renovation_direct
+        )
     exempt = starter and asking_price <= rules.starter_price_limit
     tax = 0 if exempt else round(asking_price * rules.transfer_tax_rate)
     needed = max(0, asking_price + tax + rules.fixed_costs - equity - own_funds)
@@ -133,4 +149,5 @@ def compute(
         monthly_cost=round(needed / _annuity_factor(rules.mortgage_rate, rules.term_months)),
         headroom=affordable_maximum - asking_price,
         affordable_maximum=affordable_maximum,
+        renovation_direct=renovation_direct,
     )

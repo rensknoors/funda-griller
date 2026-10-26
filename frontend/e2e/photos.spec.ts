@@ -4,12 +4,12 @@ const LISTING_URL = "https://www.funda.nl/detail/koop/holtum/huis-buchterweg-15/
 
 test("dossier shows foto-waarnemingen as geschat, citing photos the app serves itself", async ({ page }) => {
   await page.goto("/");
-  const existing = page.getByRole("button", { name: "Buchterweg 15" });
+  const existing = page.getByRole("link", { name: "Buchterweg 15" });
   if (!(await existing.isVisible())) {
     await page.getByLabel("Funda-link").fill(LISTING_URL);
     await page.getByRole("button", { name: "Ophalen" }).click();
   }
-  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
 
   const group = page.locator("details", { has: page.getByRole("heading", { name: "Foto-waarnemingen" }) });
   await expect(group.getByText("2 waarnemingen · 2 geschat")).toBeVisible();
