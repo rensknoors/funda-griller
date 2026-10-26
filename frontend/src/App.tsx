@@ -125,7 +125,8 @@ export function App() {
     setRowErrors(({ [fundaId]: _cleared, ...rest }) => rest);
     const result = await runVerdict(fundaId);
     if (isVerdictError(result)) {
-      setRowErrors((current) => ({ ...current, [fundaId]: VERDICT_ERROR_COPY[result.kind] }));
+      const reason = result.kind === "llm_unavailable" && result.reason ? ` (${result.reason})` : "";
+      setRowErrors((current) => ({ ...current, [fundaId]: VERDICT_ERROR_COPY[result.kind] + reason }));
     } else {
       try {
         setListings(await fetchListings());

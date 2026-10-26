@@ -135,6 +135,9 @@ export function VerdictView(props: {
           {ERROR_COPY[runError.kind]}{" "}
           {runError.kind === "invalid_verdict" && (
             <span className="muted">({runError.problems.join(", ")})</span>
+          )}
+          {runError.kind === "llm_unavailable" && runError.reason && (
+            <span className="muted">({runError.reason})</span>
           )}{" "}
           {runError.kind !== "no_buyer_profile" && (
             <button type="button" onClick={handleRun} disabled={running}>

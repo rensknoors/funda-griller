@@ -1,5 +1,7 @@
 """Verdicts: read a Listing's history, request a new one, and list those that are out of date."""
 
+import logging
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -10,6 +12,8 @@ from app.case import VersionedProfile
 from app.ports import LlmError
 from app.verdict import InvalidVerdict, changed_inputs, inputs_of
 from app.wiring import Wiring
+
+logger = logging.getLogger(__name__)
 
 
 def routes(w: Wiring) -> APIRouter:
@@ -43,8 +47,10 @@ def routes(w: Wiring) -> APIRouter:
             verdict = make_verdict(settings, case, profile, w.ports.llm_client, now)
         except InvalidVerdict as error:
             return JSONResponse({"code": "invalid_verdict", "problems": error.problems}, status_code=502)
-        except LlmError:
-            return JSONResponse({"code": "llm_unavailable"}, status_code=502)
+        except LlmError as error:
+            # The reason (no key, unknown model, quota) is the only clue to fix it, so pass it on.
+            logger.warning("Verdict for %s failed: %s", funda_id, error)
+            return JSONResponse({"code": "llm_unavailable", "reason": str(error)}, status_code=502)
         return store.add_verdict(settings.database_path, funda_id, now.isoformat(), verdict)
 
     @router.get("/verdicts/out-of-date")

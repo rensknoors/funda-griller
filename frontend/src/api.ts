@@ -509,7 +509,8 @@ export type VerdictState = {
 export type VerdictError =
   | { kind: "no_buyer_profile" }
   | { kind: "invalid_verdict"; problems: string[] }
-  | { kind: "llm_unavailable" }
+  /** `reason` is the backend's explanation, e.g. no API key or an unknown model. */
+  | { kind: "llm_unavailable"; reason?: string }
   | { kind: "unknown" };
 
 export async function fetchVerdicts(fundaId: string): Promise<VerdictState> {
@@ -525,7 +526,8 @@ export async function runVerdict(fundaId: string): Promise<Verdict | VerdictErro
     const payload = await response.json();
     if (response.ok) return payload as Verdict;
     if (payload.code === "invalid_verdict") return { kind: "invalid_verdict", problems: payload.problems };
-    if (payload.code === "no_buyer_profile" || payload.code === "llm_unavailable") return { kind: payload.code };
+    if (payload.code === "no_buyer_profile") return { kind: payload.code };
+    if (payload.code === "llm_unavailable") return { kind: payload.code, reason: payload.reason };
   } catch {
     // fall through to unknown
   }

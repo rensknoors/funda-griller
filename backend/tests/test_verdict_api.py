@@ -285,7 +285,7 @@ def test_a_failing_model_keeps_the_last_valid_verdict(client, listing_provider, 
     response = client.post(VERDICT)
 
     assert response.status_code == 502
-    assert response.json() == {"code": "llm_unavailable"}
+    assert response.json() == {"code": "llm_unavailable", "reason": "quota exceeded"}
     assert client.get(VERDICT).json()["verdicts"] == [kept]
 
 
