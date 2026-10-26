@@ -13,7 +13,7 @@ import {
   refetchSource,
 } from "./api";
 import { Documenten, VerkoperInformatie } from "./Documenten";
-import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue } from "./facts";
+import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
 import { euro, percentChange, signedEuro, signedPercent } from "./format";
 import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
@@ -35,6 +35,7 @@ const SOURCE_LABELS: Record<string, string> = {
   flood_soil: "Overstroming en bodem",
   noise: "Geluid",
   comparables: "Vergelijkbare verkopen",
+  commute: "Reistijd",
 };
 const sourceLabel = (source: string) => SOURCE_LABELS[source] ?? source;
 
@@ -48,12 +49,16 @@ const REASON_COPY: Record<string, string> = {
   no_address: "adres onvolledig",
   no_coordinates: "geen coördinaten",
   not_fetched: "nog niet opgehaald",
+  no_destinations: "geen pendelbestemmingen in je Koperprofiel",
+  destination_not_found: "adres van pendelbestemming niet gevonden",
+  no_route: "geen route gevonden",
 };
 
 
 function sourceFactLabel(fact: SourceFact): string {
   if (fact.key === "woz_value") return `WOZ-waarde ${fact.as_of?.slice(0, 4) ?? ""}`.trim();
   if (fact.key === "energy_label") return "Energielabel (register)";
+  if (isCommuteFact(fact.value)) return `Reistijd naar ${fact.value.destination}`;
   if (ENVIRONMENT_FACTS[fact.key]) return ENVIRONMENT_FACTS[fact.key].label;
   return FACT_LABELS[fact.key] ?? fact.key;
 }
@@ -252,6 +257,28 @@ export function CaseView(props: {
             facts={sourceFacts.filter((f) => f.source === "flood_soil" || f.source === "noise")}
             sources={state.data.sources}
           />
+          {state.data.sources.some((s) => s.source === "commute") && (
+            <SourceGroup
+              title="Reistijd"
+              id="reistijd"
+              names={["commute"]}
+              facts={sourceFacts.filter((f) => f.source === "commute")}
+              sources={state.data.sources}
+            >
+              {state.data.metrics.commute_coverage?.not_fetched.map((destination) => (
+                <li key={destination}>
+                  Reistijd naar {destination}: <strong>nog niet opgehaald</strong>{" "}
+                  <span className="muted">
+                    (nieuwe of gewijzigde pendelbestemming in je Koperprofiel; haal Reistijd opnieuw op)
+                  </span>
+                </li>
+              ))}
+              <li className="muted">
+                Snelste van auto en fiets; openbaar vervoer niet meegerekend. Routes © openrouteservice.org
+                by HeiGIT, kaartgegevens © OpenStreetMap-bijdragers; adressen via PDOK Locatieserver.
+              </li>
+            </SourceGroup>
+          )}
           <VerkoperInformatie
             fundaId={listing.funda_id}
             findings={state.data.facts.filter((f): f is FindingFact => f.provenance === "finding")}

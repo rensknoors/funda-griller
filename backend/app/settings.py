@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     # RVO EP-Online API key for the energielabel register; without it that Source is skipped.
     ep_online_api_key: str | None = None
+    # OpenRouteService API key for commute travel times; without it the commute Source is skipped.
+    openrouteservice_api_key: str | None = None
     vision_model: str | None = None
     verdict_model: str | None = None
 
@@ -53,11 +55,14 @@ class Settings(BaseSettings):
     listing_status_map: dict[str, str] = Field(default_factory=dict)
 
     # Comparables: at most this many follow-up provider fetches per user request; fewer usable
-    # comparables than the minimum count as thin; a Walk-away Maximum may sit at most this share
-    # above what sufficient comparables put the house at.
+    # comparables than the minimum count as thin.
     comparables_max_fetches: int = 5
     comparables_min_count: int = 3
+    # The derived Walk-away Maximum sits this share above what sufficient comparables put the house
+    # at, or, when comparables are thin or missing, this share above the asking price (never above
+    # what the household can afford).
     walk_away_comparables_premium: float = 0.10
+    walk_away_asking_price_margin: float = 0.05
 
     # Days after which a Source's facts count as Stale.
     source_ttl_days: dict[str, int] = Field(
@@ -67,6 +72,7 @@ class Settings(BaseSettings):
             "flood_soil": 365,
             "noise": 365,
             "comparables": 14,
+            "commute": 180,
         }
     )
 

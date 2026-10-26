@@ -24,6 +24,7 @@ def test_source_ttl_defaults_cover_every_source(monkeypatch):
         "flood_soil",
         "noise",
         "comparables",
+        "commute",
     }
 
 

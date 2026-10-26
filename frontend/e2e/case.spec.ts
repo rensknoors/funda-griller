@@ -35,7 +35,7 @@ test("dossier shows bronnen: official energielabel, third-party WOZ, coverage an
   await page.goto("/");
   await page.getByRole("button", { name: "Buchterweg 15" }).click();
 
-  await expect(page.getByText(/5 bronnen: 3 gelukt, 0 mislukt, 2 overgeslagen/)).toBeVisible();
+  await expect(page.getByText(/6 bronnen: 3 gelukt, 0 mislukt, 3 overgeslagen/)).toBeVisible();
   await expect(page.getByLabel(/Bron: Energielabelregister, opgehaald/)).toBeVisible();
   await expect(page.getByText("Nee: advertentie B, register A")).toBeVisible();
   await expect(page.getByText("WOZ-waarde 2025")).toBeVisible();

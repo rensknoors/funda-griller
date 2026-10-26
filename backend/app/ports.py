@@ -2,7 +2,7 @@
 downloaders. Everything that touches the network sits behind one."""
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Literal, Protocol
 
 
 class ListingError(Exception):
@@ -108,6 +108,33 @@ class LlmClient(Protocol):
         ...
 
 
+# (latitude, longitude) in WGS84.
+Coordinates = tuple[float, float]
+
+
+class Geocoder(Protocol):
+    def geocode(self, address: str) -> Coordinates | None:
+        """Where a Dutch address is, or None when it is not found. Raises SourceFailed."""
+        ...
+
+
+CommuteMode = Literal["car", "bike"]
+
+
+class TravelTimeRouter(Protocol):
+    def check_available(self) -> None:
+        """Raises SourceSkipped when the router cannot be used (e.g. no API key). Called before any
+        address is geocoded, so a skipped commute Source sends no address anywhere."""
+        ...
+
+    def travel_minutes(
+        self, origin: Coordinates, destinations: list[Coordinates], mode: CommuteMode
+    ) -> list[float | None]:
+        """Minutes from `origin` to each destination by `mode`, None where there is no route.
+        Raises SourceSkipped (e.g. no API key) or SourceFailed."""
+        ...
+
+
 class PhotoDownloader(Protocol):
     def download(self, url: str) -> bytes:
         """One Listing photo's bytes. Any exception means that photo is unavailable."""
@@ -127,3 +154,7 @@ class Ports:
     llm_client: LlmClient | None = None
     photo_downloader: PhotoDownloader | None = None
     document_downloader: DocumentDownloader | None = None
+    # The commute Source runs only with both: the destination address goes to the geocoder alone,
+    # the router sees coordinates only.
+    geocoder: Geocoder | None = None
+    router: TravelTimeRouter | None = None

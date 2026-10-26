@@ -4,8 +4,9 @@
 #
 # Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
 # facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
-# affordability), `renovation_tolerance` (Buyer Profile), Observations from the Listing photos
-# as `observation.<key>` (estimated by the vision model; keys in app/observations.py) and Findings
+# affordability), `renovation_tolerance` and `commute_destinations` (Buyer Profile labels and
+# `max_minutes`, never addresses), commute travel times as `commute.travel_minutes:<label>`,
+# Observations from the Listing photos as `observation.<key>` (estimated by the vision model; keys in app/observations.py) and Findings
 # from Documents as `finding.<topic>` (true when the seller states it applies; a disclosure wins
 # over a denial; topics in app/findings.py). A list of keys means "first one present", so an
 # official register value wins over the Listing's claim. A rule whose facts are absent raises
@@ -14,7 +15,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 7
+version = 9
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -113,6 +114,18 @@ kind = "above"
 fact = "noise.lden_all_sources_db"
 threshold = 60
 deal_breaker_aliases = ["geluid", "lawaai", "drukke weg"]
+
+# Commute (OpenRouteService over OpenStreetMap): one Flag per Buyer Profile commute destination
+# whose travel time is above its `max_minutes`. The faster of car and bike counts; public transport
+# is not included. Destinations without a maximum raise nothing.
+[[rules]]
+id = "commute_too_long"
+version = 2
+class = "con"
+title = "Reistijd boven je maximum"
+kind = "over_max_minutes"
+fact = "commute.travel_minutes"
+deal_breaker_aliases = ["te ver", "reistijd"]
 
 # Findings: what the seller states in a Document (Vragenlijst, Lijst van zaken, brochure). The
 # Flag cites the Finding with its Document and page.

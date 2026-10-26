@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from app.ports import DownloadFailed, Listing, SourceFact
+from app.ports import CommuteMode, Coordinates, DownloadFailed, Listing, SourceFact
 
 
 class FakeListingProvider:
@@ -120,3 +120,44 @@ class FakeDocumentDownloader:
         if isinstance(result, Exception):
             raise result
         return result
+
+
+class FakeGeocoder:
+    """`places` maps an address to its (latitude, longitude); an unlisted address is not found.
+    `error` is raised when set. Every lookup is recorded."""
+
+    def __init__(self) -> None:
+        self.places: dict[str, Coordinates] = {}
+        self.error: Exception | None = None
+        self.calls: list[str] = []
+
+    def geocode(self, address: str) -> Coordinates | None:
+        self.calls.append(address)
+        if self.error is not None:
+            raise self.error
+        return self.places.get(address)
+
+
+class FakeTravelTimeRouter:
+    """`minutes` maps (mode, destination) to the travel minutes from any origin; an unlisted pair
+    is unroutable. `error` is raised by a request when set, `unavailable` by the availability
+    check (e.g. SourceSkipped("no_api_key")). Every request is recorded."""
+
+    def __init__(self) -> None:
+        self.minutes: dict[tuple[CommuteMode, Coordinates], float] = {}
+        self.error: Exception | None = None
+        self.unavailable: Exception | None = None
+        self.calls: list[tuple[Coordinates, list[Coordinates], CommuteMode]] = []
+
+    def check_available(self) -> None:
+        if self.unavailable is not None:
+            raise self.unavailable
+
+    def travel_minutes(
+        self, origin: Coordinates, destinations: list[Coordinates], mode: CommuteMode
+    ) -> list[float | None]:
+        self.check_available()
+        self.calls.append((origin, list(destinations), mode))
+        if self.error is not None:
+            raise self.error
+        return [self.minutes.get((mode, destination)) for destination in destinations]

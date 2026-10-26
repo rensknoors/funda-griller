@@ -1,6 +1,8 @@
 """Comparables: nearby Listings fetched on request, the asking price set against them, and the
 Walk-away Maximum grounded in them as well as in affordability."""
 
+import pytest
+
 from app.ports import SourceFact
 
 from tests.listing_fixtures import LIVE_URL, live_listing
@@ -51,17 +53,14 @@ def with_comparables(client, listing_provider, source_clients, facts):
     return client.post(FETCH_COMPARABLES)
 
 
-def bid(walk_away):
+def bid(opening_bid=580_000, **extra):
+    """The model's answer: tier, reasoning, an opening bid and conditions, never a Walk-away Maximum."""
     return {
         "tier": "consider",
         "summary": "Prima woning.",
         "reasoning": "Past bij de wensen.",
         "cited_flags": [],
-        "bid_advice": {
-            "opening_bid": 580_000,
-            "walk_away_maximum": walk_away,
-            "conditions": ["Financieringsvoorbehoud"],
-        },
+        "bid_advice": {"opening_bid": opening_bid, "conditions": ["Financieringsvoorbehoud"], **extra},
     }
 
 
@@ -141,31 +140,15 @@ def test_the_comparison_row_shows_asking_vs_comparables(client, listing_provider
     assert row["comparison"]["asking_vs_comparables_percent"] == -2.1
 
 
-def test_walk_away_maximum_above_what_comparables_support_is_rejected(
-    client, listing_provider, source_clients, llm_client
-):
+def test_sufficient_comparables_derive_the_walk_away_maximum(client, listing_provider, source_clients, llm_client):
     with_comparables(client, listing_provider, source_clients, SEVERAL)
     client.put("/api/buyer-profile", json=typical_profile())
-    # Comparables put the house at 608_000; at most 10% above that is 668_800.
-    llm_client.verdict = bid(680_000)
-
-    rejected = client.post(VERDICT)
-
-    assert rejected.status_code == 502
-    assert rejected.json()["problems"] == ["walk_away_maximum_above_comparables"]
-    assert client.get(VERDICT).json()["verdicts"] == []
-
-
-def test_walk_away_maximum_within_comparables_and_affordability_shows_both_inputs(
-    client, listing_provider, source_clients, llm_client
-):
-    with_comparables(client, listing_provider, source_clients, SEVERAL)
-    client.put("/api/buyer-profile", json=typical_profile())
-    llm_client.verdict = bid(650_000)
+    llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    assert advice["walk_away_maximum"] == 650_000
+    # Comparables put the house at 608_000; 10% above that is 668_800, below affordability.
+    assert advice["walk_away_maximum"] == 668_800
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM
     assert advice["comparables"] == {
         "coverage": "sufficient",
@@ -173,40 +156,119 @@ def test_walk_away_maximum_within_comparables_and_affordability_shows_both_input
         "comparables_value": 608_000,
         "maximum": 668_800,
     }
-    # The model is told both limits before it answers.
+    assert advice["derivation"] == {
+        "basis": "comparables",
+        "margin": 0.10,
+        "basis_maximum": 668_800,
+        "binding": "basis",
+        "weakly_grounded": False,
+    }
+    # The model is told the derived figure before it answers.
     [(sent_case, _)] = llm_client.rate_calls
-    assert sent_case["bid_limits"] == {"affordable_maximum": AFFORDABLE_MAXIMUM, "comparables_maximum": 668_800}
+    assert sent_case["walk_away"]["walk_away_maximum"] == 668_800
 
 
-def test_thin_comparables_leave_the_walk_away_maximum_bounded_by_affordability_alone(
+def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_more(
+    client, listing_provider, source_clients, llm_client
+):
+    # 800_000 for 150 m² each: comparables put the house at 810_667, plus 10% far above affordability.
+    pricey = [comparable(str(i), 800_000, 150) for i in (101, 102, 103)]
+    with_comparables(client, listing_provider, source_clients, pricey)
+    client.put("/api/buyer-profile", json=typical_profile())
+    llm_client.verdict = bid()
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["walk_away_maximum"] == AFFORDABLE_MAXIMUM
+    assert advice["derivation"]["basis"] == "comparables"
+    assert advice["derivation"]["binding"] == "affordability"
+    assert advice["derivation"]["basis_maximum"] > AFFORDABLE_MAXIMUM
+
+
+@pytest.mark.parametrize(
+    ("facts", "coverage"),
+    [([comparable("101", 500_000, 125)], "thin"), ([], "none"), (None, "not_fetched")],
+)
+def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_the_asking_price(
+    client, listing_provider, source_clients, llm_client, facts, coverage
+):
+    if facts is None:
+        capture(client, listing_provider)
+    else:
+        with_comparables(client, listing_provider, source_clients, facts)
+    client.put("/api/buyer-profile", json=typical_profile())
+    llm_client.verdict = bid()
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    # Asking 595_000 plus the default 5% margin; the thin comparables value is not used.
+    assert advice["walk_away_maximum"] == 624_750
+    assert advice["comparables"]["coverage"] == coverage
+    assert advice["comparables"]["maximum"] is None
+    assert advice["derivation"] == {
+        "basis": "asking_price",
+        "margin": 0.05,
+        "basis_maximum": 624_750,
+        "binding": "basis",
+        "weakly_grounded": True,
+    }
+
+
+def test_with_neither_comparables_nor_an_asking_price_only_affordability_bounds_the_walk_away_maximum(
+    client, listing_provider, llm_client
+):
+    listing_provider.listings[LIVE_URL] = live_listing(asking_price=None)
+    client.post("/api/listings", json={"url": LIVE_URL})
+    client.put("/api/buyer-profile", json=typical_profile())
+    llm_client.verdict = bid()
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["walk_away_maximum"] == AFFORDABLE_MAXIMUM
+    assert advice["derivation"] == {
+        "basis": "affordability",
+        "margin": None,
+        "basis_maximum": None,
+        "binding": "affordability",
+        "weakly_grounded": True,
+    }
+
+
+def test_the_asking_price_margin_comes_from_configuration(
+    client, listing_provider, source_clients, settings, llm_client
+):
+    settings.walk_away_asking_price_margin = 0.08
+    with_comparables(client, listing_provider, source_clients, [])
+    client.put("/api/buyer-profile", json=typical_profile())
+    llm_client.verdict = bid()
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["walk_away_maximum"] == 642_600
+
+
+def test_a_walk_away_maximum_from_the_model_is_ignored(client, listing_provider, source_clients, llm_client):
+    with_comparables(client, listing_provider, source_clients, SEVERAL)
+    client.put("/api/buyer-profile", json=typical_profile())
+    llm_client.verdict = bid(walk_away_maximum=700_000)
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["walk_away_maximum"] == 668_800
+
+
+def test_an_opening_bid_above_the_derived_walk_away_maximum_is_rejected(
     client, listing_provider, source_clients, llm_client
 ):
     with_comparables(client, listing_provider, source_clients, [comparable("101", 500_000, 125)])
     client.put("/api/buyer-profile", json=typical_profile())
-    llm_client.verdict = bid(700_000)
-
-    advice = client.post(VERDICT).json()["bid_advice"]
-
-    assert advice["walk_away_maximum"] == 700_000
-    assert advice["comparables"] == {
-        "coverage": "thin",
-        "count": 1,
-        "comparables_value": 608_000,
-        "maximum": None,
-    }
-
-
-def test_walk_away_maximum_never_exceeds_affordability_even_when_comparables_allow_more(
-    client, listing_provider, source_clients, llm_client
-):
-    pricey = [comparable(str(i), 800_000, 150) for i in (101, 102, 103)]
-    with_comparables(client, listing_provider, source_clients, pricey)
-    client.put("/api/buyer-profile", json=typical_profile())
-    llm_client.verdict = bid(720_000)
+    llm_client.verdict = bid(opening_bid=630_000)
 
     rejected = client.post(VERDICT)
 
-    assert rejected.json()["problems"] == ["walk_away_maximum_above_affordability"]
+    assert rejected.status_code == 502
+    assert rejected.json()["problems"] == ["opening_bid_above_walk_away_maximum"]
+    assert client.get(VERDICT).json()["verdicts"] == []
 
 
 def test_fetching_comparables_makes_an_earlier_verdict_out_of_date(
@@ -214,7 +276,7 @@ def test_fetching_comparables_makes_an_earlier_verdict_out_of_date(
 ):
     capture(client, listing_provider)
     client.put("/api/buyer-profile", json=typical_profile())
-    llm_client.verdict = bid(650_000)
+    llm_client.verdict = bid()
     client.post(VERDICT)
 
     source_clients["comparables"].facts = SEVERAL

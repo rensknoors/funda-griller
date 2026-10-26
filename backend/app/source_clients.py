@@ -1,6 +1,7 @@
 """Production Source clients: energielabel from the EP-Online register, WOZ from pyfunda's
 third-party (Walter Living) price history, flood and soil risk from the Klimaateffectatlas and noise
-from RIVM's Atlas Leefomgeving. Each fetches for one Listing; nothing bulk-fetches."""
+from RIVM's Atlas Leefomgeving. Each fetches for one Listing; nothing bulk-fetches. Also the commute
+Source's two ports: PDOK's Locatieserver geocodes destination addresses, OpenRouteService routes."""
 
 import json
 import re
@@ -12,20 +13,25 @@ from urllib.parse import urlencode
 
 from funda.exceptions import FundaRequestError, ListingNotFound, PriceHistoryError
 
-from app.ports import Listing, SourceFact, SourceFailed, SourceSkipped
+from app.ports import CommuteMode, Coordinates, Listing, SourceFact, SourceFailed, SourceSkipped
 
 EP_ONLINE_URL = "https://public.ep-online.nl/api/v5/PandEnergielabel/Adres"
 
 HttpGet = Callable[[str, dict], tuple[int, Any]]
 
 
-def _http_get_json(url: str, headers: dict) -> tuple[int, Any]:
-    request = urllib.request.Request(url, headers={**headers, "Accept": "application/json"})
+def _open_json(request: urllib.request.Request, timeout: float) -> tuple[int, Any]:
+    """Status and decoded JSON body; an HTTP error status comes back with no body."""
+    request.add_header("Accept", "application/json")
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, json.load(response)
     except urllib.error.HTTPError as error:
         return error.code, None
+
+
+def _http_get_json(url: str, headers: dict) -> tuple[int, Any]:
+    return _open_json(urllib.request.Request(url, headers=headers), timeout=15)
 
 
 class EpOnlineEnergielabelSource:
@@ -179,6 +185,85 @@ class RivmNoiseSource:
             if isinstance(level, int | float) and level > 0:
                 facts.append(SourceFact(name, round(level), RIVM_NOISE_YEAR))
         return facts
+
+
+PDOK_LOCATIESERVER_URL = "https://api.pdok.nl/bzk/locatieserver/search/v3_1/free"
+_POINT = re.compile(r"POINT\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)")
+
+
+class PdokGeocoder:
+    """Commute destination addresses to coordinates through PDOK's Locatieserver: a government
+    service needing no account, so the private address goes to no commercial party."""
+
+    def __init__(self, http_get: HttpGet = _http_get_json) -> None:
+        self._http_get = http_get
+
+    def geocode(self, address: str) -> Coordinates | None:
+        query = {"q": address, "fq": "type:adres", "rows": 1, "fl": "centroide_ll"}
+        try:
+            status, payload = self._http_get(f"{PDOK_LOCATIESERVER_URL}?{urlencode(query)}", {})
+        except OSError as error:
+            raise SourceFailed("unreachable") from error
+        if status != 200 or not isinstance(payload, dict):
+            raise SourceFailed(f"http_{status}")
+        docs = (payload.get("response") or {}).get("docs") or []
+        match = _POINT.match(str(docs[0].get("centroide_ll", ""))) if docs else None
+        if match is None:
+            return None
+        lon, lat = float(match.group(1)), float(match.group(2))
+        return lat, lon
+
+
+HttpPost = Callable[[str, dict, dict], tuple[int, Any]]
+
+
+def _http_post_json(url: str, headers: dict, body: dict) -> tuple[int, Any]:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={**headers, "Content-Type": "application/json"},
+    )
+    return _open_json(request, timeout=20)
+
+
+OPENROUTESERVICE_MATRIX_URL = "https://api.openrouteservice.org/v2/matrix"
+# ORS routing profiles per commute mode. ORS has no public transport.
+OPENROUTESERVICE_PROFILES = {"car": "driving-car", "bike": "cycling-regular"}
+
+
+class OpenRouteServiceRouter:
+    """Travel times from OpenRouteService's matrix API (HeiGIT, over OpenStreetMap): one request
+    per mode for all destinations. Needs an API key (free Standard plan: 500 matrix requests a
+    day); only coordinates are sent."""
+
+    def __init__(self, api_key: str | None, http_post: HttpPost = _http_post_json) -> None:
+        self._api_key = api_key
+        self._http_post = http_post
+
+    def check_available(self) -> None:
+        if not self._api_key:
+            raise SourceSkipped("no_api_key")
+
+    def travel_minutes(
+        self, origin: Coordinates, destinations: list[Coordinates], mode: CommuteMode
+    ) -> list[float | None]:
+        self.check_available()
+        body = {
+            "locations": [[lon, lat] for lat, lon in [origin, *destinations]],
+            "sources": [0],
+            "destinations": list(range(1, len(destinations) + 1)),
+            "metrics": ["duration"],
+        }
+        url = f"{OPENROUTESERVICE_MATRIX_URL}/{OPENROUTESERVICE_PROFILES[mode]}"
+        try:
+            status, payload = self._http_post(url, {"Authorization": self._api_key}, body)
+        except OSError as error:
+            raise SourceFailed("unreachable") from error
+        durations = payload.get("durations") if isinstance(payload, dict) else None
+        if status != 200 or not durations or len(durations[0]) != len(destinations):
+            raise SourceFailed(f"http_{status}")
+        return [seconds / 60 if isinstance(seconds, int | float) else None for seconds in durations[0]]
 
 
 class PyfundaWozSource:

@@ -12,6 +12,8 @@ VERDICT = "/api/listings/80907644/verdict"
 
 # The typical household can pay at most 704_519 for the live Listing (asking 595_000, headroom 109_519).
 AFFORDABLE_MAXIMUM = 704_519
+# Without comparables the Walk-away Maximum is the asking price plus the default 5% margin.
+WALK_AWAY_MAXIMUM = 624_750
 
 
 def model_says(tier="consider", **overrides):
@@ -22,7 +24,6 @@ def model_says(tier="consider", **overrides):
         "cited_flags": [],
         "bid_advice": {
             "opening_bid": 585_000,
-            "walk_away_maximum": 625_000,
             "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
         },
         **overrides,
@@ -46,7 +47,7 @@ def test_a_verdict_carries_a_tier_reasoning_and_bid_advice(client, listing_provi
     assert verdict["tier"] == "must_buy"
     assert verdict["reasoning"].startswith("De woning past")
     assert verdict["bid_advice"]["opening_bid"] == 585_000
-    assert verdict["bid_advice"]["walk_away_maximum"] == 625_000
+    assert verdict["bid_advice"]["walk_away_maximum"] == WALK_AWAY_MAXIMUM
     assert verdict["bid_advice"]["affordable_maximum"] == AFFORDABLE_MAXIMUM
     assert verdict["bid_advice"]["conditions"] == ["Financieringsvoorbehoud", "Bouwkundige keuring"]
     assert verdict["deterministic"] is False
@@ -62,21 +63,11 @@ def test_a_verdict_carries_a_tier_reasoning_and_bid_advice(client, listing_provi
         (model_says(bid_advice=None), "bid_advice_missing"),
         (model_says(cited_flags=["made_up_flag"]), "unknown_flag_cited"),
         (
-            model_says(bid_advice={"opening_bid": 600_000, "walk_away_maximum": 590_000, "conditions": []}),
+            model_says(bid_advice={"opening_bid": WALK_AWAY_MAXIMUM + 1, "conditions": []}),
             "opening_bid_above_walk_away_maximum",
         ),
         (
-            model_says(
-                bid_advice={
-                    "opening_bid": 595_000,
-                    "walk_away_maximum": AFFORDABLE_MAXIMUM + 1,
-                    "conditions": [],
-                }
-            ),
-            "walk_away_maximum_above_affordability",
-        ),
-        (
-            model_says(bid_advice={"opening_bid": "veel", "walk_away_maximum": 600_000, "conditions": []}),
+            model_says(bid_advice={"opening_bid": "veel", "conditions": []}),
             "bid_advice_invalid",
         ),
         ("not json at all", "not_an_object"),
@@ -96,11 +87,9 @@ def test_an_invalid_model_answer_is_rejected_and_reported(
     assert client.get(VERDICT).json()["verdicts"] == []
 
 
-def test_a_walk_away_maximum_exactly_at_affordability_is_accepted(client, listing_provider, llm_client):
+def test_an_opening_bid_exactly_at_the_walk_away_maximum_is_accepted(client, listing_provider, llm_client):
     prepare(client, listing_provider)
-    llm_client.verdict = model_says(
-        bid_advice={"opening_bid": 595_000, "walk_away_maximum": AFFORDABLE_MAXIMUM, "conditions": []}
-    )
+    llm_client.verdict = model_says(bid_advice={"opening_bid": WALK_AWAY_MAXIMUM, "conditions": []})
 
     assert client.post(VERDICT).status_code == 201
 

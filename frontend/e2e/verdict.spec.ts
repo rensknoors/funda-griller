@@ -31,10 +31,13 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   const advies = page.getByRole("region", { name: "Biedadvies" });
   await expect(advies.getByText("Openingsbod")).toBeVisible();
   await expect(advies.getByText("€ 580.000")).toBeVisible();
-  await expect(advies.getByText("€ 615.000")).toBeVisible();
+  // No vergelijkbare woningen fetched: the Maximumbod is the vraagprijs plus 5%, and says it is weak.
+  await expect(advies.getByText("€ 624.750", { exact: true })).toBeVisible();
+  await expect(advies.getByText(/Zwak onderbouwd: te weinig vergelijkbare woningen/)).toBeVisible();
   await expect(advies.getByText("Bouwkundige keuring")).toBeVisible();
   await advies.getByText("Hoe berekend").click();
   await expect(advies.getByText("Betaalruimte: tot € 704.519")).toBeVisible();
+  await expect(advies.getByText("Vraagprijs € 595.000 + 5%: € 624.750")).toBeVisible();
   const redenering = page.getByRole("region", { name: "Redenering" });
   await expect(redenering.getByRole("button", { name: /Vraagprijs ver boven de WOZ-waarde/ })).toBeVisible();
   await expect(page.getByText(/Koperprofiel versie \d+/).first()).toBeVisible();

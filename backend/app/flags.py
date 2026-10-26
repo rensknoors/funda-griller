@@ -233,6 +233,21 @@ def _deal_breaker_energy_label(rule: dict, facts: dict[str, dict], _: RuleSet) -
     return hits
 
 
+def _over_max_minutes(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
+    """One hit per Buyer Profile commute destination whose travel time (the rule's fact, keyed
+    `<fact>:<label>`) is above the destination's `max_minutes`. No limit, no travel time: no hit."""
+    destinations = facts.get("commute_destinations")
+    hits: list[Hit] = []
+    for destination in destinations["value"] if destinations else []:
+        label, limit = destination["label"], destination["max_minutes"]
+        travel = facts.get(f"{rule['fact']}:{label}")
+        if limit is None or travel is None or travel["value"] <= limit:
+            continue
+        threshold = {"key": "max_minutes", "value": limit, "provenance": "buyer_profile"}
+        hits.append((label, [travel, threshold]))
+    return hits
+
+
 _CONDITIONS: dict[str, Condition] = {
     "label_worse_than": _label_worse_than,
     "label_at_least": _label_at_least,
@@ -244,6 +259,7 @@ _CONDITIONS: dict[str, Condition] = {
     "must_have_missing": _must_have_missing,
     "deal_breaker_mentioned": _deal_breaker_mentioned,
     "deal_breaker_energy_label": _deal_breaker_energy_label,
+    "over_max_minutes": _over_max_minutes,
 }
 
 # Condition kinds that raise one Flag per Buyer Profile deal-breaker they find hit.

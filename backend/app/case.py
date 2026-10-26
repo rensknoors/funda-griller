@@ -34,6 +34,8 @@ SOURCE_TRUST = {
     "flood_soil": "official",
     "noise": "official",
     "comparables": "third_party",
+    # OpenRouteService travel times over OpenStreetMap: a model of the road network, not a register.
+    "commute": "third_party",
 }
 
 
@@ -73,7 +75,9 @@ def build_case(
     source_runs = sources.runs
     today = now.date()
     computed_at = now.isoformat()
-    source_facts = _source_facts(source_runs, sources.ttl_days, now)
+    source_facts, commute_coverage = _current_commute(
+        _source_facts(source_runs, sources.ttl_days, now), profile, "commute" in sources.names
+    )
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
     register_label = _value(source_facts, "energielabel", "energy_label")
     # The register's label, when known, outranks the Listing's claim.
@@ -131,6 +135,7 @@ def build_case(
                 "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
                 "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
                 "asking_vs_comparables": vs_comparables,
+                "commute_coverage": commute_coverage,
             }.items()
         },
         "affordability": affordability,
@@ -246,6 +251,29 @@ def _source_facts(source_runs: dict[str, dict], ttl_days: dict[str, int], now: d
     return facts
 
 
+def _current_commute(
+    facts: list[dict], profile: BuyerProfile | None, configured: bool
+) -> tuple[list[dict], dict | None]:
+    """A commute travel time counts only for a current Buyer Profile destination at the address it
+    was computed for: one for a removed destination or an older address leaves the Case, and a
+    destination without one is listed as not fetched, so it is never judged on an old figure. The
+    address fingerprint stays out of the Case."""
+    refs = {d.label: d.address_ref for d in profile.commute_destinations} if profile else {}
+    current, fetched = [], set()
+    for fact in facts:
+        if fact["source"] != "commute" or fact["key"] != "travel_minutes":
+            current.append(fact)
+            continue
+        travel = dict(fact["value"])
+        label, address_ref = travel["destination"], travel.pop("address_ref", None)
+        if label in refs and refs[label] == address_ref:
+            fetched.add(label)
+            current.append({**fact, "value": travel})
+    not_fetched = [label for label in refs if label not in fetched]
+    coverage = {"not_fetched": not_fetched, "provenance": "computed"} if configured and not_fetched else None
+    return current, coverage
+
+
 def _observation_facts(run: dict | None, photos: list[dict]) -> list[dict]:
     """Observations as Case facts: estimated, each citing the photos it was read from."""
     if run is None:
@@ -295,6 +323,18 @@ def _rule_inputs(
         (f for f in facts if f["provenance"] == "source"), key=lambda f: f["as_of"] or ""
     ):
         inputs[f"{fact['source']}.{fact['key']}"] = fact
+    # Commute travel times, one per destination, are keyed `commute.travel_minutes:<label>`, with
+    # the faster mode's minutes as the value and the travel time (modes included) beside it.
+    # Unknown ones (address not found, no route) are left out: they raise nothing.
+    for fact in facts:
+        if fact["provenance"] == "source" and fact["source"] == "commute" and fact["key"] == "travel_minutes":
+            travel = fact["value"]
+            if travel["minutes"] is not None:
+                inputs[f"commute.travel_minutes:{travel['destination']}"] = {
+                    **fact,
+                    "value": travel["minutes"],
+                    "commute": travel,
+                }
     # Observations are keyed `observation.<key>` (e.g. `observation.damp_or_mould`).
     for fact in facts:
         if fact["provenance"] == "observation":
@@ -331,4 +371,10 @@ def _rule_inputs(
         }
         for key in ("must_haves", "deal_breakers"):
             inputs[key] = {"key": key, "value": getattr(profile, key), "provenance": "buyer_profile"}
+        # Labels and limits only: the destination address stays out of the Case.
+        inputs["commute_destinations"] = {
+            "key": "commute_destinations",
+            "value": [{"label": d.label, "max_minutes": d.max_minutes} for d in profile.commute_destinations],
+            "provenance": "buyer_profile",
+        }
     return inputs
