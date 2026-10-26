@@ -3,7 +3,7 @@
 
 import type { CaseFact, Evidence, Flag, FlagClass, FindingFact, HardNo } from "./api";
 import { FINDING_LABELS } from "./Documenten";
-import { ENVIRONMENT_FACTS, FACT_LABELS, PROVENANCE_LABELS, formatNumber } from "./facts";
+import { ENVIRONMENT_FACTS, FACT_LABELS, PROVENANCE_LABELS, commuteText, formatNumber } from "./facts";
 import { OBSERVATION_LABELS, observationValue, photoList } from "./FotoWaarnemingen";
 
 const EVIDENCE_LABELS: Record<string, string> = {
@@ -20,6 +20,7 @@ const EVIDENCE_LABELS: Record<string, string> = {
   ...OBSERVATION_LABELS,
   deal_breaker: "Deal-breaker",
   named_energy_labels: "Genoemde energielabels",
+  max_minutes: "Maximale reistijd",
 };
 
 const FLAG_BANDS: { flagClass: FlagClass; glyph: string; label: string }[] = [
@@ -115,7 +116,7 @@ function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
       : 0;
   return (
     <li>
-      {evidenceLabel(item.key)}: <strong>{evidenceValue(item)}</strong>{" "}
+      {evidenceLabel(item)}: <strong>{evidenceValue(item)}</strong>{" "}
       <span className="muted">
         ({PROVENANCE_LABELS[item.provenance] ?? item.provenance}
         {item.photos && item.photos.length > 0 && <>, foto {photoList(item.photos)}</>})
@@ -130,13 +131,16 @@ function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
   );
 }
 
-function evidenceLabel(key: string): string {
+function evidenceLabel(item: Evidence): string {
+  const key = item.key;
+  if (item.commute) return `Reistijd naar ${item.commute.destination}`;
   if (key.endsWith("_mentioned")) return `‘${key.slice(0, -"_mentioned".length)}’ genoemd in advertentie`;
   return EVIDENCE_LABELS[key] ?? key;
 }
 
 function evidenceValue(item: Evidence): string {
   if (item.provenance === "observation") return observationValue(item.key, item.value);
+  if (item.commute) return commuteText(item.commute);
   if (typeof item.value === "boolean") return item.value ? "ja" : "nee";
   if (item.value === null) return "–";
   if (Array.isArray(item.value)) return item.value.join(", ");

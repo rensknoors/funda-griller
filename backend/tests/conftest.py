@@ -55,13 +55,32 @@ def document_downloader():
 
 
 @pytest.fixture
+def geocoder():
+    """No commute Source unless a test module provides a geocoder and a router."""
+    return None
+
+
+@pytest.fixture
+def router():
+    return None
+
+
+@pytest.fixture
 def clock():
     return FakeClock(datetime(2026, 10, 24, 12, 0, tzinfo=UTC))
 
 
 @pytest.fixture
 def client(
-    settings, listing_provider, source_clients, llm_client, photo_downloader, document_downloader, clock
+    settings,
+    listing_provider,
+    source_clients,
+    llm_client,
+    photo_downloader,
+    document_downloader,
+    geocoder,
+    router,
+    clock,
 ):
     ports = Ports(
         listing_provider=listing_provider,
@@ -69,6 +88,8 @@ def client(
         llm_client=llm_client,
         photo_downloader=photo_downloader,
         document_downloader=document_downloader,
+        geocoder=geocoder,
+        router=router,
     )
     with TestClient(create_app(settings, ports, clock)) as test_client:
         yield test_client

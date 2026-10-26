@@ -1,7 +1,7 @@
 /** How Case facts are labelled and shown: the Dutch label per fact key, the herkomst word per
  * provenance class, and number formats per kind of fact. */
 
-import type { CaseFact } from "./api";
+import type { CaseFact, CommuteFact, CommuteMode, CommuteUnknown } from "./api";
 import { decimal, euro, percentChange } from "./format";
 import { statusLabel } from "./ListingsTable";
 
@@ -54,11 +54,36 @@ export const PROVENANCE_LABELS: Record<string, string> = {
 export function formatNumber(key: string, value: number): string {
   if (MONEY_FACTS.has(key)) return euro.format(value);
   if (key === "threshold") return decimal.format(value);
+  if (key === "max_minutes") return `${value} min`;
   if (key === "asking_vs_comparables_percent") return `${percentChange.format(value)}%`;
   return ENVIRONMENT_FACTS[key]?.format(value) ?? String(value);
 }
 
+const MODE_LABELS: Record<CommuteMode, string> = { car: "auto", bike: "fiets" };
+
+const COMMUTE_UNAVAILABLE: Record<CommuteUnknown["unavailable"], string> = {
+  destination_not_found: "adres niet gevonden",
+  no_route: "geen route gevonden",
+};
+
+/** A commute travel time with the modes stated: "38 min met de auto (fiets 95 min), openbaar
+ * vervoer niet meegerekend"; or why it is unknown. */
+export function commuteText(travel: CommuteFact): string {
+  if (travel.minutes === null) return `onbekend: ${COMMUTE_UNAVAILABLE[travel.unavailable]}`;
+  const { minutes, mode, minutes_by_mode: byMode } = travel;
+  const others = (Object.keys(byMode) as CommuteMode[])
+    .filter((other) => other !== mode)
+    .map((other) => `${MODE_LABELS[other]} ${byMode[other]} min`);
+  const rest = others.length > 0 ? ` (${others.join(", ")})` : "";
+  return `${minutes} min met de ${MODE_LABELS[mode]}${rest}, openbaar vervoer niet meegerekend`;
+}
+
+export function isCommuteFact(value: unknown): value is CommuteFact {
+  return typeof value === "object" && value !== null && "destination" in value && "minutes" in value;
+}
+
 export function formatValue(fact: CaseFact): string {
+  if (isCommuteFact(fact.value)) return commuteText(fact.value);
   if (fact.key === "status" && typeof fact.value === "string") return statusLabel(fact.value, fact.value);
   return typeof fact.value === "number" ? formatNumber(fact.key, fact.value) : String(fact.value);
 }

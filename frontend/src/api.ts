@@ -145,9 +145,30 @@ export type Comparable = {
   url: string | null;
 };
 
+export type CommuteMode = "car" | "bike";
+
+/** Travel time to one Koperprofiel commute destination: the faster of car and bike counts; public
+ * transport is not included. */
+export type CommuteTravel = {
+  destination: string;
+  minutes: number;
+  mode: CommuteMode;
+  minutes_by_mode: Partial<Record<CommuteMode, number>>;
+  public_transport: false;
+};
+
+/** A commute destination the Source could not place or route: shown as unknown, never judged. */
+export type CommuteUnknown = {
+  destination: string;
+  minutes: null;
+  unavailable: "destination_not_found" | "no_route";
+};
+
+export type CommuteFact = CommuteTravel | CommuteUnknown;
+
 export type SourceFact = {
   key: string;
-  value: string | number | Comparable;
+  value: string | number | Comparable | CommuteFact;
   as_of: string | null;
   provenance: "source";
   source: string;
@@ -249,6 +270,9 @@ export type Metrics = {
     provenance: "computed";
   } | null;
   asking_vs_comparables: AskingVsComparables;
+  /** Koperprofiel commute destinations with no travel time for their current address (added, or
+   * address changed since the last fetch): not judged until the commute Source is fetched again. */
+  commute_coverage: { not_fetched: string[]; provenance: "computed" } | null;
 };
 
 /** Coverage says plainly whether comparables were fetched and whether there are enough to lean on. */
@@ -294,6 +318,8 @@ export type Evidence = {
   /** Observations only: estimated, with the photos they were read from. */
   estimated?: boolean;
   photos?: CasePhoto[];
+  /** Commute travel time only: the destination and the modes behind `value`. */
+  commute?: CommuteTravel;
 };
 
 export type FlagClass = "pro" | "con" | "risk";
@@ -387,6 +413,19 @@ export async function rerunObservations(fundaId: string): Promise<Case> {
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
 export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
 
+/**
+ * The Walk-away Maximum is the lower of the betaalruimte and its basis plus a margin. The basis is
+ * the comparables value when they are sufficient, else the asking price; with neither, the
+ * betaalruimte alone. Anything but comparables is weakly grounded.
+ */
+export type WalkAwayDerivation = {
+  basis: "comparables" | "asking_price" | "affordability";
+  margin: number | null;
+  basis_maximum: number | null;
+  binding: "basis" | "affordability";
+  weakly_grounded: boolean;
+};
+
 export type BidAdvice = {
   opening_bid: number;
   walk_away_maximum: number;
@@ -399,6 +438,8 @@ export type BidAdvice = {
     comparables_value: number | null;
     maximum: number | null;
   };
+  /** How the Walk-away Maximum was derived; absent on Verdicts whose model proposed it. */
+  derivation?: WalkAwayDerivation;
   asking_price: number | null;
   monthly_cost_at_asking_price: number | null;
   monthly_cost_at_walk_away_maximum: number | null;

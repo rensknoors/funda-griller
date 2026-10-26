@@ -10,10 +10,12 @@ from app.settings import Settings
 from tests.conftest import SOURCES
 from tests.fakes import (
     FakeDocumentDownloader,
+    FakeGeocoder,
     FakeListingProvider,
     FakeLlmClient,
     FakePhotoDownloader,
     FakeSourceClient,
+    FakeTravelTimeRouter,
 )
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.pdf_fixtures import make_pdf
@@ -103,8 +105,7 @@ def _rate(case: dict, _profile: dict) -> dict:
             "cited_flags": cited,
             "bid_advice": None,
         }
-    limits = case["bid_limits"]
-    walk_away = min(affordable, limits["comparables_maximum"] or affordable, asking + 20_000)
+    walk_away = case["walk_away"]["walk_away_maximum"]
     return {
         "tier": "consider",
         "summary": "Degelijke woning, de vraagprijs is aan de hoge kant.",
@@ -113,7 +114,6 @@ def _rate(case: dict, _profile: dict) -> dict:
         "cited_flags": cited,
         "bid_advice": {
             "opening_bid": min(walk_away, asking - 15_000),
-            "walk_away_maximum": walk_away,
             "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
         },
     }
@@ -163,6 +163,18 @@ _PNG = base64.b64decode(
 _photo_downloader = FakePhotoDownloader()
 _photo_downloader.photos = {url: _PNG for url in live_listing().photo_urls}
 
+# Commute: one office, 52 minutes by car and 140 by bike from any woning. Only profiles with a
+# commute destination run it; the other specs' profiles have none, so it is skipped there.
+_geocoder = FakeGeocoder()
+_geocoder.places = {"Kantoorlaan 1, Eindhoven": (51.44, 5.47)}
+_router = FakeTravelTimeRouter()
+_router.minutes = {("car", (51.44, 5.47)): 52.0, ("bike", (51.44, 5.47)): 140.0}
+# Its own woning, so the commute spec's Signaal leaves the other specs' counts alone.
+COMMUTE_URL = "https://www.funda.nl/detail/koop/holtum/huis-dorpsstraat-41/80907651/"
+_listing_provider.listings[COMMUTE_URL] = live_listing(
+    funda_id="80907651", provider_id="17270381", url=COMMUTE_URL, address="Dorpsstraat 41"
+)
+
 app = create_app(
     Settings(
         _env_file=None,
@@ -175,5 +187,7 @@ app = create_app(
         llm_client=_llm_client,
         photo_downloader=_photo_downloader,
         document_downloader=_document_downloader,
+        geocoder=_geocoder,
+        router=_router,
     ),
 )
