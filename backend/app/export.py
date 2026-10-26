@@ -181,6 +181,7 @@ FACT_LABELS = {
     "must_have": "Must-have",
     "deal_breaker": "Deal-breaker",
     "named_energy_labels": "Genoemde energielabels",
+    "renovation_direct_midpoint": "Direct nodig onderhoud (midden)",
 }
 LEVELS = {
     "good": "goed",
@@ -191,7 +192,7 @@ LEVELS = {
     "partial": "gedeeltelijk",
     "full": "volledig",
 }
-MONEY_FACTS = frozenset({"asking_price", "woz_value"})
+MONEY_FACTS = frozenset({"asking_price", "woz_value", "renovation_direct_midpoint"})
 MODES = {"car": "auto", "bike": "fiets"}
 
 
@@ -447,7 +448,8 @@ def _affordability_lines(affordability: dict) -> list[str]:
         "- Betaalbaarheid (berekend uit het Koperprofiel, afgerond):",
         f"  - Maximale hypotheek: {rounded_euro(affordability['max_mortgage'])}",
         f"  - Eigen inbreng uit overwaarde: {rounded_euro(affordability['equity'])}",
-        f"  - Betaalbaar maximum (koopsom): {rounded_euro(affordability['affordable_maximum'])}",
+        f"  - Betaalbaar maximum (koopsom): {rounded_euro(affordability['affordable_maximum'])}"
+        + _after_renovation(affordability.get("renovation_direct", 0)),
     ]
     if affordability["headroom"] is not None:
         lines.append(f"  - Ruimte onder het betaalbare maximum bij de vraagprijs: {rounded_euro(affordability['headroom'])}")
@@ -458,6 +460,11 @@ def _affordability_lines(affordability: dict) -> list[str]:
     if affordability["kosten_koper"]:
         lines.append(f"  - Kosten koper bij de vraagprijs: {euro(affordability['kosten_koper']['total'])}")
     return lines
+
+
+def _after_renovation(renovation_direct: int) -> str:
+    """The Direct nodig midpoint is a house cost, so it stays exact."""
+    return f", na aftrek van {euro(renovation_direct)} Direct nodig (Verbouwingsraming)" if renovation_direct else ""
 
 
 def comparables(export: ExportInput) -> list[str]:
@@ -531,6 +538,60 @@ def _origin(item: dict) -> str:
     }.get(origin, origin)
 
 
+URGENCY_LABELS = {"direct": "Direct nodig", "within_5_years": "Binnen 5 jaar", "optional": "Optioneel"}
+MISSING_INPUT_LABELS = {
+    "observations": "geen foto-waarnemingen",
+    "vragenlijst": "geen Vragenlijst",
+    "energielabel": "geen energielabel",
+}
+
+
+def renovation(export: ExportInput) -> list[str]:
+    """House costs, the same for every Buyer Profile, so exact. What Direct nodig does to the
+    affordable maximum and the Maximumbod lives in the profile part only."""
+    estimate = export.case["renovation_estimate"]
+    anonymiser = export.anonymiser
+    lines = [
+        "## Verbouwingsraming",
+        "",
+        "Wat de woning de komende jaren aan verbouwing kan kosten, per urgentie. Elke post is een **schatting**: "
+        "een bandbreedte uit openbare gemiddelde prijzen, alleen opgenomen als een feit uit het Dossier hem "
+        f"aanwijst (kostentabel versie {estimate['cost_table_version']}). Geen offerte.",
+    ]
+    if estimate["missing_inputs"]:
+        missing = ", ".join(MISSING_INPUT_LABELS.get(m, m) for m in estimate["missing_inputs"])
+        lines += ["", f"Niet meegenomen: {missing}. Posten die daaruit zouden volgen, ontbreken."]
+    if not estimate["items"]:
+        return [*lines, "", "Geen verbouwingsposten gevonden in de feiten van deze woning."]
+    for urgency, label in URGENCY_LABELS.items():
+        items = [item for item in estimate["items"] if item["urgency"] == urgency]
+        if not items:
+            continue
+        total = estimate["classes"][urgency]
+        midpoint = f" (midden {euro(total['midpoint'])})" if urgency == "direct" else ""
+        lines += ["", f"### {label}: {_range(total['low'], total['high'])}{midpoint}", ""]
+        for item in items:
+            notes = [
+                note
+                for note, applies in (
+                    ("onderzoek op basis van bouwjaar", item["inspection"]),
+                    ("woonoppervlak onbekend, middelgrote woning aangenomen", item["size_assumed"]),
+                )
+                if applies
+            ]
+            extra = f"; {'; '.join(notes)}" if notes else ""
+            lines.append(
+                f"- {item['label']}: {_range(item['low'], item['high'])} "
+                f"(geschat, prijspeil {item['price_year']}, bron {item['source']}{extra})"
+            )
+            lines += [f"  - {_evidence(fact, anonymiser)}" for fact in item["evidence"]]
+    return lines
+
+
+def _range(low: int, high: int) -> str:
+    return f"{euro(low)} – {euro(high)}"
+
+
 def verdict(export: ExportInput) -> list[str]:
     current = export.verdict
     lines = ["## Oordeel", ""]
@@ -583,8 +644,10 @@ def _derivation(advice: dict) -> list[str]:
     if derivation is None:
         return [*lines, "Afleiding niet bewaard bij dit oudere Oordeel."]
     if derivation["basis_maximum"] is not None:
+        renovation_direct = derivation.get("renovation_direct") or 0
+        less = f", min {euro(renovation_direct)} Direct nodig" if renovation_direct else ""
         lines.append(
-            f"- Basis: {BASES[derivation['basis']]}, plus {_number(round(derivation['margin'] * 100, 1))}% "
+            f"- Basis: {BASES[derivation['basis']]}{less}, plus {_number(round(derivation['margin'] * 100, 1))}% "
             f"= {euro(derivation['basis_maximum'])}"
         )
     else:
@@ -635,7 +698,6 @@ def buyer_profile(export: ExportInput) -> list[str]:
 
 Section = Callable[[ExportInput], list[str]]
 
-# Verbouwingsraming (ticket 21) slots in after `flags` as one more section function.
 SECTIONS: tuple[Section, ...] = (
     title,
     preamble,
@@ -645,6 +707,7 @@ SECTIONS: tuple[Section, ...] = (
     metrics,
     comparables,
     flags,
+    renovation,
     verdict,
     bid_advice,
     buyer_profile,

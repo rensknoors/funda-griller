@@ -4,7 +4,7 @@
 
 **Blocked by:** 09 (Verdict and Bid Advice)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ### Endpoint and UI
 
@@ -21,7 +21,7 @@
 - [x] Metrics: t.o.v. WOZ, t.o.v. vergelijkbaar, commute, affordability (only with the profile)
 - [x] Each Comparable listed: address, asking price, m², price per m², sold or listed
 - [x] Signalen with class, rule and evidence
-- [ ] Verbouwingsraming once ticket 21 lands (classes, totals, items) (follow-up after 21 merges)
+- [x] Verbouwingsraming once ticket 21 lands (classes, totals, items) (follow-up after 21 merges)
 - [x] Oordeel: tier and reasoning of the current Verdict only, no history; Biedadvies: Openingsbod, Maximumbod, Voorwaarden, and the Maximumbod derivation (only with the profile)
 - [x] With no Verdict, an Achterhaald Verdict or a Hard no, the export still works and says so plainly at the top
 - [x] No photos or Document files embedded or linked (spec story 81)
@@ -41,8 +41,8 @@
 
 ## Notes
 
-- Built (2026-10-26): `GET /api/listings/<id>/export.md?profile=true|false` (`app/routes/export.py`) renders `app/export.py`, a pure module (added to the import-linter purity contract). Each section is one function in `SECTIONS`; the Verbouwingsraming is one more function after `flags` once ticket 21 lands. UI: **Exporteer als Markdown** link plus the **Koperprofiel meesturen (geanonimiseerd)** checkbox in the WoningHeader, so on both Dossier and Oordeel. Tests: `backend/tests/test_export_api.py`, `frontend/e2e/export.spec.ts`.
-- Pending: Verbouwingsraming section, follow-up after ticket 21 merges. Status stays `ready-for-agent` until then.
+- Built (2026-10-26): `GET /api/listings/<id>/export.md?profile=true|false` (`app/routes/export.py`) renders `app/export.py`, a pure module (added to the import-linter purity contract). Each section is one function in `SECTIONS`. UI: **Exporteer als Markdown** link plus the **Koperprofiel meesturen (geanonimiseerd)** checkbox in the WoningHeader, so on both Dossier and Oordeel. Tests: `backend/tests/test_export_api.py`, `frontend/e2e/export.spec.ts`.
+- Verbouwingsraming (after ticket 21, 2026-10-26): `renovation` section after `flags`, under **## Verbouwingsraming**: cost table version, missing inputs ("Niet meegenomen: …"), then per urgency class with items (Direct nodig, Binnen 5 jaar, Optioneel; empty classes skipped) the class total range (Direct nodig with its midpoint), each item's range, price year, source, inspection and assumed-size notes, and its evidence rows as in Signalen. With no items it says "Geen verbouwingsposten gevonden". Amounts are house costs, the same for every profile, so they stay exact, also without the profile. The affordability effect of Direct nodig appears only in the profile part: "na aftrek van € X Direct nodig (Verbouwingsraming)" on the Betaalbaar maximum line, and "min € X Direct nodig" in the Maximumbod derivation basis; the section itself says nothing about betaalruimte. Flag evidence `renovation_direct_midpoint` reads "Direct nodig onderhoud (midden)" in euros. Tests use a test-owned cost table via `settings.renovation_costs_path`.
 - Decisions: Notices (no Verdict, Achterhaald, Hard no) are blockquotes right under the title. The Listing description sits in a fenced `text` block, verbatim, so its own Markdown cannot break the file's sections. Commute labels are replaced in Flag titles and in the Verdict's summary, reasoning and conditions too. Without the profile, Flags raised from the Buyer Profile (Must-have, Deal-breaker, commute limit, `headroom`) are left out and counted, since their titles carry the preference text; commute travel times stay, as Bestemming N without maximum. Kosten koper stays exact (it follows from the asking price). Comparables are listed without their funda URL.
 - Known limit: the prompt version is the current `VERDICT_PROMPT_VERSION`; Verdicts do not store the version they were made with. Euro amounts the model may have written into its free-text reasoning are not rounded.
 - Verified: backend `uv run pytest` and `lint-imports`, frontend `tsc --noEmit` and `npx playwright test` all pass.

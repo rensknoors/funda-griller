@@ -66,6 +66,7 @@ def test_a_full_case_with_a_verdict_exports_every_section_in_order(client, listi
         "## Kengetallen",
         "## Vergelijkbare woningen",
         "## Signalen",
+        "## Verbouwingsraming",
         "## Oordeel",
         "## Biedadvies",
         "## Koperprofiel (geanonimiseerd)",
@@ -300,3 +301,118 @@ def test_no_photo_or_document_is_linked(client, listing_provider, llm_client):
         assert url not in markdown
     assert "/photos/" not in markdown and "/documents/" not in markdown
     assert ".jpg" not in markdown and ".pdf" not in markdown
+
+
+# A test-owned cost table, so the figures below do not move when the shipped one is edited.
+COST_TABLE = """
+version = 7
+size_bands = [80, 150]
+assumed_living_area = 115
+
+[[items]]
+id = "damp_repair"
+label = "Vochtprobleem verhelpen"
+urgency = "direct"
+basis = "fixed"
+low = 2000
+high = 6000
+source = "Testgids"
+price_year = 2025
+triggers = [{ kind = "equals", fact = "observation.damp_or_mould", values = [true] }]
+
+[[items]]
+id = "roof"
+label = "Dak vernieuwen"
+urgency = "within_5_years"
+basis = "size_band"
+low = [8000, 12000, 18000]
+high = [14000, 22000, 32000]
+source = "Testgids"
+price_year = 2024
+triggers = [{ kind = "equals", fact = "observation.roof_condition", values = ["fair"] }]
+
+[[items]]
+id = "asbestos_survey"
+label = "Asbestinventarisatie"
+urgency = "within_5_years"
+basis = "fixed"
+low = 500
+high = 1500
+inspection = true
+source = "Testgids"
+price_year = 2025
+triggers = [{ kind = "below", fact = "construction_year", threshold = 1994 }]
+"""
+
+
+def section(markdown, heading):
+    return markdown.split(f"## {heading}\n")[1].split("\n## ")[0]
+
+
+@pytest.fixture
+def renovation(settings, tmp_path, llm_client):
+    cost_table = tmp_path / "renovation_costs.toml"
+    cost_table.write_text(COST_TABLE)
+    settings.renovation_costs_path = cost_table
+    llm_client.observations = [
+        {"key": "damp_or_mould", "value": True, "photos": [2], "note": "Vochtplek boven het raam"},
+        {"key": "roof_condition", "value": "fair", "photos": [1], "note": "Dakpannen verkleurd"},
+    ]
+
+
+def test_the_renovation_estimate_is_exported_after_the_flags_with_exact_ranges(
+    client, listing_provider, llm_client, renovation
+):
+    capture(client, listing_provider, living_area=None, brochure_url=None)
+    llm_client.verdict = model_says()
+    client.post(VERDICT)
+
+    markdown = client.get(f"{EXPORT}?profile=false").text
+
+    order = headings(markdown)
+    assert order.index("## Verbouwingsraming") == order.index("## Signalen") + 1
+    raming = section(markdown, "Verbouwingsraming")
+    assert "kostentabel versie 7" in raming
+    assert "### Direct nodig: € 2.000 – € 6.000 (midden € 4.000)" in raming
+    assert "- Vochtprobleem verhelpen: € 2.000 – € 6.000 (geschat, prijspeil 2025, bron Testgids)" in raming
+    assert "Vocht of schimmel zichtbaar: ja (Waarneming, geschat)" in raming
+    assert "### Binnen 5 jaar: € 12.500 – € 23.500" in raming
+    assert "woonoppervlak onbekend, middelgrote woning aangenomen" in raming
+    assert "onderzoek op basis van bouwjaar" in raming
+    assert "### Optioneel" not in raming
+    assert "Niet meegenomen: geen Vragenlijst." in raming
+    # The affordability effect of Direct nodig belongs to the Buyer Profile part only.
+    assert "betaal" not in raming.lower()
+    assert "afgetrokken" not in markdown and "na aftrek" not in markdown
+
+
+def test_with_the_profile_the_direct_nodig_subtraction_shows_in_affordability_and_derivation(
+    client, listing_provider, llm_client, renovation
+):
+    capture(client, listing_provider, living_area=None, brochure_url=None)
+    llm_client.verdict = model_says()
+    client.post(VERDICT)
+
+    markdown = client.get(EXPORT).text
+
+    assert "na aftrek van € 4.000 Direct nodig (Verbouwingsraming)" in section(markdown, "Kengetallen")
+    assert "de vraagprijs (vergelijkbare woningen dun of ontbrekend), min € 4.000 Direct nodig, plus 5%" in markdown
+    assert "Maximumbod: € 620.550" in markdown
+
+
+def test_a_high_direct_nodig_flag_cites_its_midpoint_in_euros(client, listing_provider, settings, renovation):
+    settings.renovation_costs_path.write_text(COST_TABLE.replace("low = 2000\nhigh = 6000", "low = 30000\nhigh = 50000"))
+    capture(client, listing_provider, brochure_url=None)
+
+    signalen = section(client.get(f"{EXPORT}?profile=false").text, "Signalen")
+
+    assert "Direct nodig onderhoud (midden): € 40.000 (Berekend)" in signalen
+
+
+def test_without_renovation_items_the_export_says_none_were_found(client, listing_provider, llm_client, renovation):
+    llm_client.observations = []
+    capture(client, listing_provider, construction_year=2015)
+
+    raming = section(client.get(EXPORT).text, "Verbouwingsraming")
+
+    assert "Geen verbouwingsposten gevonden" in raming
