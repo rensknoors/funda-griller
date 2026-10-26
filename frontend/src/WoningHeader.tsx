@@ -1,7 +1,7 @@
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
-import { type ReactNode, type RefObject } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { type ReactNode, type RefObject, useState } from "react";
 
-import type { Listing } from "./api";
+import { exportUrl, type Listing } from "./api";
 import { href } from "./route";
 
 export type Neighbours = { previous?: Listing; next?: Listing };
@@ -65,7 +65,10 @@ export function WoningHeader(props: {
             {props.meta}
           </div>
         </div>
-        {props.actions && <div className="woning-actions">{props.actions}</div>}
+        <div className="woning-actions">
+          {props.actions}
+          <ExportMarkdown fundaId={fundaId} />
+        </div>
       </div>
       <nav className="halves" aria-label="Woning">
         <a href={href({ view: "dossier", fundaId })} aria-current={page === "dossier" ? "page" : undefined}>
@@ -78,5 +81,23 @@ export function WoningHeader(props: {
         </a>
       </nav>
     </header>
+  );
+}
+
+/** Download the Woning's Dossier and current Oordeel as one Markdown file for another LLM chat.
+ * The koperprofiel goes along anonymised unless unticked. */
+function ExportMarkdown(props: { fundaId: string }) {
+  const [withProfile, setWithProfile] = useState(true);
+  return (
+    <div className="export-markdown">
+      <a className="button" href={exportUrl(props.fundaId, withProfile)} download>
+        <Download size={15} aria-hidden="true" />
+        Exporteer als Markdown
+      </a>
+      <label className="export-profile">
+        <input type="checkbox" checked={withProfile} onChange={(event) => setWithProfile(event.target.checked)} />
+        Koperprofiel meesturen (geanonimiseerd)
+      </label>
+    </div>
   );
 }

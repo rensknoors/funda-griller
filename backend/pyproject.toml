@@ -33,9 +33,9 @@ source_modules = ["app.ports"]
 forbidden_modules = ["app.production_ports", "app.store", "app.settings", "app.main", "app.wiring", "app.routes", "app.assembly"]
 
 [[tool.importlinter.contracts]]
-name = "Case builder, Findings and the Renovation Estimate are pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
+name = "Case builder, Findings, the Renovation Estimate and the Markdown export are pure: no adapters, storage, settings, rules loading, LLM client or app wiring"
 type = "forbidden"
-source_modules = ["app.case", "app.affordability", "app.flags", "app.comparison", "app.findings", "app.renovation"]
+source_modules = ["app.case", "app.affordability", "app.flags", "app.comparison", "app.findings", "app.renovation", "app.export"]
 forbidden_modules = [
   "app.ports",
   "app.production_ports",

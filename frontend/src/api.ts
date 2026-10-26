@@ -563,6 +563,10 @@ export type VerdictError =
   | { kind: "llm_unavailable"; reason?: string }
   | { kind: "unknown" };
 
+/** The Markdown export of a Woning: Dossier and current Oordeel; the koperprofiel always anonymised. */
+export const exportUrl = (fundaId: string, withProfile: boolean) =>
+  `/api/listings/${fundaId}/export.md?profile=${withProfile}`;
+
 export async function fetchVerdicts(fundaId: string): Promise<VerdictState> {
   const response = await apiFetch(`/api/listings/${fundaId}/verdict`);
   if (!response.ok) throw new Error("verdict unavailable");
