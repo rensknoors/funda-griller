@@ -466,17 +466,29 @@ def test_household_amounts_in_the_verdict_text_are_rounded_or_left_out(client, l
     assert "Niet boven [weggelaten]" in without
 
 
-def test_without_the_profile_an_affordability_bound_maximumbod_is_rounded_down(client, listing_provider, llm_client):
+def test_without_the_profile_affordability_bound_bids_are_rounded_down(client, listing_provider, llm_client):
     poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
     capture(client, listing_provider, poorer)
-    llm_client.verdict = lambda case, _: model_says(opening_bid=case["walk_away"]["walk_away_maximum"] - 10_000)
-    maximum = client.post(VERDICT).json()["bid_advice"]["walk_away_maximum"]
+    def says(case, _):
+        opening = case["walk_away"]["walk_away_maximum"] - 10_001
+        return model_says(opening_bid=opening) | {"reasoning": f"Open op {amount_forms(opening)[0]}."}
 
-    bid = section(client.get(f"{EXPORT}?profile=false").text, "Biedadvies")
+    llm_client.verdict = says
+    advice = client.post(VERDICT).json()["bid_advice"]
+    maximum, opening = advice["walk_away_maximum"], advice["opening_bid"]
+
+    without = client.get(f"{EXPORT}?profile=false").text
+    bid = section(without, "Biedadvies")
+
+    assert not mentions(without, opening)
+    bid_with_profile = section(client.get(EXPORT).text, "Biedadvies")
 
     assert not mentions(bid, maximum)
+    assert not mentions(bid, opening)
     assert f"Maximumbod: € {maximum // 5000 * 5000:,} (afgerond)".replace(",", ".") in bid
+    assert f"Openingsbod: € {opening // 5000 * 5000:,} (afgerond)".replace(",", ".") in bid
     assert "Direct nodig" not in bid
+    assert f"Openingsbod: € {opening:,}\n".replace(",", ".") in bid_with_profile
 
 
 def test_kosten_koper_is_rounded(client, listing_provider):

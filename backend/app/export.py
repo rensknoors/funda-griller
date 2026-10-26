@@ -112,7 +112,8 @@ def _household_amounts(export: "ExportInput") -> dict[int, int]:
     """Amounts derived from the household's finances that the Verdict text may name, mapped to
     their rounding step: affordable maximum, home equity, own and available funds, mortgage,
     kosten koper (it reveals starter status), headroom and monthly costs. With the profile the
-    exact Maximumbod is shown anyway, so it is left as written."""
+    exact Maximumbod is shown anyway, so it is left as written; without it, when affordability
+    binds, both bids give the affordable maximum away and are left out too."""
     affordability = export.case["affordability"]
     if affordability is None or export.profile is None:
         return {}
@@ -135,6 +136,8 @@ def _household_amounts(export: "ExportInput") -> dict[int, int]:
     amounts = {abs(a): AMOUNT_STEP for a in euros if a} | {abs(a): MONTHLY_STEP for a in monthly if a}
     if export.with_profile and advice:
         amounts.pop(advice["walk_away_maximum"], None)
+    elif advice and (advice.get("derivation") or {}).get("binding") == "affordability":
+        amounts |= {advice["walk_away_maximum"]: AMOUNT_STEP, advice["opening_bid"]: AMOUNT_STEP}
     return amounts
 
 
@@ -718,22 +721,23 @@ def bid_advice(export: ExportInput) -> list[str]:
     if advice is None:
         return [*lines, "Geen Biedadvies bij dit Oordeel." if current else "Geen Biedadvies: er is nog geen Oordeel."]
     lines += [
-        f"- Openingsbod: {euro(advice['opening_bid'])}",
-        f"- Maximumbod: {_walk_away_maximum(advice, export.with_profile)}",
+        f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}",
+        f"- Maximumbod: {_bid(advice, 'walk_away_maximum', export.with_profile)}",
         "- Voorwaarden:",
         *[f"  - {export.anonymiser.scrub_text(condition)}" for condition in advice["conditions"]],
     ]
     return lines + (_derivation(advice) if export.with_profile else [])
 
 
-def _walk_away_maximum(advice: dict, with_profile: bool) -> str:
-    """Exact, except without the profile when affordability binds: it is then the household's
-    affordable maximum, so it is rounded down."""
-    maximum = advice["walk_away_maximum"]
+def _bid(advice: dict, key: str, with_profile: bool) -> str:
+    """Exact, except without the profile when affordability binds: the Maximumbod is then the
+    household's affordable maximum, and the Openingsbod often sits a fixed step below it, so both
+    are rounded down."""
+    amount = advice[key]
     binding = (advice.get("derivation") or {}).get("binding")
     if with_profile or binding != "affordability":
-        return euro(maximum)
-    return f"{euro(maximum // AMOUNT_STEP * AMOUNT_STEP)} (afgerond)"
+        return euro(amount)
+    return f"{euro(amount // AMOUNT_STEP * AMOUNT_STEP)} (afgerond)"
 
 
 BASES = {
