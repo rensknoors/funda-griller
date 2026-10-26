@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 3
+VERDICT_PROMPT_VERSION = 4
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -49,6 +49,14 @@ and affordability (`case.walk_away` says how). Do not propose your own. The open
 exceed it. When `case.walk_away.weakly_grounded` is true there are too few comparables and it rests
 on the asking price (or affordability alone); say in the reasoning that the bid advice is weakly
 grounded.
+
+`case.renovation_estimate` is what the house may cost to renovate, from a versioned cost table:
+items in three classes (`direct`: Direct nodig, `within_5_years`: Binnen 5 jaar, `optional`:
+Optioneel), each a low-high range of public average prices, estimated, citing the facts that
+triggered it (inspection items rest on the build year alone). The Direct nodig midpoint is already
+taken off the affordable maximum and the walk-away basis (`case.walk_away.renovation_direct`); do not
+subtract it again. Weigh the estimate against `buyer_profile.renovation_tolerance`, and name
+`missing_inputs` (no photos read, no Vragenlijst, no energielabel) as gaps in what is known.
 
 Write summary, reasoning and conditions in Dutch.
 """
@@ -158,7 +166,10 @@ You read one Dutch house-sale Document from the seller or selling agent: a Vrage
 questionnaire), a Lijst van zaken (what stays and what goes), a funda brochure or similar. Extract
 what the seller states about the house as Findings. Look in particular for asbestos, leaks and damp,
 foundation problems, leased solar panels (or other leased installations), erfpacht (with canon and
-term when stated), subsidies tied to the house, and notable items that stay or go.
+term when stated), subsidies tied to the house, notable items that stay or go, and the age or state of
+the cv-ketel (`boiler_old`: present when the seller states it is over 15 years old or due for
+replacement) and the electrical wiring (`wiring_old`: present when the seller states it is old,
+original or due for renewal).
 
 For each Finding give:
 - `topic`: one of the listed topics; use `other` for anything else worth knowing.

@@ -23,6 +23,8 @@ export const FINDING_LABELS: Record<FindingTopic, string> = {
   subsidy: "Subsidie",
   stays_or_goes: "Blijft of gaat mee",
   foundation: "Fundering",
+  boiler_old: "Cv-ketel oud",
+  wiring_old: "Elektra oud",
   other: "Overig",
 };
 

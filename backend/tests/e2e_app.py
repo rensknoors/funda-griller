@@ -175,6 +175,13 @@ _listing_provider.listings[COMMUTE_URL] = live_listing(
     funda_id="80907651", provider_id="17270381", url=COMMUTE_URL, address="Dorpsstraat 41"
 )
 
+# Its own woning for the Verbouwingsraming spec, so its uploaded Vragenlijst (asbestos: Direct nodig)
+# leaves the other specs' figures alone.
+RENOVATION_URL = "https://www.funda.nl/detail/koop/holtum/huis-dorpsstraat-42/80907652/"
+_listing_provider.listings[RENOVATION_URL] = live_listing(
+    funda_id="80907652", provider_id="17270382", url=RENOVATION_URL, address="Dorpsstraat 42"
+)
+
 app = create_app(
     Settings(
         _env_file=None,

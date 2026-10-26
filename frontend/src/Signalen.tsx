@@ -24,6 +24,7 @@ const EVIDENCE_LABELS: Record<string, string> = {
   deal_breaker: "Deal-breaker",
   named_energy_labels: "Genoemde energielabels",
   max_minutes: "Maximale reistijd",
+  renovation_direct_midpoint: "Direct nodig onderhoud (midden)",
 };
 
 const FLAG_BANDS: { flagClass: FlagClass; label: string }[] = [
@@ -101,7 +102,7 @@ export function Signalen({
   );
 }
 
-function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
+export function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[] }) {
   if (item.provenance === "finding") {
     return (
       <li>

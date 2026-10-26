@@ -23,6 +23,11 @@ export function signedEuro(amount: number): string {
   return `${amount > 0 ? "+" : "−"}${euro.format(Math.abs(amount))}`;
 }
 
+/** "€ 3.000 – € 9.000", or one amount when low and high meet. */
+export function euroRange(low: number, high: number): string {
+  return low === high ? euro.format(low) : `${euro.format(low)} – ${euro.format(high)}`;
+}
+
 /** What a direction means for the buyer, so figures can carry colour beside their sign. */
 export type Tone = "favorable" | "concern" | "shortfall";
 

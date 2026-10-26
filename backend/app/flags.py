@@ -93,6 +93,12 @@ def _equals(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
     return [(None, [fact])]
 
 
+def _absent(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
+    """None of the rule's facts is present (e.g. no energielabel from the register or the Listing).
+    Cites nothing: the absence is the point."""
+    return [(None, [])] if _first_fact(facts, rule["fact"]) is None else []
+
+
 def _not_one_of(rule: dict, facts: dict[str, dict], _: RuleSet) -> list[Hit]:
     """The fact is present and its value is none of the rule's `values`, ignoring case and spacing
     (e.g. an Eigendomssituatie other than "Volle eigendom")."""
@@ -256,11 +262,22 @@ _CONDITIONS: dict[str, Condition] = {
     "ratio_above": _ratio_above,
     "equals": _equals,
     "not_one_of": _not_one_of,
+    "absent": _absent,
     "must_have_missing": _must_have_missing,
     "deal_breaker_mentioned": _deal_breaker_mentioned,
     "deal_breaker_energy_label": _deal_breaker_energy_label,
     "over_max_minutes": _over_max_minutes,
 }
+
+_NO_RULES = RuleSet(version=0, rules=(), features=())
+
+
+def holds(condition: dict, facts: dict[str, dict]) -> list[list[dict]]:
+    """The evidence of each hit of one condition in the Flag rule vocabulary, for other versioned
+    tables (the renovation cost table) that trigger on Case facts the same way. Kinds about the
+    Buyer Profile's preferences find nothing here."""
+    return [found for _, found in _CONDITIONS[condition["kind"]](condition, facts, _NO_RULES)]
+
 
 # Condition kinds that raise one Flag per Buyer Profile deal-breaker they find hit.
 _DEAL_BREAKER_KINDS = frozenset({"deal_breaker_mentioned", "deal_breaker_energy_label"})

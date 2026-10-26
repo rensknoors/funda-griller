@@ -1,4 +1,4 @@
-from tests.flag_rules import FLAG_RULES_VERSION
+from tests.flag_rules import COST_TABLE_VERSION, FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
@@ -121,6 +121,7 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
         "snapshot_id": snapshot["id"],
         "profile_version": 1,
         "flag_rules_version": FLAG_RULES_VERSION,
+        "cost_table_version": COST_TABLE_VERSION,
         "observation_run": None,
         "documents": [],
     }

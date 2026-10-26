@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, Clock, Ellipsis, Landmark, Newspaper, TrendingDown,
 import { useState } from "react";
 
 import type { Listing } from "./api";
-import { euro, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
+import { euro, euroRange, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
 import { plural } from "./plural";
 import { TierMark } from "./TierMark";
 import { href } from "./route";
@@ -167,6 +167,12 @@ export function ListingsTable(props: {
             {header("area", "m² woon / perceel", "num col-detail")}
             <th scope="col" className="col-detail">Label</th>
             {header("headroom", "Ruimte boven vraag", "num", "Betaalruimte boven (+) of tekort onder (−) de vraagprijs")}
+            {header(
+              "renovation",
+              "Direct nodig",
+              "num col-detail",
+              "Geschatte kosten van direct nodig onderhoud (Verbouwingsraming)",
+            )}
             <th scope="col" className="col-detail">Signalen</th>
             {header("stale", "Data")}
             <th scope="col">
@@ -341,6 +347,13 @@ function ListingRow(props: {
         )}
       </td>
       <td className={`num tone-${headroomTone(row.headroom) ?? "none"}`} data-label="Ruimte boven vraag">{row.headroom != null ? signedEuro(row.headroom) : "–"}</td>
+      <td className="num col-detail" data-label="Direct nodig">
+        {row.renovation_direct
+          ? row.renovation_direct.high > 0
+            ? euroRange(row.renovation_direct.low, row.renovation_direct.high)
+            : "geen"
+          : "–"}
+      </td>
       <td className="col-detail signal-counts">
         {(["pro", "con", "risk"] as const).map((flagClass) => {
           const count = row.flag_counts[flagClass];

@@ -1,4 +1,4 @@
-from tests.flag_rules import FLAG_RULES_VERSION
+from tests.flag_rules import COST_TABLE_VERSION, FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import high_equity_profile, low_income_profile, typical_profile
 
@@ -38,6 +38,7 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
         "snapshot_id": snapshot["id"],
         "profile_version": 1,
         "flag_rules_version": FLAG_RULES_VERSION,
+        "cost_table_version": COST_TABLE_VERSION,
         "observation_run": 1,
         "documents": None,
     }
@@ -62,6 +63,7 @@ def test_typical_household_affordability(client, listing_provider):
         "monthly_cost": 1_838,
         "headroom": 109_519,
         "affordable_maximum": 704_519,
+        "renovation_direct": 0,
         "energy_label": "B",
     }
     assert case["rules"]["year"] == 2026

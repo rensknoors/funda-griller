@@ -11,7 +11,8 @@ from collections.abc import Sequence
 
 # What a Finding can be about. `present` says whether the seller states it applies to the house
 # (asbestos present, a past leak, leased solar panels, erfpacht, a subsidy to repay or transfer,
-# something that stays or goes).
+# something that stays or goes, a cv-ketel or electrical wiring the seller says is old or due for
+# replacement).
 TOPICS = (
     "asbestos",
     "leak",
@@ -20,6 +21,8 @@ TOPICS = (
     "subsidy",
     "stays_or_goes",
     "foundation",
+    "boiler_old",
+    "wiring_old",
     "other",
 )
 

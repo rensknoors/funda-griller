@@ -28,6 +28,7 @@ def summarise(snapshots: list[dict], case: dict, tier: str | None = None) -> dic
         "asking_vs_woz_percent": woz["percent"] if woz else None,
         "asking_vs_comparables_percent": case["metrics"]["asking_vs_comparables"]["percent"],
         "headroom": affordability["headroom"] if affordability else None,
+        "renovation_direct": case["renovation_estimate"]["classes"]["direct"],
         "flag_counts": counts,
         "stale_count": sum(1 for fact in case["facts"] if fact.get("stale")),
         "last_fetched_at": latest["fetched_at"],

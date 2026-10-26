@@ -9,7 +9,7 @@ from app.affordability import compute
 from app.buyer_profile import reduce_profile
 from app.case import SourceInputs, VersionedProfile, build_case
 from app.ports import LlmClient
-from app.rules_loader import load_flag_rules, load_rules
+from app.rules_loader import load_cost_table, load_flag_rules, load_rules
 from app.settings import Settings
 from app.verdict import WalkAwayMargins, judge
 
@@ -32,6 +32,7 @@ def assemble_case(
         profile,
         load_rules(settings.affordability_rules_path, now.year),
         load_flag_rules(settings.flag_rules_path),
+        load_cost_table(settings.renovation_costs_path),
         now,
         sources,
         observation_runs,

@@ -248,6 +248,7 @@ function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (fl
 }
 
 function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: number }) {
+  const renovationDirect = advice.derivation?.renovation_direct ?? 0;
   const headroom = advice.asking_price !== null ? advice.affordable_maximum - advice.asking_price : null;
   return (
     <section aria-labelledby="biedadvies-title">
@@ -268,7 +269,13 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
             <ul className="evidence">
               <li>
                 Betaalruimte: tot {euro.format(advice.affordable_maximum)}{" "}
-                <span className="muted">(koperprofiel en regels {rulesYear}, incl. kosten koper)</span>
+                <span className="muted">
+                  (koperprofiel en regels {rulesYear}, incl. kosten koper
+                  {renovationDirect > 0 && (
+                    <>, na aftrek van {euro.format(renovationDirect)} direct nodig onderhoud</>
+                  )}
+                  )
+                </span>
               </li>
               <li>
                 Vergelijkbare woningen:{" "}
@@ -363,13 +370,17 @@ function weakGroundingNote(derivation: WalkAwayDerivation): string {
   return BASIS_LABELS[derivation.basis].weak;
 }
 
-/** "Vraagprijs € 595.000 + 5%: € 624.750": the basis and its margin. */
+/** "Vraagprijs € 595.000 − € 6.000 direct nodig + 5%: € 618.450": the basis, the Direct nodig
+ * renovation cost taken off it, and its margin. */
 function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | null {
   if (derivation.basis_maximum === null || derivation.margin === null) return null;
   const basis = BASIS_LABELS[derivation.basis];
   const value = basis.value(advice);
   if (value == null) return null;
-  return `${basis.line} ${euro.format(value)} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
+  const renovation = derivation.renovation_direct
+    ? ` − ${euro.format(derivation.renovation_direct)} direct nodig`
+    : "";
+  return `${basis.line} ${euro.format(value)}${renovation} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
 }
 
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */

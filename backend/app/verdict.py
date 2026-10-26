@@ -7,8 +7,9 @@ not exceed the Walk-away Maximum.
 
 The Walk-away Maximum is not the model's: it is derived here, before the model is asked. With
 sufficient comparables it is what they put the house at plus a premium; with thin or missing ones
-the asking price plus a margin, stated as weakly grounded. Either way never above what the household
-can afford.
+the asking price plus a margin, stated as weakly grounded. The Renovation Estimate's Direct nodig
+midpoint comes off that basis first. Either way never above what the household can afford (which
+has set the same amount aside).
 """
 
 from collections.abc import Callable
@@ -44,11 +45,13 @@ class WalkAwayMargins:
 
 
 class WalkAwayDerivation(TypedDict):
-    """The derived Walk-away Maximum and how: its basis, the margin over it and what that came to,
-    which of basis and affordability bound it, and whether it is weakly grounded."""
+    """The derived Walk-away Maximum and how: its basis, the Direct nodig renovation cost taken off
+    it, the margin over the rest and what that came to, which of basis and affordability bound it,
+    and whether it is weakly grounded."""
 
     walk_away_maximum: int
     basis: Literal["comparables", "asking_price", "affordability"]
+    renovation_direct: int
     margin: float | None
     basis_maximum: int | None
     binding: Literal["basis", "affordability"]
@@ -90,9 +93,11 @@ def judge(
 
 def derive_walk_away_maximum(case: dict, margins: WalkAwayMargins) -> WalkAwayDerivation:
     """The Walk-away Maximum and how it was derived: the lower of what the household can afford and
-    its basis plus a margin. The basis is the comparables value when coverage is sufficient, else the
-    asking price (weakly grounded); with neither, affordability alone (also weakly grounded)."""
+    its basis, less the Direct nodig renovation cost, plus a margin. The basis is the comparables
+    value when coverage is sufficient, else the asking price (weakly grounded); with neither,
+    affordability alone (also weakly grounded)."""
     affordable = case["affordability"]["affordable_maximum"]
+    renovation_direct = case["renovation_estimate"]["direct_midpoint"]
     comparables = case["metrics"]["asking_vs_comparables"]
     asking = _asking_price(case)
     basis: Literal["comparables", "asking_price", "affordability"]
@@ -102,13 +107,16 @@ def derive_walk_away_maximum(case: dict, margins: WalkAwayMargins) -> WalkAwayDe
         basis, margin, value = "asking_price", margins.asking_price_margin, asking
     else:
         basis, margin, value = "affordability", None, None
-    basis_maximum = round(value * (1 + margin)) if value is not None and margin is not None else None
+    basis_maximum = (
+        round((value - renovation_direct) * (1 + margin)) if value is not None and margin is not None else None
+    )
     binding: Literal["basis", "affordability"] = (
         "basis" if basis_maximum is not None and basis_maximum < affordable else "affordability"
     )
     return {
         "walk_away_maximum": basis_maximum if binding == "basis" else affordable,
         "basis": basis,
+        "renovation_direct": renovation_direct,
         "margin": margin,
         "basis_maximum": basis_maximum,
         "binding": binding,
@@ -150,7 +158,11 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         changed.append("case")
     if then["profile_version"] != current["profile_version"]:
         changed.append("buyer_profile")
-    if (then["flag_rules_version"], then["rules_year"]) != (current["flag_rules_version"], current["rules_year"]):
+    if (then["flag_rules_version"], then["rules_year"], then.get("cost_table_version")) != (
+        current["flag_rules_version"],
+        current["rules_year"],
+        current.get("cost_table_version"),
+    ):
         changed.append("rules")
     if not verdict["deterministic"] and then["model"] != current["model"]:
         changed.append("model")

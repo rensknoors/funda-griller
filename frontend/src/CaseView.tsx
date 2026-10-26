@@ -24,6 +24,7 @@ import { plural } from "./plural";
 import { tierOf } from "./comparison";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 import { STAMP_LEGEND, Stamp } from "./Stamp";
+import { Verbouwingskosten } from "./Verbouwingskosten";
 import { type Neighbours, WoningHeader } from "./WoningHeader";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
@@ -205,6 +206,7 @@ export function CaseView(props: {
             focusFlagId={focusFlagId ?? null}
           />
           <Betaalruimte affordability={state.data.affordability} rules={state.data.rules} />
+          <Verbouwingskosten estimate={state.data.renovation_estimate} facts={state.data.facts} />
           <FactGroup
             title="Kenmerken"
             id="kenmerken"
@@ -433,7 +435,10 @@ function Betaalruimte({
             label="Ruimte boven vraag"
             tone={headroomTone(affordability.headroom)}
             value={affordability.headroom !== null ? signedEuro(affordability.headroom) : "–"}
-          />
+          >
+            {affordability.renovation_direct > 0 &&
+              `na aftrek van ${euro.format(affordability.renovation_direct)} direct nodig onderhoud`}
+          </Figure>
         </dl>
       )}
       <p className="muted rules-year">
@@ -471,6 +476,7 @@ function HerkomstLegend() {
 const SECTIONS: [id: string, title: string][] = [
   ["signalen-title", "Signalen"],
   ["betaalruimte-title", "Betaalruimte"],
+  ["verbouwingskosten-title", "Verbouwingskosten"],
   ["kenmerken-title", "Kenmerken"],
   ["prijs-en-waarde-title", "Prijs en waarde"],
   ["vergelijkbaar-title", "Vergelijkbare woningen"],

@@ -65,9 +65,14 @@ _Dutch UI_: **Biedadvies**; its parts are **Openingsbod**, **Maximumbod** and **
 _Avoid_: Bid strategy, offer
 
 **Walk-away Maximum**:
-The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at plus a configured premium. With thin or missing comparables it rests on the asking price plus a configured margin instead, and the Bid Advice says plainly that it is weakly grounded. With neither sufficient comparables nor an asking price it is the affordable maximum alone, also weakly grounded.
+The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at, less the Renovation Estimate's Direct nodig midpoint, plus a configured premium. The affordable maximum has set the same Direct nodig midpoint aside from the household's available funds. With thin or missing comparables it rests on the asking price (less Direct nodig) plus a configured margin instead, and the Bid Advice says plainly that it is weakly grounded. With neither sufficient comparables nor an asking price it is the affordable maximum alone, also weakly grounded.
 _Dutch UI_: **Maximumbod**
 _Avoid_: Max price, ceiling
+
+**Renovation Estimate**:
+What the house may cost to renovate, in the Case: items priced as low–high ranges from a versioned cost table of public average prices, each triggered by Case facts (Observations, Findings, the energielabel, the build year) and citing them, marked estimated. Split into three urgency classes. The same for every Buyer Profile; its Direct nodig midpoint lowers the affordable maximum and the Walk-away Maximum.
+_Dutch UI_: **Verbouwingsraming** (shown as **Verbouwingskosten**); the classes are **Direct nodig**, **Binnen 5 jaar** and **Optioneel**
+_Avoid_: Renovation budget, quote, cost to fix
 
 **Comparable**:
 A nearby Listing that funda offers as recently sold or recently listed next to a house, fetched only on the user's request and capped in number. Its price is its (last) asking price, not a registered sale price. Too few comparables are **thin** and do not ground the Walk-away Maximum.
