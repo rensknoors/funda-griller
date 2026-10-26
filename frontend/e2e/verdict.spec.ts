@@ -70,3 +70,20 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   await expect(page.getByText("Eerdere oordelen (2)")).toBeVisible();
   await expect(page.getByText("Dit oordeel is gebaseerd op een oudere versie")).toBeHidden();
 });
+
+test("a model failure shows the backend's reason, such as a missing API key", async ({ page, request }) => {
+  await request.put("/api/buyer-profile", { data: PROFILE });
+  await page.route("**/api/listings/80907644/verdict", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({ status: 502, json: { code: "llm_unavailable", reason: "no Gemini API key configured" } })
+      : route.fallback(),
+  );
+  await page.goto("/");
+  await page.getByLabel("Funda-link").fill(LISTING_URL);
+  await page.getByRole("button", { name: "Ophalen", exact: true }).click();
+  await page.getByRole("button", { name: "Buchterweg 15" }).click();
+  await page.getByRole("button", { name: "Oordeel bekijken" }).click();
+  await page.getByRole("button", { name: /^Oordeel (opvragen|opnieuw draaien)$/ }).first().click();
+
+  await expect(page.getByRole("alert")).toContainText("no Gemini API key configured");
+});

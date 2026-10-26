@@ -7,6 +7,7 @@ call goes through `transport` so tests can replace it; the default uses the stan
 import base64
 import io
 import json
+import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
@@ -210,6 +211,14 @@ def _pages(content: bytes) -> list[bytes]:
     return pages
 
 
+def _google_message(error: urllib.error.HTTPError) -> str:
+    """Google's own explanation from the error body (e.g. an unknown model), or the HTTP reason."""
+    try:
+        return json.loads(error.read())["error"]["message"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return str(error.reason)
+
+
 def _urllib_transport(url: str, headers: dict, body: bytes) -> bytes:
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
@@ -329,5 +338,7 @@ class GeminiLlmClient:
             )
             reply = json.loads(raw)
             return reply["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as error:
+            raise LlmError(f"Gemini call failed: HTTP {error.code}: {_google_message(error)}") from error
         except (OSError, ValueError, KeyError, IndexError, TypeError) as error:
             raise LlmError(f"Gemini call failed: {type(error).__name__}") from error
