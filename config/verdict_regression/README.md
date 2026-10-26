@@ -20,8 +20,15 @@ Flag rule set version and prompt version to `backend/data/verdict-regression/<ti
 ## The seed entries are placeholders
 
 The `example-*.json` files are fictional Listings with guessed tiers, there to show the format and
-keep the harness tested. Replace them with real Listings you have judged yourself, then delete them.
-Aim for 5 to 10 entries that cover every tier.
+keep the harness tested. Their tiers were never judged, so a DIFF on one says little about the
+model. Add real Listings you have judged yourself next to them; aim for 5 to 10 that cover every
+tier.
+
+## Real entries stay out of git
+
+An entry freezes the full Buyer Profile, raw income, assets and current home included, and this
+repository is public. `.gitignore` therefore ignores every file in this directory except this README
+and the `example-*.json` files. Never name a real entry `example-*`, and never force-add one.
 
 ## Adding a real Listing
 

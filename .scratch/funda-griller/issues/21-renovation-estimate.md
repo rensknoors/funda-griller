@@ -4,7 +4,7 @@
 
 **Blocked by:** 11 (Photos and Observations), 12 (Documents and Findings), 07 (Energielabel and WOZ Sources)
 
-**Status:** ready-for-human
+**Status:** resolved
 
 ### Cost table
 
@@ -38,7 +38,7 @@ Starting triggers (seed, adjust while building):
 ### Case, Verdict and UI
 
 - [x] `built_from` records the cost table version, so a table change makes Verdicts Achterhaald
-- [ ] The Verdict prompt receives the classes, totals and items with provenance; `VERDICT_PROMPT_VERSION` is bumped and the regression set re-run against the real model (user step, as in ticket 20; code part done, real-model re-run pending, see Notes)
+- [x] The Verdict prompt receives the classes, totals and items with provenance; `VERDICT_PROMPT_VERSION` is bumped and the regression set re-run against the real model (run 2026-10-26, see Comments)
 - [x] Dossier group **Verbouwingskosten**: three classes, euro ranges, "geschat" stamps, evidence links as in Signalen, "prijspeil <year>", and the missing-inputs note
 - [x] Comparison view (ticket 15) gets a **Direct nodig** column
 - [x] GLOSSARY.md gets **Renovation Estimate** (_Dutch UI_: **Verbouwingsraming**; classes **Direct nodig**, **Binnen 5 jaar**, **Optioneel**); the Walk-away Maximum entry mentions the Direct nodig subtraction
@@ -63,3 +63,4 @@ Starting triggers (seed, adjust while building):
 
 - Grilled (user, 2026-10-26): deterministic table over LLM estimate; Direct nodig midpoint subtracts from the basis of the Walk-away Maximum and from the available funds of the affordable maximum (a separate "cash needed" line would always fall short, because the affordable maximum already spends all own funds); `renovation_tolerance` steers the Verdict only; fixed 5-year horizon; ranges, not single figures; build-year triggers allowed as inspection items; prices from public averages with source and year; size bands for roof and facade; dedupe with `supersedes`; con Flag on a high Direct nodig total; estimate on every Case; Direct nodig column in the comparison view.
 - Code review fixes (2026-10-26): `renovation_direct_high` title now names its threshold ("Veel Direct nodig onderhoud: meer dan € 25.000 (geschat)"; Flag rules version 11, rule meaning unchanged so rule version stays 1); UI copy uses **Direct nodig** in the Betaalruimte and Hoe berekend lines; the Vragenlijst missing-input check matches Documents of the user-added kind (`USER_DOCUMENT_KIND`, now shared in `app/findings.py` with `BROCHURE_KIND`) instead of "anything but the brochure" (there is no separate Vragenlijst kind); the `renovation.direct_midpoint` Flag input moved into `case._rule_inputs`; the size-band ternary became `renovation._size_band`, and an unknown cost `basis` raises at table load (`CostTable`). Status stays ready-for-human: the real-model regression re-run is still pending.
+- Real-model regression run (user, 2026-10-26, `gemini-3.8-flash`, Flag rule set 11, prompt version 4): 4/6 agree. Both real, user-judged entries (`binnenhof-veldhoven`, `buchterweg-holtum`) agree at Overwegen; the deterministic Hard no example agrees. The two DIFFs are fictional placeholders with guessed tiers (`example-asking-far-above-woz`, `example-flood-depth-high`: expected Overslaan, got Overwegen), so they are not a model regression; more judged real entries, ideally a risky Skip, would test leniency on risk. Real entries freeze the full Buyer Profile, so they are git-ignored (see `config/verdict_regression/README.md`). Status resolved.
