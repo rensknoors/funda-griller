@@ -6,6 +6,7 @@ import { ListingsTable } from "./ListingsTable";
 import { ManualEntryForm } from "./ManualEntryForm";
 import { VerdictView } from "./VerdictView";
 import {
+  apiFetch,
   archiveListing,
   captureListing,
   fetchListings,
@@ -28,6 +29,7 @@ const ERROR_COPY: Record<FetchFailure["kind"], string> = {
   bad_url: "Ophalen mislukt: ongeldige URL. Plak een funda-link van een koopwoning.",
   listing_removed: "Ophalen mislukt: woning verwijderd. Funda toont deze woning niet meer.",
   provider_blocked: "Ophalen mislukt: aanbieder geblokkeerd. Probeer het later opnieuw.",
+  no_response: "Ophalen mislukt: de server reageert niet. Controleer of de backend draait.",
   unknown: "Ophalen mislukt. Probeer het opnieuw.",
 };
 
@@ -55,7 +57,7 @@ export function App() {
   const [archiveFailed, setArchiveFailed] = useState(false);
 
   useEffect(() => {
-    fetch("/api/health")
+    apiFetch("/api/health")
       .then((response) => response.json())
       .then((body) => setApiState(body.status === "ok" ? "reachable" : "unreachable"))
       .catch(() => setApiState("unreachable"));

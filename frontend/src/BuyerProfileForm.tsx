@@ -15,7 +15,7 @@ import {
   toPayload,
   vakOrder,
 } from "./profile";
-import { fetchOutOfDateVerdicts } from "./api";
+import { apiFetch, fetchOutOfDateVerdicts } from "./api";
 import { euro } from "./format";
 import { ErrorText, Vak, type VakInputProps } from "./Vak";
 
@@ -46,7 +46,7 @@ export function BuyerProfileForm({ onSaved }: { onSaved?: () => void } = {}) {
 
   useEffect(() => {
     let ignore = false;
-    fetch("/api/buyer-profile")
+    apiFetch("/api/buyer-profile")
       .then(async (response) => {
         if (response.status === 404) return { kind: "klaar", form: emptyForm, firstRun: true } as const;
         if (!response.ok) throw new Error("load failed");
@@ -112,7 +112,7 @@ function ProfileForm({
     if (touched.size === 0) return;
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetch("/api/buyer-profile/validation", {
+      apiFetch("/api/buyer-profile/validation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toPayload(form)),
@@ -162,7 +162,7 @@ function ProfileForm({
   async function submit() {
     setSave({ kind: "saving" });
     try {
-      const response = await fetch("/api/buyer-profile", {
+      const response = await apiFetch("/api/buyer-profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toPayload(form)),
@@ -452,7 +452,7 @@ function useGevolgen(form: FormState): GevolgenState | null {
     if (draftKey === "null") return;
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetch("/api/buyer-profile/consequences", {
+      apiFetch("/api/buyer-profile/consequences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: draftKey,

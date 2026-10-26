@@ -45,22 +45,43 @@ export type Listing = {
   comparison: Comparison;
 };
 
+/** How long a request may take before the UI gives up and shows an error, per kind of work. */
+export const TIMEOUT_MS = {
+  /** Reads and quick checks. */
+  quick: 10_000,
+  /** A Listing or Source fetch: provider, Sources, photo download and Observations. */
+  capture: 180_000,
+  /** A model call over the Case, photos or a Document. */
+  model: 300_000,
+} as const;
+
+/**
+ * `fetch` that rejects after `timeoutMs`, so a backend that accepts the connection but never
+ * answers ends in the caller's error state instead of an endless spinner or disabled button.
+ */
+export function apiFetch(path: string, init: RequestInit = {}, timeoutMs: number = TIMEOUT_MS.quick) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  return fetch(path, { ...init, signal });
+}
+
 export type CaptureError =
   | { kind: "bad_url" }
   | { kind: "listing_removed" }
   | { kind: "provider_blocked" }
   | { kind: "already_captured"; fundaId: string }
+  | { kind: "no_response" }
   | { kind: "unknown" };
 
 /** All Listings, archived ones included: the view hides those unless asked. */
 export async function fetchListings(): Promise<Listing[]> {
-  const response = await fetch("/api/listings?include_archived=true");
+  const response = await apiFetch("/api/listings?include_archived=true");
   if (!response.ok) throw new Error("listings unavailable");
   return response.json();
 }
 
 async function setArchived(fundaId: string, action: "archive" | "restore"): Promise<Listing> {
-  const response = await fetch(`/api/listings/${fundaId}/${action}`, { method: "POST" });
+  const response = await apiFetch(`/api/listings/${fundaId}/${action}`, { method: "POST" });
   if (!response.ok) throw new Error(`${action} unavailable`);
   return response.json();
 }
@@ -69,12 +90,21 @@ export const archiveListing = (fundaId: string) => setArchived(fundaId, "archive
 export const restoreListing = (fundaId: string) => setArchived(fundaId, "restore");
 
 async function post(path: string, body?: unknown): Promise<Listing | CaptureError> {
+  let response: Response;
   try {
-    const response = await fetch(path, {
-      method: "POST",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    response = await apiFetch(
+      path,
+      {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      },
+      TIMEOUT_MS.capture,
+    );
+  } catch {
+    return { kind: "no_response" };
+  }
+  try {
     const payload = await response.json();
     if (response.ok) return payload as Listing;
     if (payload.code === "already_captured") {
@@ -102,7 +132,7 @@ export type ManualEntryError =
 /** Fallback when fetching is blocked: the form's fields and photos as multipart form data. */
 export async function enterListing(form: FormData): Promise<Listing | ManualEntryError> {
   try {
-    const response = await fetch("/api/listings/manual", { method: "POST", body: form });
+    const response = await apiFetch("/api/listings/manual", { method: "POST", body: form }, TIMEOUT_MS.capture);
     const payload = await response.json();
     if (response.ok) return payload as Listing;
     if (payload.code === "already_captured") return { kind: "already_captured", fundaId: payload.funda_id };
@@ -357,16 +387,19 @@ export type Case = {
 };
 
 export async function fetchCase(fundaId: string): Promise<Case> {
-  const response = await fetch(`/api/listings/${fundaId}/case`);
+  const response = await apiFetch(`/api/listings/${fundaId}/case`);
   if (!response.ok) throw new Error("case unavailable");
   return response.json();
 }
 
 /** Manually refetch one Source; returns the rebuilt Case. Nothing refetches by itself. */
 export async function refetchSource(fundaId: string, source: string): Promise<Case> {
-  const response = await fetch(`/api/listings/${fundaId}/sources/${source}/refetch`, {
-    method: "POST",
-  });
+  // Comparables fetch several Listings in one go, so this gets the capture budget.
+  const response = await apiFetch(
+    `/api/listings/${fundaId}/sources/${source}/refetch`,
+    { method: "POST" },
+    TIMEOUT_MS.capture,
+  );
   if (!response.ok) throw new Error("source refetch unavailable");
   return response.json();
 }
@@ -376,7 +409,7 @@ const documentsPath = (fundaId: string) => `/api/listings/${fundaId}/documents`;
 async function sendDocument(path: string, method: "POST" | "PUT", file: File): Promise<void> {
   const form = new FormData();
   form.append("file", file);
-  const response = await fetch(path, { method, body: form });
+  const response = await apiFetch(path, { method, body: form }, TIMEOUT_MS.model);
   if (!response.ok) throw new Error("document upload failed");
 }
 
@@ -389,13 +422,13 @@ export const replaceDocument = (fundaId: string, documentId: number, file: File)
   sendDocument(`${documentsPath(fundaId)}/${documentId}`, "PUT", file);
 
 export async function removeDocument(fundaId: string, documentId: number): Promise<void> {
-  const response = await fetch(`${documentsPath(fundaId)}/${documentId}`, { method: "DELETE" });
+  const response = await apiFetch(`${documentsPath(fundaId)}/${documentId}`, { method: "DELETE" });
   if (!response.ok) throw new Error("document removal failed");
 }
 
 /** Retry a Document that was not analysed, or a brochure whose download failed. */
 export async function analyseDocument(fundaId: string, documentId: number): Promise<void> {
-  const response = await fetch(`${documentsPath(fundaId)}/${documentId}/analyse`, { method: "POST" });
+  const response = await apiFetch(`${documentsPath(fundaId)}/${documentId}/analyse`, { method: "POST" }, TIMEOUT_MS.model);
   if (!response.ok) throw new Error("document analysis failed");
 }
 
@@ -405,7 +438,7 @@ export const documentFileUrl = (fundaId: string, documentId: number, page?: numb
 
 /** Re-run the vision model over the latest snapshot's photos; returns the rebuilt Case. */
 export async function rerunObservations(fundaId: string): Promise<Case> {
-  const response = await fetch(`/api/listings/${fundaId}/observations`, { method: "POST" });
+  const response = await apiFetch(`/api/listings/${fundaId}/observations`, { method: "POST" }, TIMEOUT_MS.model);
   if (!response.ok) throw new Error("observations unavailable");
   return response.json();
 }
@@ -480,7 +513,7 @@ export type VerdictError =
   | { kind: "unknown" };
 
 export async function fetchVerdicts(fundaId: string): Promise<VerdictState> {
-  const response = await fetch(`/api/listings/${fundaId}/verdict`);
+  const response = await apiFetch(`/api/listings/${fundaId}/verdict`);
   if (!response.ok) throw new Error("verdict unavailable");
   return response.json();
 }
@@ -488,7 +521,7 @@ export async function fetchVerdicts(fundaId: string): Promise<VerdictState> {
 /** Ask for a new Verdict version. Never happens by itself. */
 export async function runVerdict(fundaId: string): Promise<Verdict | VerdictError> {
   try {
-    const response = await fetch(`/api/listings/${fundaId}/verdict`, { method: "POST" });
+    const response = await apiFetch(`/api/listings/${fundaId}/verdict`, { method: "POST" }, TIMEOUT_MS.model);
     const payload = await response.json();
     if (response.ok) return payload as Verdict;
     if (payload.code === "invalid_verdict") return { kind: "invalid_verdict", problems: payload.problems };
@@ -510,7 +543,7 @@ export type OutOfDateVerdicts = {
 
 /** Listings whose newest Verdict is Achterhaald, e.g. for "Dit verandert N oordelen" after a profile save. */
 export async function fetchOutOfDateVerdicts(): Promise<OutOfDateVerdicts> {
-  const response = await fetch("/api/verdicts/out-of-date");
+  const response = await apiFetch("/api/verdicts/out-of-date");
   if (!response.ok) throw new Error("out-of-date verdicts unavailable");
   return response.json();
 }
