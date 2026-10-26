@@ -16,6 +16,7 @@ from app.photos import keep_photos, photo_set
 from app.ports import ListingProvider, Ports, SourceClient
 from app.settings import Settings
 from app.source_runner import run_sources
+from app.verdict import changed_inputs, inputs_of
 
 # Sources fetched only when the user asks for them, never on capture or a Listing refetch:
 # comparables cost one provider fetch per comparable.
@@ -148,6 +149,12 @@ class Wiring:
             store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
             store.documents(settings.database_path, funda_id),
         )
+
+    def verdict_state(self, funda_id: str, case: dict) -> dict:
+        """A Listing's Verdicts, newest first, and whether the newest is out of date (Achterhaald)."""
+        history = store.verdicts(self.settings.database_path, funda_id)
+        changed = changed_inputs(history[0], inputs_of(case, self.settings.verdict_model)) if history else []
+        return {"verdicts": history, "out_of_date": bool(changed), "changed": changed}
 
     def with_comparison(self, listing: dict) -> dict:
         """The Listing plus its comparison-view row: the latest Verdict's tier, or none until a

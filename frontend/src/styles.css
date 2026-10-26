@@ -274,7 +274,11 @@ button.row-menu:hover:not(:disabled), button.row-menu[data-popup-open] { backgro
 .woning-meta .chip { background: rgb(255 255 255 / 0.16); color: var(--on-hero); }
 .woning-meta .stale-chip { background: #fff; color: var(--ink); }
 .woning-actions button:not(:hover) { border-color: transparent; }
-.woning-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.woning-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+a.button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; font-weight: 550; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-s); text-decoration: none; transition: background 150ms, border-color 150ms; }
+a.button:hover { background: var(--band); border-color: var(--ink-3); }
+.export-markdown { display: grid; gap: 6px; justify-items: start; }
+.export-profile { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--on-hero-2); cursor: pointer; }
 .halves { display: flex; gap: 0; margin: 28px 0 0; border-bottom: 0; }
 .halves a { display: flex; flex-direction: column; padding: 12px 24px 14px 0; margin-right: 24px; color: var(--on-hero-2); text-decoration: none; font-size: 17px; font-weight: 650; box-shadow: inset 0 -4px 0 transparent; transition: box-shadow 180ms var(--ease), color 150ms; }
 .halves a:hover { color: var(--on-hero); }
