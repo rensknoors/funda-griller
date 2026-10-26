@@ -227,7 +227,8 @@ def _http_post_json(url: str, headers: dict, body: dict) -> tuple[int, Any]:
     return _open_json(request, timeout=20)
 
 
-OPENROUTESERVICE_MATRIX_URL = "https://api.openrouteservice.org/v2/matrix"
+# api.openrouteservice.org shuts down in November 2026; HeiGIT serves ORS under api.heigit.org.
+OPENROUTESERVICE_MATRIX_URL = "https://api.heigit.org/openrouteservice/v2/matrix"
 # ORS routing profiles per commute mode. ORS has no public transport.
 OPENROUTESERVICE_PROFILES = {"car": "driving-car", "bike": "cycling-regular"}
 

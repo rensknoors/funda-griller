@@ -348,7 +348,7 @@ def test_openrouteservice_returns_minutes_per_destination_from_one_matrix_reques
 
     assert minutes == [30.5, None]
     [(url, headers, body)] = post.requests
-    assert url == "https://api.openrouteservice.org/v2/matrix/cycling-regular"
+    assert url == "https://api.heigit.org/openrouteservice/v2/matrix/cycling-regular"
     assert headers == {"Authorization": "ors-key"}
     # Longitude first; only coordinates are sent.
     assert body == {
@@ -362,7 +362,7 @@ def test_openrouteservice_returns_minutes_per_destination_from_one_matrix_reques
 def test_openrouteservice_drives_by_car_and_is_skipped_without_a_key_and_fails_on_errors():
     post = FakePost(200, {"durations": [[600.0]]})
     OpenRouteServiceRouter("ors-key", post).travel_minutes((51.0, 5.8), [(52.0, 5.0)], "car")
-    assert post.requests[0][0] == "https://api.openrouteservice.org/v2/matrix/driving-car"
+    assert post.requests[0][0] == "https://api.heigit.org/openrouteservice/v2/matrix/driving-car"
 
     with pytest.raises(SourceSkipped, match="no_api_key"):
         OpenRouteServiceRouter(None, FakePost(200)).travel_minutes((51.0, 5.8), [(52.0, 5.0)], "car")
