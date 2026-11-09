@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -10,10 +12,11 @@ from tests.profile_fixtures import typical_profile
 
 VERDICT = "/api/listings/80907644/verdict"
 
-# The typical household can pay at most 704_519 for the live Listing (asking 595_000, headroom 109_519).
-AFFORDABLE_MAXIMUM = 704_519
-# Without comparables the Walk-away Maximum is the asking price plus the default 5% margin.
-WALK_AWAY_MAXIMUM = 624_750
+# The typical household can pay at most 650_351 for the live Listing (asking 595_000, headroom 55_351).
+AFFORDABLE_MAXIMUM = 650_351
+# Without comparables the Walk-away Maximum is the asking price plus 4,6%, NVM's average overbid for
+# all homes (the live Listing's soort woning is unknown).
+WALK_AWAY_MAXIMUM = 622_370
 
 
 def model_says(tier="consider", **overrides):
@@ -202,8 +205,10 @@ def test_cited_flags_are_named_and_bid_advice_shows_monthly_costs(client, listin
     ]
     advice = verdict["bid_advice"]
     assert advice["asking_price"] == 595_000
-    assert advice["monthly_cost_at_asking_price"] == 1_838
+    assert advice["monthly_cost_at_asking_price"] == 1_935
+    assert advice["monthly_cost_net_at_asking_price"] == 1_461
     assert advice["monthly_cost_at_walk_away_maximum"] > advice["monthly_cost_at_asking_price"]
+    assert advice["monthly_cost_net_at_walk_away_maximum"] < advice["monthly_cost_at_walk_away_maximum"]
 
 
 def test_a_verdict_is_versioned_against_case_profile_and_model(client, listing_provider, settings, llm_client):
@@ -344,3 +349,18 @@ def test_a_case_hard_no_overrides_an_earlier_verdict_tier_in_the_comparison_row(
 
     row = client.get("/api/listings").json()[0]["comparison"]
     assert (row["tier"], row["hard_no_reason"]) == ("hard_no", "Geen erfpacht")
+
+
+def test_a_new_affordability_rule_table_marks_the_verdict_out_of_date(
+    client, listing_provider, settings, llm_client, tmp_path
+):
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says()
+    client.post(VERDICT)
+
+    table = tmp_path / "rules.toml"
+    text = settings.affordability_rules_path.read_text()
+    table.write_text(re.sub(r"^version = \d+$", "version = 999", text, count=1, flags=re.MULTILINE))
+    settings.affordability_rules_path = table
+
+    assert client.get(VERDICT).json()["changed"] == ["rules"]

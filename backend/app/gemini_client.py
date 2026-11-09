@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 4
+VERDICT_PROMPT_VERSION = 6
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -48,7 +48,12 @@ The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derive
 and affordability (`case.walk_away` says how). Do not propose your own. The opening bid must not
 exceed it. When `case.walk_away.weakly_grounded` is true there are too few comparables and it rests
 on the asking price (or affordability alone); say in the reasoning that the bid advice is weakly
-grounded.
+grounded. On the asking price its margin is the average overbid for the soort woning
+(`case.walk_away.margin_source`); name it.
+
+`case.metrics.asking_vs_woz.indexed` is the WOZ value brought from its peildatum to today's prices
+with the CBS house price index; weigh the asking price against that, not the raw WOZ value, which
+lags the market. Comparables count only when of the same kind as the house (`matched_on`).
 
 `case.renovation_estimate` is what the house may cost to renovate, from a versioned cost table:
 items in three classes (`direct`: Direct nodig, `within_5_years`: Binnen 5 jaar, `optional`:
@@ -57,6 +62,14 @@ triggered it (inspection items rest on the build year alone). The Direct nodig m
 taken off the affordable maximum and the walk-away basis (`case.walk_away.renovation_direct`); do not
 subtract it again. Weigh the estimate against `buyer_profile.renovation_tolerance`, and name
 `missing_inputs` (no photos read, no Vragenlijst, no energielabel) as gaps in what is known.
+
+`case.affordability` follows the Dutch lending norms for the year of the expected levering
+(`case.rules.year`, `case.rules.levering_on`). The mortgage may not exceed the price, so kosten koper
+and the Direct nodig renovation come from own funds and equity. `monthly_cost` is the gross annuity
+of the mortgage needed at the asking price; `monthly_cost_net` is what the household pays after
+hypotheekrenteaftrek, the figure to weigh affordability by. `nhg` says whether that mortgage fits
+under the NHG limit. When `case.rules.is_current_year` is false the norms are from an earlier year;
+say so.
 
 Write summary, reasoning and conditions in Dutch.
 """

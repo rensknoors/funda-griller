@@ -26,6 +26,7 @@ test("blocked fetch offers manual entry, and the entered woning opens as a dossi
   await form.getByRole("button", { name: "Woning opslaan" }).click();
 
   await expect(form).toBeHidden();
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
   const row = page.getByRole("row", { name: /Oudegracht 2/ });
   await expect(row.getByText("Handmatig ingevoerd")).toBeVisible();
   await expect(row.getByText("€ 425.000")).toBeVisible();

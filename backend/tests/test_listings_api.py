@@ -161,3 +161,28 @@ def test_listing_without_media_or_description_is_captured(client, listing_provid
     snapshot = response.json()["snapshots"][0]
     assert snapshot["photo_urls"] == []
     assert snapshot["description"] is None
+
+
+def test_a_running_capture_reports_its_step_and_disappears_when_done(client, listing_provider, photo_downloader):
+    listing_provider.listings[LIVE_URL] = live_listing()
+    seen = []
+    download = photo_downloader.download
+
+    def download_and_look(url: str) -> bytes:
+        seen.append(client.get("/api/listings/captures").json())
+        return download(url)
+
+    photo_downloader.download = download_and_look
+
+    assert client.post("/api/listings", json={"url": LIVE_URL}).status_code == 201
+
+    assert seen[0] == [{"funda_id": "80907644", "url": LIVE_URL, "step": "photos"}]
+    assert client.get("/api/listings/captures").json() == []
+
+
+def test_a_failed_capture_stops_being_reported(client, listing_provider):
+    listing_provider.listings[LIVE_URL] = ProviderBlocked()
+
+    client.post("/api/listings", json={"url": LIVE_URL})
+
+    assert client.get("/api/listings/captures").json() == []

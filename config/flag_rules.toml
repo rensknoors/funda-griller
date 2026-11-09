@@ -16,7 +16,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 11
+version = 13
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -47,14 +47,17 @@ threshold = 0
 cite = ["asking_price"]
 deal_breaker_aliases = ["te duur", "boven budget", "betaalruimte"]
 
+# Against the WOZ value brought from its peildatum to today with the CBS price index
+# (config/price_index.toml): the raw WOZ lags the market by up to two years. When the peildatum
+# falls outside the index series, the raw WOZ value is used.
 [[rules]]
 id = "ask_far_above_woz"
-version = 1
+version = 3
 class = "con"
-title = "Vraagprijs ver boven de WOZ-waarde"
+title = "Vraagprijs ver boven de WOZ-waarde (naar vandaag)"
 kind = "ratio_above"
 fact = "asking_price"
-of = "woz.woz_value"
+of = ["indexed_woz_value", "woz.woz_value"]
 ratio_name = "asking_vs_woz"
 threshold = 1.15
 

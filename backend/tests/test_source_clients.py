@@ -246,7 +246,9 @@ def nearby(global_id, price, living, raw_status="Verkocht"):
         price=Price(amount=price),
         address=Address(title=f"Dorpsstraat {global_id % 100}", city="Holtum"),
         areas=Areas(living=living),
-        property_details=PropertyDetails(raw_status=raw_status),
+        property_details=PropertyDetails(
+            raw_status=raw_status, object_type="house", house_type="Eengezinswoning, tussenwoning"
+        ),
         urls=Urls(full=f"https://www.funda.nl/detail/koop/holtum/huis-x/{global_id}/"),
     )
 
@@ -268,6 +270,8 @@ def test_comparables_fetch_sold_neighbours_first_and_stop_at_the_cap():
             "asking_price": 500_101,
             "living_area": 120,
             "raw_status": "Verkocht",
+            "object_type": "house",
+            "house_type": "Eengezinswoning, tussenwoning",
             "recently_sold": True,
             "url": "https://www.funda.nl/detail/koop/holtum/huis-x/101/",
         },

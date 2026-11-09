@@ -327,6 +327,8 @@ def _comparable(found: Any, global_id: object, recently_sold: bool) -> dict:
         "asking_price": getattr(getattr(found, "price", None), "amount", None),
         "living_area": getattr(getattr(found, "areas", None), "living", None),
         "raw_status": getattr(details, "raw_status", None) or getattr(details, "status", None),
+        "object_type": getattr(details, "object_type", None),
+        "house_type": getattr(details, "house_type", None),
         "recently_sold": recently_sold,
         "url": getattr(getattr(found, "urls", None), "full", None),
     }

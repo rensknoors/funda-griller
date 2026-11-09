@@ -73,6 +73,11 @@ def routes(w: Wiring) -> APIRouter:
         entry = ManualEntry(**{**facts, "photo_urls": photo_urls})
         return w.capture(funda_id, url, ManualListingProvider(entry), "manual")
 
+    @router.get("/captures", response_model=None)
+    def running_captures() -> list[dict]:
+        """Captures and refetches still running, each with the step it is at."""
+        return w.captures.running()
+
     @router.get("", response_model=None)
     def list_listings(include_archived: bool = False) -> list[dict]:
         """Archived Listings are hidden unless asked for. Sorting and filtering happen in the view."""

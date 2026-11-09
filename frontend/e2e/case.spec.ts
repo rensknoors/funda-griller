@@ -22,9 +22,11 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
 
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
   await expect(page.getByText("Maximale hypotheek", { exact: true })).toBeVisible();
-  await expect(page.getByText("€ 496.660")).toBeVisible();
-  await expect(page.getByText("+€ 109.519", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/^Regels 2026/)).toBeVisible();
+  // 2027 norms (levering after the turn of the year), NHG at 4,40%, label B and the alleenstaandenbonus.
+  await expect(page.getByText("€ 461.174")).toBeVisible();
+  await expect(page.getByText("+€ 72.928", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("€ 1.461 p/m", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/^Leennormen 2027, levering rond/)).toBeVisible();
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();
 });
@@ -40,7 +42,10 @@ test("dossier shows bronnen: official energielabel, third-party WOZ, coverage an
   await expect(page.getByText("Nee: advertentie B, register A")).toBeVisible();
   await expect(page.getByText("WOZ-waarde 2025")).toBeVisible();
   await expect(page.getByLabel(/Bron: WOZ \(prijshistorie\), onofficieel/).first()).toBeVisible();
-  await expect(page.getByText("Vraagprijs t.o.v. WOZ")).toBeVisible();
+  await expect(page.getByText("Vraagprijs t.o.v. WOZ", { exact: true })).toBeVisible();
+  // 392.000 at peildatum 2025-01-01, in today's prices with the CBS index: 420.289.
+  await expect(page.getByText("Vraagprijs t.o.v. WOZ naar vandaag", { exact: true })).toBeVisible();
+  await expect(page.getByText(/WOZ €\s420\.289/)).toBeVisible();
 
   await page.getByRole("button", { name: "WOZ (prijshistorie) opnieuw ophalen" }).click();
   await expect(page.getByText("WOZ-waarde 2024")).toBeVisible();

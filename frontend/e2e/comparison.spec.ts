@@ -7,6 +7,13 @@ const CHANGING_URL = "https://www.funda.nl/detail/koop/maastricht/appartement-ma
 const table = (page: Page) => page.getByRole("table", { name: "Woningen" });
 const row = (page: Page, address: string) => table(page).getByRole("row", { name: new RegExp(address) });
 
+/** Fold a row open; its figures sit in the details row it controls. */
+async function details(page: Page, address: string) {
+  await row(page, address).getByRole("button", { name: "Details tonen" }).click();
+  const toggle = row(page, address).getByRole("button", { name: "Details verbergen" });
+  return page.locator(`#${await toggle.getAttribute("aria-controls")}`);
+}
+
 async function rowOrder(page: Page): Promise<string[]> {
   const names = await table(page).locator("tbody tr").allInnerTexts();
   return names.map((text) => (text.includes("Buchterweg 15") ? "Buchterweg" : text.includes("Markt 3") ? "Markt" : "ander"));
@@ -31,14 +38,17 @@ test.beforeEach(async ({ request }) => {
 
 test("list compares woningen by oordeel, price and key figures", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
 
   const buchterweg = row(page, "Buchterweg 15");
   await expect(buchterweg.getByText("Harde afwijzing")).toBeVisible();
   await expect(buchterweg.getByText("Deal-breaker: Garage")).toBeVisible();
   await expect(buchterweg.getByText("€ 595.000")).toBeVisible();
-  await expect(buchterweg.getByText("+51,8%", { exact: true })).toBeVisible();
-  await expect(buchterweg.getByText("152 / 410")).toBeVisible();
-  await expect(buchterweg.getByText("A", { exact: true })).toBeVisible();
+  await expect(buchterweg.getByText("+41,6%", { exact: true })).toBeHidden();
+  const buchterwegDetails = await details(page, "Buchterweg 15");
+  await expect(buchterwegDetails.getByText("+41,6%", { exact: true })).toBeVisible();
+  await expect(buchterwegDetails.getByText("152 / 410")).toBeVisible();
+  await expect(buchterwegDetails.getByText("A", { exact: true })).toBeVisible();
   await expect(row(page, "Markt 3").getByText("Nog geen oordeel")).toBeVisible();
 
   // Default: tier order, a Harde afwijzing below Woningen without an Oordeel yet.
@@ -70,6 +80,7 @@ test("woningen with verouderde gegevens stand out and can be filtered", async ({
     await route.fulfill({ json: listings });
   });
   await page.goto("/");
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
 
   await expect(row(page, "Buchterweg 15").getByText("3 verouderd")).toBeVisible();
   await page.getByRole("checkbox", { name: "Alleen verouderd" }).check();
@@ -79,6 +90,7 @@ test("woningen with verouderde gegevens stand out and can be filtered", async ({
 
 test("refetch shows a status change; archive and restore keep the woning", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
 
   await row(page, "Markt 3").getByRole("button", { name: "Acties", exact: true }).click();
   await page.getByRole("menuitem", { name: "Opnieuw ophalen" }).click();
@@ -101,4 +113,39 @@ test("refetch shows a status change; archive and restore keep the woning", async
   await page.getByRole("checkbox", { name: "Toon gearchiveerd" }).uncheck();
   await expect(row(page, "Markt 3")).toBeVisible();
   await expect(row(page, "Markt 3").getByText("Verkocht")).toBeVisible();
+});
+
+test("woningen show as photo cards by default, with the oordeel, price and key figures", async ({ page }) => {
+  await page.goto("/");
+
+  const cards = page.getByRole("list", { name: "Woningen" });
+  const buchterweg = cards.getByRole("listitem", { name: "Buchterweg 15" });
+  await expect(buchterweg.getByText("Harde afwijzing")).toBeVisible();
+  await expect(buchterweg.getByText("€ 595.000")).toBeVisible();
+  await expect(buchterweg.getByText("Deal-breaker: Garage")).toBeVisible();
+  await expect(buchterweg.getByText("WOZ +41,6%")).toBeVisible();
+  await expect(buchterweg.locator("img")).toHaveAttribute("src", /\/api\/listings\/80907644\/photos\//);
+
+  // The choice of view is remembered.
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("table", { name: "Woningen" })).toBeVisible();
+  await page.getByRole("button", { name: "Kaarten", exact: true }).click();
+
+  await buchterweg.getByRole("link", { name: "Buchterweg 15" }).click();
+  await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
+  const facts = page.locator(".woning-head .woning-facts");
+  await expect(facts.getByText("152 m² wonen")).toBeVisible();
+  await expect(facts.getByText("410 m² perceel")).toBeVisible();
+  await expect(facts.getByText("Energielabel A")).toBeVisible();
+
+  await page.getByRole("button", { name: "Foto 1 openen" }).click();
+  const viewer = page.getByRole("dialog", { name: "Foto 1" });
+  await viewer.getByRole("button", { name: "Volgende foto" }).click();
+  await expect(page.getByRole("dialog", { name: "Foto 2" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Foto 2" }).getByRole("button", { name: "Sluiten" }).click();
+
+  // A thumbnail in the mosaic opens the viewer at its own photo.
+  await page.getByRole("button", { name: "Foto 2 openen" }).click();
+  await expect(page.getByRole("dialog", { name: "Foto 2" })).toBeVisible();
 });

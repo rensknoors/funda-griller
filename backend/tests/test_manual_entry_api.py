@@ -122,13 +122,15 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
         "profile_version": 1,
         "flag_rules_version": FLAG_RULES_VERSION,
         "cost_table_version": COST_TABLE_VERSION,
+        "price_index_version": 1,
+        "bid_margins_version": 1,
         "observation_run": None,
         "documents": [],
     }
     facts = {fact["key"]: fact for fact in case["facts"]}
     assert facts["asking_price"]["value"] == 595000
     assert {fact["provenance"] for fact in facts.values()} == {"listing"}
-    assert case["affordability"]["headroom"] == 109_519
+    assert case["affordability"]["headroom"] == 55_351
 
 
 def test_refetch_after_manual_entry_uses_the_provider(client, listing_provider):

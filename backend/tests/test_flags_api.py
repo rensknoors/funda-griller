@@ -72,7 +72,7 @@ def test_asking_price_beyond_affordability_headroom_is_a_con(client, listing_pro
 
     flag = flags_by_rule(case)["ask_beyond_headroom"]
     assert flag["class"] == "con"
-    assert evidence(flag) == {"headroom": -113_534, "asking_price": 300_000, "threshold": 0}
+    assert evidence(flag) == {"headroom": -115_317, "asking_price": 300_000, "threshold": 0}
 
 
 def test_without_a_woz_value_the_overpricing_rule_raises_nothing(client, listing_provider):
@@ -142,11 +142,10 @@ def test_the_register_energielabel_outranks_the_listing_claim_in_flags(
     assert (label["value"], label["provenance"], label["source"]) == ("A", "source", "energielabel")
 
 
-def test_asking_price_far_above_woz_is_a_con(client, listing_provider, source_clients):
-    source_clients["woz"].facts = [
-        SourceFact(name="woz_value", value=450_000, as_of="2024-01-01"),
-        SourceFact(name="woz_value", value=500_000, as_of="2025-01-01"),
-    ]
+def test_asking_price_far_above_the_woz_value_brought_to_today_is_a_con(client, listing_provider, source_clients):
+    """WOZ 450.000 at peildatum 2025-01-01 is 482.474 today (CBS index 156,0 / 145,5); 595.000 is
+    1,23 times that."""
+    source_clients["woz"].facts = [SourceFact(name="woz_value", value=450_000, as_of="2025-01-01")]
 
     case = case_for(client, listing_provider, typical_profile(), asking_price=595_000)
 
@@ -154,10 +153,21 @@ def test_asking_price_far_above_woz_is_a_con(client, listing_provider, source_cl
     assert flag["class"] == "con"
     assert evidence(flag) == {
         "asking_price": 595_000,
-        "woz_value": 500_000,
-        "asking_vs_woz": 1.19,
+        "indexed_woz_value": 482_474,
+        "asking_vs_woz": 1.23,
         "threshold": 1.15,
     }
+
+
+def test_asking_above_the_raw_woz_but_in_line_with_the_indexed_one_is_no_con(
+    client, listing_provider, source_clients
+):
+    """595.000 is 1,19 times a WOZ of 500.000, but only 1,11 times its 536.082 today."""
+    source_clients["woz"].facts = [SourceFact(name="woz_value", value=500_000, as_of="2025-01-01")]
+
+    case = case_for(client, listing_provider, typical_profile(), asking_price=595_000)
+
+    assert "ask_far_above_woz" not in flags_by_rule(case)
 
 
 def test_a_listing_that_says_it_has_no_garage_does_not_hit_a_geen_garage_deal_breaker(
@@ -292,3 +302,13 @@ def test_every_piece_of_flag_evidence_carries_its_provenance_and_a_time(client, 
             assert item.get(TIMES[item["provenance"]]), (flag["id"], item)
     assert case["affordability"]["computed_at"] == "2026-10-24T12:00:00+00:00"
     assert case["metrics"]["asking_vs_woz"]["computed_at"] == "2026-10-24T12:00:00+00:00"
+
+
+def test_a_woz_value_that_cannot_be_indexed_is_compared_as_it_is(client, listing_provider, source_clients):
+    """A peildatum before the price index series starts (2019): the raw WOZ value is used, as before."""
+    source_clients["woz"].facts = [SourceFact(name="woz_value", value=400_000, as_of="1 jan 2015")]
+
+    case = case_for(client, listing_provider, typical_profile(), asking_price=595_000)
+
+    flag = flags_by_rule(case)["ask_far_above_woz"]
+    assert evidence(flag) == {"asking_price": 595_000, "woz_value": 400_000, "asking_vs_woz": 1.49, "threshold": 1.15}

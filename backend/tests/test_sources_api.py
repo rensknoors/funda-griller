@@ -67,7 +67,7 @@ def test_borrowing_capacity_uses_the_register_label_over_the_listing_claim(
     affordability = read_case(client)["affordability"]
 
     assert affordability["energy_label_bonus"] == 25_000
-    assert affordability["max_mortgage"] == 304_422
+    assert affordability["max_mortgage"] == 265_634
 
 
 WOZ_HISTORY = [
@@ -99,9 +99,34 @@ def test_asking_price_is_compared_to_the_latest_woz_value(client, listing_provid
         "woz_as_of": "2025-01-01",
         "difference": 98_000,
         "percent": 25.0,
+        # CBS 85773NED: 156,0 in September 2026 (latest month before 2026-10-24) against 145,5 in
+        # January 2025, the peildatum's month: 392.000 × 156,0 / 145,5.
+        "indexed": {
+            "woz_value": 420_289,
+            "index_from": "2025-01",
+            "index_to": "2026-09",
+            "difference": 69_711,
+            "percent": 16.6,
+            "source": "CBS StatLine 85773NED, nationaal, 2020=100",
+        },
         "provenance": "computed",
         "computed_at": CAPTURED_AT,
     }
+
+
+def test_woz_dates_as_the_provider_writes_them_are_read(client, listing_provider, source_clients):
+    """pyfunda's price history dates WOZ values like "1 jan 2025" (seen in stored runs)."""
+    source_clients["woz"].facts = [
+        SourceFact(name="woz_value", value=392_000, as_of="1 jan 2025"),
+        SourceFact(name="woz_value", value=371_000, as_of="1 jan 2024"),
+        SourceFact(name="woz_value", value=300_000, as_of="1 jan 2014"),
+    ]
+    capture(client, listing_provider, asking_price=490_000)
+
+    metric = read_case(client)["metrics"]["asking_vs_woz"]
+
+    assert (metric["woz_value"], metric["woz_as_of"]) == (392_000, "2025-01-01")
+    assert metric["indexed"]["woz_value"] == 420_289
 
 
 def test_no_asking_vs_woz_without_woz_values(client, listing_provider):

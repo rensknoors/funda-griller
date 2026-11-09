@@ -54,6 +54,8 @@ class PyfundaListingProvider:
             rooms=_get(found, "rooms", "total"),
             bedrooms=_get(found, "rooms", "bedrooms"),
             construction_year=_get(found, "property_details", "construction_year"),
+            object_type=_text(_get(found, "property_details", "object_type")),
+            house_type=_text(_get(found, "property_details", "house_type")),
             energy_label=_get(found, "property_details", "energy_label"),
             latitude=_get(found, "location", "latitude"),
             longitude=_get(found, "location", "longitude"),

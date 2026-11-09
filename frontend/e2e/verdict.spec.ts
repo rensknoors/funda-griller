@@ -29,15 +29,20 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   const tier = page.getByRole("region", { name: "Oordeel", exact: true });
   await expect(tier.getByText("Overwegen", { exact: true })).toBeVisible();
   const advies = page.getByRole("region", { name: "Biedadvies" });
-  await expect(advies.getByText("Openingsbod")).toBeVisible();
-  await expect(advies.getByText("€ 580.000")).toBeVisible();
-  // No vergelijkbare woningen fetched: the Maximumbod is the vraagprijs plus 5%, and says it is weak.
-  await expect(advies.getByText("€ 624.750", { exact: true })).toBeVisible();
+  const bedragen = advies.getByRole("group", { name: "Bedragen" });
+  await expect(bedragen.getByText("Openingsbod")).toBeVisible();
+  await expect(bedragen.getByText("€ 580.000")).toBeVisible();
+  // No vergelijkbare woningen fetched: the Maximumbod is the vraagprijs plus NVM's 4,6% average overbid,
+  // and says it is weak.
+  await expect(bedragen.getByText("€ 622.370", { exact: true })).toBeVisible();
+  // The scale above draws the same bid as one stretch.
+  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 580.000, Maximumbod € 622.370", { exact: false })).toBeAttached();
   await expect(advies.getByText(/Zwak onderbouwd: te weinig vergelijkbare woningen/)).toBeVisible();
   await expect(advies.getByText("Bouwkundige keuring")).toBeVisible();
   await advies.getByText("Hoe berekend").click();
-  await expect(advies.getByText("Betaalruimte: tot € 704.519")).toBeVisible();
-  await expect(advies.getByText("Vraagprijs € 595.000 + 5%: € 624.750")).toBeVisible();
+  await expect(advies.getByText("Betaalruimte: tot € 667.928")).toBeVisible();
+  await expect(advies.getByText("Vraagprijs € 595.000 + 4,6%: € 622.370")).toBeVisible();
+  await expect(advies.getByText(/^Marge 4,6%: gemiddeld overbod voor alle woningen \(NVM/)).toBeVisible();
   const redenering = page.getByRole("region", { name: "Redenering" });
   await expect(redenering.getByRole("button", { name: /Vraagprijs ver boven de WOZ-waarde/ })).toBeVisible();
   await expect(page.getByText(/Koperprofiel versie \d+/).first()).toBeVisible();
@@ -57,6 +62,7 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
 
   // The list shows the Oordeel tier; saving the koperprofiel says how many Oordelen it changes.
   await page.getByRole("link", { name: "Terug naar woningen" }).click();
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
   const row = page.getByRole("table", { name: "Woningen" }).getByRole("row", { name: /Buchterweg 15/ });
   await expect(row.getByText("Overwegen")).toBeVisible();
   await page.getByRole("navigation", { name: "Hoofdmenu" }).getByRole("link", { name: "Koperprofiel" }).click();

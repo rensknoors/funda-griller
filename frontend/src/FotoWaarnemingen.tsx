@@ -1,6 +1,6 @@
-import { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
 
+import { PhotoViewer } from "./PhotoViewer";
 import { Stamp } from "./Stamp";
 import { type Case, type CasePhoto, type ObservationFact, rerunObservations } from "./api";
 
@@ -130,18 +130,7 @@ export function FotoWaarnemingen(props: { data: Case; fundaId: string; onCase: (
           </li>
         ))}
       </ol>
-      <Dialog.Root open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
-        <Dialog.Portal>
-          <Dialog.Backdrop className="dialog-backdrop" />
-          <Dialog.Popup className="dialog photo-dialog">
-            <Dialog.Title>{viewing && `Foto ${viewing.number}`}</Dialog.Title>
-            {viewing && <img src={viewing.url} alt={`Foto ${viewing.number}`} />}
-            <div className="row">
-              <Dialog.Close>Sluiten</Dialog.Close>
-            </div>
-          </Dialog.Popup>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <PhotoViewer photos={data.photos} viewing={viewing} onView={setViewing} />
     </details>
   );
 }

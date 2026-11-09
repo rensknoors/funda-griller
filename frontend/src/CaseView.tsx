@@ -1,6 +1,7 @@
 import { CircleCheck, CircleMinus, CircleX, Clock, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { PriceScale, StackedBar, type ScaleMarker } from "./charts";
 import {
   type Affordability,
   type Case,
@@ -16,7 +17,7 @@ import {
 import { Documenten, VerkoperInformatie } from "./Documenten";
 import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
-import { type Tone, euro, headroomTone, percentChange, priceTone, signedEuro, signedPercent } from "./format";
+import { type Tone, decimal, euro, headroomTone, longDate, monthOf, percentChange, priceTone, signedEuro, signedPercent } from "./format";
 import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
@@ -58,9 +59,11 @@ const REASON_COPY: Record<string, string> = {
   no_route: "geen route gevonden",
 };
 
+/** The year of a WOZ peildatum, which the source gives as "1 jan 2024" or as an ISO date. */
+const yearOf = (asOf: string | null | undefined) => asOf?.match(/\d{4}/)?.[0] ?? "";
 
 function sourceFactLabel(fact: SourceFact): string {
-  if (fact.key === "woz_value") return `WOZ-waarde ${fact.as_of?.slice(0, 4) ?? ""}`.trim();
+  if (fact.key === "woz_value") return `WOZ-waarde ${yearOf(fact.as_of)}`.trim();
   if (fact.key === "energy_label") return "Energielabel (register)";
   if (isCommuteFact(fact.value)) return `Reistijd naar ${fact.value.destination}`;
   if (ENVIRONMENT_FACTS[fact.key]) return ENVIRONMENT_FACTS[fact.key].label;
@@ -223,7 +226,14 @@ export function CaseView(props: {
               <ComputedRow
                 label="Vraagprijs t.o.v. WOZ"
                 value={`${percentChange.format(state.data.metrics.asking_vs_woz.percent)}% (${signedEuro(state.data.metrics.asking_vs_woz.difference)})`}
-                note={`WOZ ${state.data.metrics.asking_vs_woz.woz_as_of.slice(0, 4)}`}
+                note={`WOZ ${yearOf(state.data.metrics.asking_vs_woz.woz_as_of)}`}
+              />
+            )}
+            {state.data.metrics.asking_vs_woz?.indexed && (
+              <ComputedRow
+                label="Vraagprijs t.o.v. WOZ naar vandaag"
+                value={`${percentChange.format(state.data.metrics.asking_vs_woz.indexed.percent)}% (WOZ ${euro.format(state.data.metrics.asking_vs_woz.indexed.woz_value)})`}
+                note={`prijsindex ${state.data.metrics.asking_vs_woz.indexed.index_from} → ${state.data.metrics.asking_vs_woz.indexed.index_to}, ${state.data.metrics.asking_vs_woz.indexed.source}`}
               />
             )}
           </SourceGroup>
@@ -330,7 +340,7 @@ function Brondekking(props: {
                 {source.status !== "succeeded" && source.reason && REASON_COPY[source.reason] && (
                   <span className="muted"> ({REASON_COPY[source.reason]})</span>
                 )}
-                {source.attempted_at && <span className="muted"> · {shortDate(source.attempted_at)}</span>}
+                {source.attempted_at && <span className="muted source-date"> · {shortDate(source.attempted_at)}</span>}
               </span>
               <button
                 type="button"
@@ -365,32 +375,74 @@ function KeyFigures({
   metrics: Metrics;
 }) {
   return (
-    <dl className="figures key-figures" aria-label="Kerncijfers">
-      <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
-      <Figure
-        label="t.o.v. WOZ"
-        tone={priceTone(metrics.asking_vs_woz?.percent)}
-        value={metrics.asking_vs_woz ? signedPercent(metrics.asking_vs_woz.percent) : "–"}
-      >
-        {metrics.asking_vs_woz && "~ WOZ onofficieel"}
-      </Figure>
-      <Figure
-        label="t.o.v. vergelijkbaar"
-        tone={priceTone(metrics.asking_vs_comparables.percent)}
-        value={comparablesFigure(metrics.asking_vs_comparables)}
-      >
-        {coverageNote(metrics.asking_vs_comparables)}
-      </Figure>
-      <Figure
-        label="Ruimte boven vraag"
-        tone={headroomTone(affordability?.headroom)}
-        value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
+    <>
+      <dl className="figures key-figures" aria-label="Kerncijfers">
+        <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
+        <Figure
+          label="t.o.v. WOZ"
+          tone={priceTone(wozPercent(metrics))}
+          value={metrics.asking_vs_woz ? signedPercent(wozPercent(metrics)) : "–"}
+        >
+          {metrics.asking_vs_woz && (metrics.asking_vs_woz.indexed ? "~ WOZ naar vandaag" : "~ WOZ onofficieel")}
+        </Figure>
+        <Figure
+          label="t.o.v. vergelijkbaar"
+          tone={priceTone(metrics.asking_vs_comparables.percent)}
+          value={comparablesFigure(metrics.asking_vs_comparables)}
+        >
+          {coverageNote(metrics.asking_vs_comparables)}
+        </Figure>
+        <Figure
+          label="Ruimte boven vraag"
+          tone={headroomTone(affordability?.headroom)}
+          value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
+        />
+        <Figure
+          label="Netto maandlasten bij vraagprijs"
+          value={affordability?.monthly_cost_net != null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
+        />
+      </dl>
+      {askingPrice !== null && <PriceContext askingPrice={askingPrice} affordability={affordability} metrics={metrics} />}
+    </>
+  );
+}
+
+/** The asking price on one line with what it is read against: the WOZ-waarde, what comparable
+ * woningen sold for, and the most the household can pay. */
+function PriceContext(props: { askingPrice: number; affordability: Affordability | null; metrics: Metrics }) {
+  const { askingPrice, affordability, metrics } = props;
+  const markers: ScaleMarker[] = [{ label: "Vraagprijs", value: askingPrice, primary: true }];
+  if (metrics.asking_vs_woz) markers.push({ label: "WOZ-waarde", value: metrics.asking_vs_woz.woz_value });
+  const comparables = metrics.asking_vs_comparables;
+  if (comparables.comparables_value !== null && comparables.coverage !== "not_fetched" && comparables.coverage !== "none") {
+    markers.push({ label: comparables.coverage === "thin" ? "Vergelijkbaar (dun)" : "Vergelijkbaar", value: comparables.comparables_value });
+  }
+  if (affordability) {
+    markers.push({
+      label: "Jouw maximum",
+      value: affordability.affordable_maximum,
+      tone: affordability.affordable_maximum >= askingPrice ? "favorable" : "shortfall",
+    });
+  }
+  if (markers.length < 2) return null;
+  const room = affordability ? affordability.affordable_maximum - askingPrice : null;
+  return (
+    <div className="price-context">
+      <PriceScale
+        label="Vraagprijs in context"
+        markers={markers}
+        span={
+          room === null
+            ? undefined
+            : {
+                from: askingPrice,
+                to: affordability!.affordable_maximum,
+                label: room >= 0 ? `${signedEuro(room)} ruimte` : `${signedEuro(room)} tekort`,
+                tone: room >= 0 ? "favorable" : "shortfall",
+              }
+        }
       />
-      <Figure
-        label="Maandlasten bij vraagprijs"
-        value={affordability?.monthly_cost != null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
-      />
-    </dl>
+    </div>
   );
 }
 
@@ -412,8 +464,7 @@ function Betaalruimte({
       ) : (
         <dl className="figures">
           <Figure label="Maximale hypotheek" value={euro.format(affordability.max_mortgage)}>
-            {affordability.energy_label_bonus > 0 &&
-              `incl. ${euro.format(affordability.energy_label_bonus)} voor energielabel`}
+            {bonusNote(affordability)}
           </Figure>
           <Figure label="Overwaarde eigen woning" value={euro.format(affordability.equity)} />
           <Figure
@@ -421,15 +472,14 @@ function Betaalruimte({
             value={affordability.kosten_koper ? euro.format(affordability.kosten_koper.total) : "–"}
           >
             {affordability.kosten_koper &&
-              `overdrachtsbelasting ${euro.format(affordability.kosten_koper.transfer_tax)}, vaste kosten ${euro.format(affordability.kosten_koper.fixed_costs)}`}
+              `overdrachtsbelasting ${euro.format(affordability.kosten_koper.transfer_tax)}, vaste kosten ${euro.format(affordability.kosten_koper.fixed_costs)}` +
+                (affordability.kosten_koper.nhg_fee > 0 ? `, NHG ${euro.format(affordability.kosten_koper.nhg_fee)}` : "")}
           </Figure>
           <Figure
-            label="Maandlasten bij vraagprijs"
-            value={affordability.monthly_cost !== null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
+            label="Netto maandlasten bij vraagprijs"
+            value={affordability.monthly_cost_net !== null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
           >
-            {affordability.mortgage_needed !== null &&
-              affordability.mortgage_needed > affordability.max_mortgage &&
-              "Let op: de benodigde hypotheek is hoger dan de maximale hypotheek"}
+            {monthlyNote(affordability)}
           </Figure>
           <Figure
             label="Ruimte boven vraag"
@@ -441,17 +491,61 @@ function Betaalruimte({
           </Figure>
         </dl>
       )}
+      {affordability?.kosten_koper && (
+        <StackedBar
+          label="Bovenop de vraagprijs"
+          total={euro.format(affordability.kosten_koper.total + affordability.renovation_direct)}
+          segments={[
+            { label: "Overdrachtsbelasting", value: affordability.kosten_koper.transfer_tax, kind: "tax" },
+            { label: "Vaste kosten koper", value: affordability.kosten_koper.fixed_costs + affordability.kosten_koper.nhg_fee, kind: "fees" },
+            { label: "Direct nodig onderhoud", value: affordability.renovation_direct, kind: "renovation" },
+          ]}
+        />
+      )}
       <p className="muted rules-year">
-        Regels {rules.year}
+        Leennormen {rules.year}, levering rond {monthOf(rules.levering_on)}; hypotheekrente van{" "}
+        {longDate(rules.market_rate_as_of)}
         {!rules.is_current_year && (
           <>
             {" "}
-            <span className="chip">Achterhaald</span> regels zijn niet van dit jaar
+            <span className="chip">Let op</span> nog geen normen voor het jaar van levering
           </>
         )}
       </p>
     </section>
   );
+}
+
+/** Against the WOZ value in today's prices when it can be indexed; the raw one lags the market. */
+function wozPercent(metrics: Metrics): number | null {
+  const woz = metrics.asking_vs_woz;
+  return woz ? (woz.indexed ?? woz).percent : null;
+}
+
+function bonusNote(affordability: Affordability): string | null {
+  const parts = [
+    affordability.energy_label_bonus > 0 && `${euro.format(affordability.energy_label_bonus)} voor energielabel`,
+    affordability.single_bonus > 0 && `${euro.format(affordability.single_bonus)} voor alleenstaande`,
+  ].filter(Boolean);
+  const included = parts.length ? `incl. ${parts.join(" en ")}` : null;
+  const nhg =
+    affordability.nhg_energy_measures > 0
+      ? `Met NHG kan bij label E, F of G standaard ${euro.format(affordability.nhg_energy_measures)} extra mee voor energiebesparende maatregelen (niet meegerekend)`
+      : null;
+  return [included, nhg].filter(Boolean).join(". ") || null;
+}
+
+/** Gross beside net with the rate and NHG, then a warning when a lender would not lend this. */
+function monthlyNote(affordability: Affordability): string | null {
+  if (affordability.monthly_cost === null || affordability.mortgage_needed === null) return null;
+  if (affordability.mortgage_needed === 0) return "geen hypotheek nodig";
+  const rate = affordability.mortgage_rate !== null ? ` tegen ${decimal.format(affordability.mortgage_rate * 100)}%` : "";
+  const gross = `bruto ${euro.format(affordability.monthly_cost)} p/m${rate}${affordability.nhg ? " met NHG" : ""}`;
+  if (affordability.own_funds_shortfall)
+    return `${gross}. Let op: ${euro.format(affordability.own_funds_shortfall)} eigen geld tekort voor kosten koper; de hypotheek stopt bij de koopsom`;
+  if (affordability.mortgage_needed > affordability.max_mortgage)
+    return `${gross}. Let op: de benodigde hypotheek is hoger dan de maximale hypotheek`;
+  return gross;
 }
 
 /** What each herkomst label means, beside the facts so the labels are learnable. */

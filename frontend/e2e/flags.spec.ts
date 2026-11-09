@@ -22,7 +22,7 @@ test("dossier groups signalen and shows the deal-breaker behind a harde afwijzin
   await page.getByRole("link", { name: "Buchterweg 15" }).click();
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
 
-  await expect(page.getByText("Harde afwijzing")).toBeVisible();
+  await expect(page.getByRole("paragraph").filter({ hasText: "Harde afwijzing" })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Deal-breaker" })).toContainText("Deal-breaker: Boven budget");
   const signalen = page.getByRole("region", { name: "Signalen" });
   // Headroom, missing tuin, and the asking price far above the fixture WOZ.

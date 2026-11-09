@@ -64,6 +64,10 @@ class Listing:
     rooms: int | None = None
     bedrooms: int | None = None
     construction_year: int | None = None
+    # funda's object type ("house", "apartment") and soort woning, verbatim (e.g. "Eengezinswoning,
+    # tussenwoning"); see app/house_type.py.
+    object_type: str | None = None
+    house_type: str | None = None
     energy_label: str | None = None
     latitude: float | None = None
     longitude: float | None = None

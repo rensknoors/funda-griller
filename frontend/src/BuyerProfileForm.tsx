@@ -16,8 +16,8 @@ import {
   toPayload,
   vakOrder,
 } from "./profile";
-import { apiFetch, fetchOutOfDateVerdicts } from "./api";
-import { euro } from "./format";
+import { apiFetch, fetchOutOfDateVerdicts, type Listing } from "./api";
+import { euro, monthOf } from "./format";
 import { href } from "./route";
 import { ErrorText, Vak, type VakInputProps } from "./Vak";
 
@@ -42,7 +42,8 @@ const toFieldErrors = (errors: { field: string; message: string }[]): FieldError
 
 /** Loads the latest Koperprofiel, then hands it to the form; skeleton while loading, banner on failure. */
 /** `onSaved` lets the Woningen list refresh: a profile change can change Hard no tiers. */
-export function BuyerProfileForm({ onSaved }: { onSaved?: () => void } = {}) {
+/** `listings` are the Woningen the Gevolgen hold the budget against. */
+export function BuyerProfileForm({ onSaved, listings = [] }: { onSaved?: () => void; listings?: Listing[] } = {}) {
   const [load, setLoad] = useState<LoadState>({ kind: "laden" });
   const [attempt, setAttempt] = useState(0);
 
@@ -91,7 +92,7 @@ export function BuyerProfileForm({ onSaved }: { onSaved?: () => void } = {}) {
           </button>
         </div>
       )}
-      {load.kind === "klaar" && <ProfileForm initial={load.form} firstRun={load.firstRun} onSaved={onSaved} />}
+      {load.kind === "klaar" && <ProfileForm initial={load.form} firstRun={load.firstRun} onSaved={onSaved} listings={listings} />}
     </div>
   );
 }
@@ -100,10 +101,12 @@ function ProfileForm({
   initial,
   firstRun,
   onSaved,
+  listings,
 }: {
   initial: FormState;
   firstRun: boolean;
   onSaved?: () => void;
+  listings: Listing[];
 }) {
   const [form, setForm] = useState<FormState>(initial);
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
@@ -203,7 +206,9 @@ function ProfileForm({
   };
 
   const vak = (field: string, label: string) => ({ field, label, error: errorOf(field) });
-  const amountInput = (key: "gross_annual_income" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs") =>
+  const amountInput = (
+    key: "gross_annual_income" | "fixed_rate_years" | "other_monthly_debt" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs",
+  ) =>
     (props: VakInputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
 
   const sectionBody: Record<SectionId, ReactNode> = {
@@ -226,19 +231,45 @@ function ProfileForm({
               <ProfileVak {...vak(`household.${index}.birth_date`, `Geboortedatum lid ${index + 1}`)}>
                 {(props) => <input {...props} type="date" value={member.birth_date} onChange={(event) => update({ birth_date: event.target.value })} />}
               </ProfileVak>
+              {member.role === "adult" && (
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={member.starter_exemption_used}
+                    onChange={(event) => update({ starter_exemption_used: event.target.checked })}
+                  />{" "}
+                  Startersvrijstelling al gebruikt
+                </label>
+              )}
               <button type="button" className="icon-button" aria-label={`Verwijder lid ${index + 1}`} title="Verwijderen" onClick={() => set("household", form.household.filter((_, i) => i !== index))}>
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
           );
         })}
-        <button type="button" className="add-button" onClick={() => set("household", [...form.household, { role: "adult", birth_date: "" }])}>
+        <button type="button" className="add-button" onClick={() => set("household", [...form.household, { role: "adult", birth_date: "", starter_exemption_used: false }])}>
           <Plus size={16} aria-hidden="true" />
           Lid toevoegen
         </button>
       </>
     ),
-    inkomen: <ProfileVak {...vak("gross_annual_income", "Bruto jaarinkomen huishouden (€)")}>{amountInput("gross_annual_income")}</ProfileVak>,
+    inkomen: (
+      <>
+        <ProfileVak {...vak("gross_annual_income", "Bruto jaarinkomen huishouden (€)")}>{amountInput("gross_annual_income")}</ProfileVak>
+        <ProfileVak
+          {...vak("fixed_rate_years", "Rentevaste periode (jaren)")}
+          hint="Korter dan 10 jaar: de bank toetst met de (hogere) toetsrente van de AFM."
+        >
+          {amountInput("fixed_rate_years")}
+        </ProfileVak>
+        <ProfileVak
+          {...vak("other_monthly_debt", "Maandlasten andere leningen (€ per maand)")}
+          hint="Studieschuld (DUO-maandbedrag), autolening, private lease. Leeg is geen."
+        >
+          {amountInput("other_monthly_debt")}
+        </ProfileVak>
+      </>
+    ),
     vermogen: (
       <>
         <ProfileVak {...vak("assets.savings", "Spaargeld (€)")}>{amountInput("savings")}</ProfileVak>
@@ -400,7 +431,7 @@ function ProfileForm({
         </section>
       ))}
 
-      <Gevolgen state={gevolgen} />
+      <Gevolgen state={gevolgen} listings={listings} />
 
       <footer className="profile-footer">
         {problemCount > 0 && (
@@ -482,7 +513,7 @@ function useGevolgen(form: FormState): GevolgenState | null {
   return draft === null ? null : state;
 }
 
-function Gevolgen({ state }: { state: GevolgenState | null }) {
+function Gevolgen({ state, listings }: { state: GevolgenState | null; listings: Listing[] }) {
   return (
     <aside className="gevolgen" aria-labelledby="gevolgen-title">
       <details open>
@@ -509,12 +540,13 @@ function Gevolgen({ state }: { state: GevolgenState | null }) {
                 <dd className="muted note">hoogste koopsom na kosten koper</dd>
               </div>
             </dl>
+            <BudgetFit budget={state.data.budget} listings={listings} />
             <p className="muted rules-year">
-              Regels {state.data.rules.year}
+              Leennormen {state.data.rules.year}, levering rond {monthOf(state.data.rules.levering_on)}
               {!state.data.rules.is_current_year && (
                 <>
                   {" "}
-                  <span className="chip">Achterhaald</span> regels zijn niet van dit jaar
+                  <span className="chip">Let op</span> nog geen normen voor het jaar van levering
                 </>
               )}
             </p>
@@ -522,6 +554,45 @@ function Gevolgen({ state }: { state: GevolgenState | null }) {
         )}
       </details>
     </aside>
+  );
+}
+
+/** The asking price of each Woning in the list against the budget being typed: which fit, which
+ * do not. Moves as the figures change. Verbouwingskosten are left out; the Dossier adds them. */
+function BudgetFit({ budget, listings }: { budget: number; listings: Listing[] }) {
+  const priced = listings
+    .filter((l) => !l.archived && l.comparison.asking_price !== null)
+    .map((l) => ({ id: l.funda_id, name: l.snapshots[0].address ?? l.url, price: l.comparison.asking_price! }))
+    .sort((a, b) => a.price - b.price);
+  if (priced.length === 0) return null;
+  const scale = Math.max(budget, ...priced.map((p) => p.price)) * 1.05;
+  const fitting = priced.filter((p) => p.price <= budget).length;
+  return (
+    <figure className="budget-fit">
+      <figcaption>
+        <strong>
+          {fitting} van {priced.length}
+        </strong>{" "}
+        {priced.length === 1 ? "woning past" : "woningen passen"} binnen dit budget
+      </figcaption>
+      <ul>
+        {priced.map((p) => {
+          const fits = p.price <= budget;
+          return (
+            <li key={p.id} className={fits ? "fits" : "over"}>
+              <span className="budget-fit-name">{p.name}</span>
+              <span className="budget-fit-track" aria-hidden="true">
+                <span className="budget-fit-bar" style={{ width: `${(p.price / scale) * 100}%` }} />
+                <span className="budget-fit-line" style={{ left: `${(budget / scale) * 100}%` }} />
+              </span>
+              <span className="visually-hidden">
+                {euro.format(p.price)}, {fits ? "binnen" : "boven"} budget
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </figure>
   );
 }
 

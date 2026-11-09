@@ -1,6 +1,8 @@
+import { FolderSearch, Link2, Scale } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { BuyerProfileForm } from "./BuyerProfileForm";
+import { CaptureTray } from "./CaptureTray";
 import { CaseView } from "./CaseView";
 import { ListingsTable } from "./ListingsTable";
 import { ManualEntryForm } from "./ManualEntryForm";
@@ -15,25 +17,16 @@ import {
   restoreListing,
   isVerdictError,
   runVerdict,
-  type CaptureError,
   type Listing,
   type VerdictError,
 } from "./api";
+import { ERROR_COPY, nameFromUrl, useCaptures } from "./captures";
 import { NO_FILTERS, visibleListings } from "./comparison";
 import { type Route, href, parseRoute } from "./route";
+import { transitionRoute } from "./routeTransition";
 
 type ApiState = "checking" | "reachable" | "unreachable";
 type ListState = "laden" | "klaar" | "fout";
-
-type FetchFailure = Exclude<CaptureError, { kind: "already_captured" }>;
-
-const ERROR_COPY: Record<FetchFailure["kind"], string> = {
-  bad_url: "Ophalen mislukt: ongeldige URL. Plak een funda-link van een koopwoning.",
-  listing_removed: "Ophalen mislukt: woning verwijderd. Funda toont deze woning niet meer.",
-  provider_blocked: "Ophalen mislukt: aanbieder geblokkeerd. Probeer het later opnieuw.",
-  no_response: "Ophalen mislukt: de server reageert niet. Controleer of de backend draait.",
-  unknown: "Ophalen mislukt. Probeer het opnieuw.",
-};
 
 const VERDICT_ERROR_COPY: Record<VerdictError["kind"], string> = {
   no_buyer_profile: "Oordeel niet gemaakt: vul eerst je koperprofiel in.",
@@ -45,8 +38,13 @@ const VERDICT_ERROR_COPY: Record<VerdictError["kind"], string> = {
 /** The view follows the URL hash, so the browser's back button and reload keep the user's place. */
 function useRoute(): Route {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
+  const current = useRef(route);
   useEffect(() => {
-    const onChange = () => setRoute(parseRoute(window.location.hash));
+    const onChange = () => {
+      const next = parseRoute(window.location.hash);
+      transitionRoute(current.current, next, () => setRoute(next));
+      current.current = next;
+    };
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
@@ -60,7 +58,7 @@ export function App() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<FetchFailure | null>(null);
+  const captures = useCaptures();
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
   const [flashId, setFlashId] = useState<string | null>(null);
@@ -111,31 +109,38 @@ export function App() {
     );
   }
 
-  async function run(request: () => Promise<Listing | CaptureError>) {
-    setBusy(true);
-    setError(null);
-    setDuplicateId(null);
-    const result = await request();
-    setBusy(false);
-    return result;
-  }
-
+  /** The capture runs in the background: the field clears at once, ready for the next link. */
   async function handleCapture(event: React.FormEvent) {
     event.preventDefault();
-    const result = await run(() => captureListing(url));
+    const submitted = url.trim();
+    setDuplicateId(null);
+    if (captures.isRunning({ url: submitted })) return;
+    setUrl("");
+    const result = await captures.start(() => captureListing(submitted), {
+      url: submitted,
+      fundaId: null,
+      name: nameFromUrl(submitted),
+    });
     if (!isCaptureError(result)) {
       upsert(result);
-      setUrl("");
     } else if (result.kind === "already_captured") {
       setDuplicateId(result.fundaId);
-    } else {
-      setError(result);
+    } else if (result.kind === "bad_url") {
+      // Give the link back to correct, unless the user has pasted another one meanwhile.
+      setUrl((current) => current || submitted);
     }
   }
 
   async function handleRefetch(fundaId: string) {
-    const result = await run(() => refetchListing(fundaId));
+    if (captures.isRunning({ fundaId })) return;
+    setDuplicateId(null);
     setRowErrors(({ [fundaId]: _cleared, ...rest }) => rest);
+    const listing = listings.find((l) => l.funda_id === fundaId);
+    const result = await captures.start(() => refetchListing(fundaId), {
+      url: listing?.url ?? "",
+      fundaId,
+      name: listing?.snapshots[0].address ?? fundaId,
+    });
     if (!isCaptureError(result)) {
       upsert(result);
       setFlashId(null);
@@ -211,7 +216,7 @@ export function App() {
       <CaseView
         listing={openCase}
         neighbours={neighbours}
-        busy={busy}
+        busy={busy || captures.isRunning({ fundaId: openCase.funda_id })}
         onRefetch={handleRefetch}
         focusFlagId={focusFlagId}
       />
@@ -226,7 +231,7 @@ export function App() {
       </div>
     );
   } else if (route.view === "koperprofiel") {
-    content = <BuyerProfileForm onSaved={reloadListings} />;
+    content = <BuyerProfileForm onSaved={reloadListings} listings={listings} />;
   } else {
     content = (
       <>
@@ -245,26 +250,12 @@ export function App() {
                 value={url}
                 placeholder="https://www.funda.nl/detail/koop/…"
                 onChange={(event) => setUrl(event.target.value)}
-                aria-describedby={error ? "capture-error" : undefined}
-                aria-invalid={error ? true : undefined}
               />
-              <button type="submit" disabled={busy}>
-                Ophalen
-              </button>
+              <button type="submit">Ophalen</button>
             </div>
-            {error && (
-              <p id="capture-error" role="alert" className="notice error">
-                {ERROR_COPY[error.kind]}
-                {error.kind === "provider_blocked" && manualUrl === null && (
-                  <>
-                    {" "}
-                    <button type="button" className="small" onClick={() => setManualUrl(url)}>
-                      Handmatig invoeren
-                    </button>
-                  </>
-                )}
-              </p>
-            )}
+            <p className="capture-hint muted">
+              Ophalen loopt op de achtergrond; je kunt intussen verder werken.
+            </p>
             {duplicateId && (
               <p role="status" className="notice">
                 Al in je lijst.{" "}
@@ -281,12 +272,9 @@ export function App() {
             onSaved={(listing) => {
               upsert(listing);
               setManualUrl(null);
-              setError(null);
-              setUrl("");
             }}
             onDuplicate={(fundaId) => {
               setManualUrl(null);
-              setError(null);
               setDuplicateId(fundaId);
             }}
             onCancel={() => setManualUrl(null)}
@@ -309,9 +297,25 @@ export function App() {
         {listState === "klaar" && listings.length === 0 && (
           <div className="empty-state">
             <p>
-              <strong>Nog geen woningen.</strong> Plak hierboven een funda-link en kies Ophalen: de
-              advertentie wordt opgehaald en als momentopname bewaard. Daarna staat de woning in deze lijst.
+              <strong>Nog geen woningen.</strong> Zo krijg je je eerste dossier:
             </p>
+            <ol className="empty-steps">
+              <li>
+                <Link2 size={22} aria-hidden="true" />
+                <strong>Plak een funda-link</strong>
+                <span>van een koopwoning, hierboven.</span>
+              </li>
+              <li>
+                <FolderSearch size={22} aria-hidden="true" />
+                <strong>Ophalen</strong>
+                <span>De advertentie, foto's en bronnen komen in een dossier.</span>
+              </li>
+              <li>
+                <Scale size={22} aria-hidden="true" />
+                <strong>Oordeel</strong>
+                <span>Op jouw verzoek: Zeker kopen tot Harde afwijzing, met biedadvies.</span>
+              </li>
+            </ol>
             <p>
               Vul ook je <a href={href({ view: "koperprofiel" })}>koperprofiel</a> in, dan zie je per woning je
               betaalruimte.
@@ -362,6 +366,15 @@ export function App() {
         </div>
       </header>
       <main>{content}</main>
+      <CaptureTray
+        captures={captures.captures}
+        onDismiss={captures.dismiss}
+        onManualEntry={(capture) => {
+          captures.dismiss(capture.id);
+          setManualUrl(capture.url);
+          window.location.hash = href({ view: "woningen" });
+        }}
+      />
     </div>
   );
 }

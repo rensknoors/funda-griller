@@ -2,12 +2,14 @@
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
-from app.affordability import Rules, compute
+from app.affordability import Rules, compute, rules_summary
 from app.buyer_profile import BuyerProfile
 from app.findings import USER_DOCUMENT_KIND, document_summaries, finding_facts
 from app.flags import RuleSet, evaluate, hard_no
+from app.house_type import AskingPriceMargins, category, kind
+from app.price_index import PriceIndex, peildatum
 from app.renovation import CostTable, estimate
 
 LISTING_FACTS = (
@@ -20,6 +22,7 @@ LISTING_FACTS = (
     "rooms",
     "bedrooms",
     "construction_year",
+    "house_type",
     "energy_label",
     "heating",
     "ownership_situation",
@@ -63,8 +66,11 @@ def build_case(
     snapshot: dict,
     versioned_profile: VersionedProfile | None,
     rules: Rules,
+    levering: date,
     flag_rules: RuleSet,
     cost_table: CostTable,
+    price_index: PriceIndex,
+    bid_margins: AskingPriceMargins,
     now: datetime,
     sources: SourceInputs,
     observation_runs: dict | None = None,
@@ -98,6 +104,7 @@ def build_case(
     observed = (observation_runs or {}).get("last_success")
     facts += _observation_facts(observed, photos)
     facts += finding_facts(documents)
+    vs_woz = _asking_vs_woz(snapshot.get("asking_price"), source_facts, price_index, today)
     vs_comparables = _asking_vs_comparables(
         snapshot, source_facts, comparables_fetched, sources.comparables_min_count
     )
@@ -105,7 +112,7 @@ def build_case(
     # household, and its Direct nodig midpoint lowers what the household can pay for this house.
     renovation = estimate(
         cost_table,
-        _rule_inputs(snapshot, facts, None, vs_comparables, None, None),
+        _rule_inputs(snapshot, facts, None, vs_comparables, None, None, vs_woz),
         _missing_renovation_inputs(facts, photos, observed, documents, energy_label),
         computed_at,
     )
@@ -113,7 +120,7 @@ def build_case(
         {
             **asdict(
                 compute(
-                    profile, snapshot.get("asking_price"), energy_label, rules, today, renovation["direct_midpoint"]
+                    profile, snapshot.get("asking_price"), energy_label, rules, levering, renovation["direct_midpoint"]
                 )
             ),
             # The label the borrowing capacity was computed with, so figures at other prices (the
@@ -127,7 +134,7 @@ def build_case(
         else None
     )
     flags = evaluate(
-        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, renovation, profile), computed_at
+        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, renovation, profile, vs_woz), computed_at
     )
     return {
         "funda_id": funda_id,
@@ -136,6 +143,8 @@ def build_case(
             "profile_version": versioned_profile.version if versioned_profile else None,
             "flag_rules_version": flag_rules.version,
             "cost_table_version": cost_table.version,
+            "price_index_version": price_index.version,
+            "bid_margins_version": bid_margins.version,
             "observation_run": observed["id"] if observed else None,
             "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
         },
@@ -148,16 +157,23 @@ def build_case(
             name: {**metric, "computed_at": computed_at} if metric else None
             for name, metric in {
                 "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
-                "asking_vs_woz": _asking_vs_woz(snapshot.get("asking_price"), source_facts),
+                "asking_vs_woz": vs_woz,
                 "asking_vs_comparables": vs_comparables,
                 "commute_coverage": commute_coverage,
             }.items()
         },
         "affordability": affordability,
+        # The average overbid for the soort woning: the margin a weakly grounded Walk-away Maximum
+        # may sit above the asking price. A value from a versioned rule table.
+        "asking_price_margin": {
+            **bid_margins.for_category(category(snapshot.get("object_type"), snapshot.get("house_type"))),
+            "provenance": "rule",
+            "computed_at": computed_at,
+        },
         "renovation_estimate": renovation,
         "flags": flags,
         "hard_no": hard_no(flag_rules, profile.deal_breakers, flags) if profile else None,
-        "rules": {"year": rules.year, "is_current_year": rules.year == today.year},
+        "rules": rules_summary(rules, levering),
     }
 
 
@@ -204,34 +220,54 @@ def _energy_label_check(listing_label: str | None, register_label: object) -> di
     }
 
 
-def _asking_vs_woz(asking_price: int | None, facts: list[dict]) -> dict | None:
+def _asking_vs_woz(asking_price: int | None, facts: list[dict], price_index: PriceIndex, today: date) -> dict | None:
+    """The asking price against the latest WOZ value, as it is and brought from its peildatum to
+    today's prices with the house price index (None when the peildatum is outside the series)."""
     woz = [
-        f
+        (dated, f["value"])
         for f in facts
-        if f["source"] == "woz" and f["key"] == "woz_value" and f["as_of"] and isinstance(f["value"], int) and f["value"] > 0
+        if f["source"] == "woz"
+        and f["key"] == "woz_value"
+        and isinstance(f["value"], int)
+        and f["value"] > 0
+        and (dated := peildatum(f["as_of"])) is not None
     ]
     if asking_price is None or not woz:
         return None
-    latest = max(woz, key=lambda f: f["as_of"])
-    difference = asking_price - latest["value"]
+    as_of, value = max(woz)
+    indexed = price_index.bring_to(value, as_of, today)
     return {
         "asking_price": asking_price,
-        "woz_value": latest["value"],
-        "woz_as_of": latest["as_of"],
-        "difference": difference,
-        "percent": round(difference / latest["value"] * 100, 1),
+        "woz_value": value,
+        "woz_as_of": as_of.isoformat(),
+        "difference": asking_price - value,
+        "percent": round((asking_price - value) / value * 100, 1),
+        "indexed": {
+            "woz_value": indexed.value,
+            "index_from": indexed.index_from,
+            "index_to": indexed.index_to,
+            "difference": asking_price - indexed.value,
+            "percent": round((asking_price - indexed.value) / indexed.value * 100, 1),
+            "source": price_index.source,
+        }
+        if indexed
+        else None,
         "provenance": "computed",
     }
 
 
 def _asking_vs_comparables(snapshot: dict, facts: list[dict], fetched: bool, min_count: int) -> dict:
     """Asking price per m² against the median price per m² of the comparables that state both
-    price and living area. Coverage states plainly when there are none or too few to lean on."""
-    per_m2 = sorted(
-        c["asking_price"] / c["living_area"]
+    price and living area and are of the same kind (an apartment is no comparable for a house).
+    With enough of the same soort woning (tussenwoning, vrijstaand, ...) only those count. Coverage
+    states plainly when there are none or too few to lean on."""
+    usable = [
+        c
         for c in (f["value"] for f in facts if f["source"] == "comparables" and f["key"] == "comparable")
         if _positive(c.get("asking_price")) and _positive(c.get("living_area"))
-    )
+    ]
+    chosen, matched_on = _same_type(snapshot, usable, min_count)
+    per_m2 = sorted(c["asking_price"] / c["living_area"] for c in chosen)
     count = len(per_m2)
     coverage = "not_fetched" if not fetched else "none" if count == 0 else "thin" if count < min_count else "sufficient"
     asking, area = snapshot.get("asking_price"), snapshot.get("living_area")
@@ -241,12 +277,36 @@ def _asking_vs_comparables(snapshot: dict, facts: list[dict], fetched: bool, min
         "coverage": coverage,
         "count": count,
         "min_count": min_count,
+        "matched_on": matched_on,
+        "excluded": len(usable) - count,
         "price_per_m2": round(asking / area) if _positive(asking) and _positive(area) else None,
         "median_price_per_m2": round(median) if median is not None else None,
         "percent": round((asking / area / median - 1) * 100, 1) if comparable else None,
         "comparables_value": round(median * area) if median is not None and _positive(area) else None,
         "provenance": "computed",
     }
+
+
+def _same_type(snapshot: dict, comparables: list[dict], min_count: int) -> tuple[list[dict], str | None]:
+    """The comparables of the Listing's soort woning when at least `min_count` of them remain, else
+    those of its kind (a comparable of unknown kind is given the benefit of the doubt). Says which
+    it matched on; None when the Listing's own type is unknown."""
+    own_kind = kind(snapshot.get("object_type"), snapshot.get("house_type"))
+    if own_kind is None:
+        return comparables, None
+    same_kind = [c for c in comparables if kind(c.get("object_type"), c.get("house_type")) in (None, own_kind)]
+    own_category = category(snapshot.get("object_type"), snapshot.get("house_type"))
+    same_category = [c for c in same_kind if own_category and category(c.get("object_type"), c.get("house_type")) == own_category]
+    if own_category and len(same_category) >= min_count:
+        return same_category, "house_type"
+    return same_kind, "object_type"
+
+
+def _as_of_order(fact: dict) -> str:
+    """Sort key for a Source fact's date: ISO when it reads as one (WOZ values come as "1 jan
+    2025"), else the text as it is."""
+    dated = peildatum(fact["as_of"])
+    return dated.isoformat() if dated else fact["as_of"] or ""
 
 
 def _positive(value: object) -> bool:
@@ -347,15 +407,14 @@ def _rule_inputs(
     vs_comparables: dict,
     renovation: dict | None,
     profile: BuyerProfile | None,
+    vs_woz: dict | None,
 ) -> dict:
     """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values.
     `renovation` (the Renovation Estimate) is None while the estimate itself is being built."""
     inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
     # Source facts are keyed `<source>.<key>` (e.g. `woz.woz_value`), so the register's
     # energielabel never shadows the Listing's claim; the value with the latest `as_of` wins.
-    for fact in sorted(
-        (f for f in facts if f["provenance"] == "source"), key=lambda f: f["as_of"] or ""
-    ):
+    for fact in sorted((f for f in facts if f["provenance"] == "source"), key=_as_of_order):
         inputs[f"{fact['source']}.{fact['key']}"] = fact
     # Commute travel times, one per destination, are keyed `commute.travel_minutes:<label>`, with
     # the faster mode's minutes as the value and the travel time (modes included) beside it.
@@ -388,6 +447,13 @@ def _rule_inputs(
         inputs["headroom"] = {
             "key": "headroom",
             "value": affordability["headroom"],
+            "provenance": "computed",
+        }
+    # The WOZ value in today's prices; the raw one lags the market by its peildatum.
+    if vs_woz and vs_woz["indexed"]:
+        inputs["indexed_woz_value"] = {
+            "key": "indexed_woz_value",
+            "value": vs_woz["indexed"]["woz_value"],
             "provenance": "computed",
         }
     # Only sufficient comparables may say the ask is high: thin ones are not a market.

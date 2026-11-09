@@ -66,9 +66,11 @@ export function Vergelijkbaar(props: {
         <p className="empty" role="note">
           
           {coverageNote(metric)}. Te weinig om het Maximumbod op te baseren
-          {metric.coverage === "thin" && ` (minimaal ${metric.min_count})`}; dat volgt alleen je betaalruimte.
+          {metric.coverage === "thin" && ` (minimaal ${metric.min_count})`}; dat rust dan op de vraagprijs plus het
+          gemiddelde overbod voor dit soort woning.
         </p>
       )}
+      {matchNote(metric) && <p className="muted">{matchNote(metric)}</p>}
       <ol className="facts">
         {metric.percent !== null && metric.median_price_per_m2 !== null && (
           <li className="fact">
@@ -130,4 +132,17 @@ export function Vergelijkbaar(props: {
       </ol>
     </details>
   );
+}
+
+/** Which comparables count: the same soort woning, or at least the same kind, and how many not. */
+function matchNote(metric: AskingVsComparables): string | null {
+  const scope =
+    metric.matched_on === "house_type"
+      ? "Alleen woningen van dezelfde soort woning tellen mee"
+      : metric.matched_on === "object_type"
+        ? "Alleen woningen van hetzelfde type (huis of appartement) tellen mee"
+        : null;
+  if (scope === null) return null;
+  const left = metric.excluded > 0 ? `; ${metric.excluded} van een ander type niet meegeteld` : "";
+  return `${scope}${left}.`;
 }

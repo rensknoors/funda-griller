@@ -10,7 +10,8 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
     data: {
       household: [{ role: "adult", birth_date: "1988-04-12" }],
       gross_annual_income: 95000,
-      assets: { savings: 40000, investments: 15000 },
+      // Enough saved that the comparables, not affordability, bound the Maximumbod.
+      assets: { savings: 100000, investments: 15000 },
       current_home: { value: 400000, outstanding_mortgage: 220000, selling_costs: 8000 },
       renovation_tolerance: 3,
     },
@@ -22,8 +23,8 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
   await expect(group.getByText("Nog niet opgehaald")).toBeVisible();
   await group.getByRole("button", { name: "Vergelijkbare woningen ophalen" }).click();
 
-  // Per m² 4000, 4200 and 4400: median 4200, so 152 m² is € 638.400 by comparables.
-  await expect(group.getByText("3 vergelijkbare woningen")).toBeVisible();
+  // Per m² 4000, 4200, 4400, 4200 and 4200: median 4200, so 152 m² is € 638.400 by comparables.
+  await expect(group.getByText("5 vergelijkbare woningen", { exact: true })).toBeVisible();
   await expect(group.getByRole("link", { name: "Kerkstraat 8" })).toBeVisible();
   await expect(group.getByText("Vraagprijs per m² t.o.v. vergelijkbaar")).toBeVisible();
   await expect(group.getByText(/-6,8%/)).toBeVisible();
@@ -39,6 +40,9 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
 
   await page.getByRole("link", { name: "Dossier", exact: true }).click();
   await page.getByRole("link", { name: "Terug naar woningen" }).click();
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
   const row = page.getByRole("table", { name: "Woningen" }).getByRole("row", { name: /Dorpsstraat 40/ });
-  await expect(row.getByText(/^\D?6,8%$/)).toBeVisible();
+  await row.getByRole("button", { name: "Details tonen" }).click();
+  const details = page.locator("#details-80907650");
+  await expect(details.getByText(/^\D?6,8%$/)).toBeVisible();
 });

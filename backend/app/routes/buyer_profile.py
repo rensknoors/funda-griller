@@ -6,9 +6,9 @@ from fastapi import APIRouter, Body
 from pydantic import ValidationError
 
 from app import store
-from app.affordability import consequences
+from app.affordability import consequences, rules_summary
 from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, reduce_profile
-from app.rules_loader import load_rules
+from app.rules_loader import expected_levering, load_rules
 from app.wiring import Wiring
 
 
@@ -38,12 +38,9 @@ def routes(w: Wiring) -> APIRouter:
 
     @router.post("/consequences")
     def work_out_consequences(draft: FinanceDraft) -> dict:
-        today = w.clock().date()
-        rules = load_rules(settings.affordability_rules_path, today.year)
-        return {
-            **asdict(consequences(draft, rules, today)),
-            "rules": {"year": rules.year, "is_current_year": rules.year == today.year},
-        }
+        levering = expected_levering(w.clock().date(), settings.expected_levering_months)
+        rules = load_rules(settings.affordability_rules_path, levering.year)
+        return {**asdict(consequences(draft, rules, levering)), "rules": rules_summary(rules, levering)}
 
     @router.get("/reduced")
     def read_reduced_buyer_profile() -> dict:

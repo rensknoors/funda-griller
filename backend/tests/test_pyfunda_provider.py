@@ -30,6 +30,7 @@ def test_live_listing_is_normalised():
     assert (listing.living_area, listing.plot_area) == (152, 410)
     assert (listing.rooms, listing.bedrooms) == (6, 4)
     assert listing.construction_year == 1931
+    assert (listing.object_type, listing.house_type) == ("house", "Villa, vrijstaande woning")
     assert listing.energy_label == "B"
     assert (listing.latitude, listing.longitude) == (51.0, 5.8)
     assert listing.heating == "Warmtepomp"

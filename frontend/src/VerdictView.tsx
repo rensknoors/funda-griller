@@ -16,6 +16,7 @@ import {
 import { TIER_LABEL } from "./comparison";
 import { euro, signedEuro } from "./format";
 import { statusLabel } from "./ListingsTable";
+import { PriceScale, type ScaleMarker } from "./charts";
 import { TierMark } from "./TierMark";
 import { coverageNote } from "./Vergelijkbaar";
 import { FlagGlyph } from "./FlagGlyph";
@@ -247,13 +248,40 @@ function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (fl
   );
 }
 
+/** Openingsbod to Maximumbod as one stretch, with the asking price and the comparables' value on
+ * the same line: where the bid starts, where it must stop, and what it is read against. */
+function BidScale({ advice }: { advice: BidAdvice }) {
+  const markers: ScaleMarker[] = [
+    { label: "Openingsbod", value: advice.opening_bid },
+    { label: "Maximumbod", value: advice.walk_away_maximum },
+  ];
+  if (advice.asking_price !== null) markers.push({ label: "Vraagprijs", value: advice.asking_price, primary: true });
+  const comparables = advice.comparables?.comparables_value;
+  if (comparables != null) markers.push({ label: "Vergelijkbaar", value: comparables });
+  return (
+    <div className="bid-scale">
+      <PriceScale
+        label="Biedruimte"
+        markers={markers}
+        span={{
+          from: advice.opening_bid,
+          to: advice.walk_away_maximum,
+          label: `biedruimte ${euro.format(advice.walk_away_maximum - advice.opening_bid)}`,
+          tone: "neutral",
+        }}
+      />
+    </div>
+  );
+}
+
 function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: number }) {
   const renovationDirect = advice.derivation?.renovation_direct ?? 0;
   const headroom = advice.asking_price !== null ? advice.affordable_maximum - advice.asking_price : null;
   return (
     <section aria-labelledby="biedadvies-title">
       <h2 id="biedadvies-title">Biedadvies</h2>
-      <div className="bid-vakken">
+      <BidScale advice={advice} />
+      <div className="bid-vakken" role="group" aria-label="Bedragen">
         <div className="figure">
           <p className="vak-label">Openingsbod</p>
           <p className="bid-amount num">{euro.format(advice.opening_bid)}</p>
@@ -292,6 +320,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
               {advice.derivation ? (
                 <>
                   {basisLine(advice, advice.derivation) && <li>{basisLine(advice, advice.derivation)}</li>}
+                  {marginSourceLine(advice.derivation) && <li>{marginSourceLine(advice.derivation)}</li>}
                   <li>{bindingLine(advice, advice.derivation)}</li>
                 </>
               ) : (
@@ -319,8 +348,16 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
         </div>
       </div>
       <dl className="figures bid-context">
-        <BidFigure label="Maandlasten bij vraagprijs" amount={advice.monthly_cost_at_asking_price} perMonth />
-        <BidFigure label="Maandlasten bij Maximumbod" amount={advice.monthly_cost_at_walk_away_maximum} perMonth />
+        <MonthlyFigure
+          label="vraagprijs"
+          gross={advice.monthly_cost_at_asking_price}
+          net={advice.monthly_cost_net_at_asking_price}
+        />
+        <MonthlyFigure
+          label="Maximumbod"
+          gross={advice.monthly_cost_at_walk_away_maximum}
+          net={advice.monthly_cost_net_at_walk_away_maximum}
+        />
         <div className="figure">
           <dt>Ruimte boven vraag</dt>
           <dd className="num">
@@ -383,6 +420,22 @@ function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | 
   return `${basis.line} ${euro.format(value)}${renovation} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
 }
 
+const HOUSE_LABELS: Record<string, string> = {
+  appartement: "een appartement",
+  tussenwoning: "een tussenwoning",
+  hoekwoning: "een hoekwoning",
+  twee_onder_een_kap: "een twee-onder-een-kapwoning",
+  vrijstaand: "een vrijstaande woning",
+};
+
+/** "Marge: gemiddeld overbod voor een tussenwoning (NVM …, 2e kwartaal 2026)". */
+function marginSourceLine(derivation: WalkAwayDerivation): string | null {
+  const source = derivation.margin_source;
+  if (!source || derivation.margin === null) return null;
+  const house = source.house_type ? (HOUSE_LABELS[source.house_type] ?? source.house_type) : "alle woningen";
+  return `Marge ${percent(derivation.margin)}: gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
+}
+
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */
 function bindingLine(advice: BidAdvice, derivation: WalkAwayDerivation): string {
   const maximum = euro.format(advice.walk_away_maximum);
@@ -406,6 +459,18 @@ function LegacyBindingLimit({ advice }: { advice: BidAdvice }) {
         ? `Het Maximumbod blijft daar ${euro.format(below)} onder.`
         : "Het Maximumbod is gelijk aan die grens."}
     </>
+  );
+}
+
+/** Net of hypotheekrenteaftrek with gross beneath; Verdicts from before net costs show gross only. */
+function MonthlyFigure({ label, gross, net }: { label: string; gross: number | null; net?: number | null }) {
+  if (net == null) return <BidFigure label={`Maandlasten bij ${label}`} amount={gross} perMonth />;
+  return (
+    <div className="figure">
+      <dt>Netto maandlasten bij {label}</dt>
+      <dd className="num">{euro.format(net)} p/m</dd>
+      {gross !== null && <dd className="muted note">bruto {euro.format(gross)} p/m</dd>}
+    </div>
   );
 }
 

@@ -10,6 +10,8 @@ export type Snapshot = {
   plot_area: number | null;
   energy_label: string | null;
   photo_urls: string[];
+  /** The photos the app keeps, in listing order; absent on snapshots stored before photos were kept. */
+  photos?: CasePhoto[];
   /** How the snapshot came in; absent on snapshots stored before manual entry existed. */
   entry?: "fetched" | "manual";
   price_history: { date: string | null; price: number | null }[];
@@ -122,6 +124,18 @@ async function post(path: string, body?: unknown): Promise<Listing | CaptureErro
 }
 
 export const captureListing = (url: string) => post("/api/listings", { url });
+
+/** The steps of a capture or refetch, in the order the backend runs them. */
+export const CAPTURE_STEPS = ["listing", "photos", "sources", "observations", "brochure"] as const;
+export type CaptureStep = (typeof CAPTURE_STEPS)[number];
+export type RunningCapture = { funda_id: string; url: string; step: CaptureStep };
+
+/** Captures and refetches the backend is still running, each at its current step. */
+export async function fetchRunningCaptures(): Promise<RunningCapture[]> {
+  const response = await apiFetch("/api/listings/captures");
+  if (!response.ok) throw new Error("captures unavailable");
+  return response.json();
+}
 export const refetchListing = (fundaId: string) => post(`/api/listings/${fundaId}/refetch`);
 
 export type ManualEntryError =
@@ -301,6 +315,16 @@ export type Metrics = {
     woz_as_of: string;
     difference: number;
     percent: number;
+    /** The WOZ value brought from its peildatum to today with the CBS price index; null when the
+     * peildatum is outside the series. */
+    indexed: {
+      woz_value: number;
+      index_from: string;
+      index_to: string;
+      difference: number;
+      percent: number;
+      source: string;
+    } | null;
     provenance: "computed";
   } | null;
   asking_vs_comparables: AskingVsComparables;
@@ -316,6 +340,11 @@ export type AskingVsComparables = {
   coverage: ComparablesCoverage;
   count: number;
   min_count: number;
+  /** Compared within the same soort woning, the same kind (apartment or house), or unfiltered when
+   * the woning's own type is unknown. */
+  matched_on: "house_type" | "object_type" | null;
+  /** Comparables left out for being another type. */
+  excluded: number;
   price_per_m2: number | null;
   median_price_per_m2: number | null;
   percent: number | null;
@@ -327,9 +356,23 @@ export type Affordability = {
   max_mortgage: number;
   energy_label_bonus: number;
   equity: number;
-  kosten_koper: { transfer_tax: number; fixed_costs: number; total: number } | null;
+  /** Extra borrowing capacity for a single adult (alleenstaandenbonus). */
+  single_bonus: number;
+  /** What an NHG loan includes as standard for energy measures on a label E, F or G house; named,
+   * not counted in the other figures. */
+  nhg_energy_measures: number;
+  kosten_koper: { transfer_tax: number; fixed_costs: number; nhg_fee: number; total: number } | null;
+  /** What the lender lends at the asking price: at most the price itself. */
   mortgage_needed: number | null;
+  /** What own funds lack for kosten koper and renovation, since the mortgage stops at the price. */
+  own_funds_shortfall: number | null;
+  /** Whether the mortgage needed fits under the NHG limit, and the rate its cost is worked out at. */
+  nhg: boolean | null;
+  mortgage_rate: number | null;
+  /** Gross annuity of the mortgage needed at the asking price. */
   monthly_cost: number | null;
+  /** The same, net of hypotheekrenteaftrek and eigenwoningforfait in the first year. */
+  monthly_cost_net: number | null;
   headroom: number | null;
   /** Highest purchase price the household can pay, kosten koper included, after setting aside
    * `renovation_direct`. */
@@ -392,7 +435,18 @@ export type Case = {
   renovation_estimate: RenovationEstimate;
   flags: Flag[];
   hard_no: HardNo | null;
-  rules: { year: number; is_current_year: boolean };
+  rules: Rules;
+};
+
+/** Which year's lending norms the affordability rests on: the year of the expected levering. */
+export type Rules = {
+  /** Version of the affordability rule table; a new one makes earlier Verdicts achterhaald. */
+  version: number;
+  year: number;
+  /** False when no table exists yet for the year of the expected levering. */
+  is_current_year: boolean;
+  levering_on: string;
+  market_rate_as_of: string;
 };
 
 /** Direct nodig, Binnen 5 jaar, Optioneel. */
@@ -504,6 +558,8 @@ export type WalkAwayDerivation = {
   /** Absent on Verdicts made before the Renovation Estimate. */
   renovation_direct?: number;
   margin: number | null;
+  /** Where an asking price margin comes from; absent on Verdicts made before it was sourced. */
+  margin_source?: { house_type: string | null; source: string; period: string } | null;
   basis_maximum: number | null;
   binding: "basis" | "affordability";
   weakly_grounded: boolean;
@@ -526,6 +582,9 @@ export type BidAdvice = {
   asking_price: number | null;
   monthly_cost_at_asking_price: number | null;
   monthly_cost_at_walk_away_maximum: number | null;
+  /** Net of hypotheekrenteaftrek; absent on Verdicts made before net costs existed. */
+  monthly_cost_net_at_asking_price?: number | null;
+  monthly_cost_net_at_walk_away_maximum?: number | null;
 };
 
 export type Verdict = {
