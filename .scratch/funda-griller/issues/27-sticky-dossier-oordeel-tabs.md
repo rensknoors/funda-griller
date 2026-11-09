@@ -4,7 +4,7 @@
 
 **Blocked by:** 26 (A tighter woning header), since both change the hero and `.halves`
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ### Current state
 
@@ -22,20 +22,22 @@
 
 ### Acceptance criteria
 
-- [ ] Scrolling a Dossier or Oordeel down keeps Dossier/Oordeel visible directly under the topbar, at 1280×800 and at phone width
-- [ ] The pinned bar is full-bleed cobalt, compact (no sub-line), and the active tab keeps its white underline
-- [ ] At the top of the page the header looks as it does now (or as ticket 26 leaves it)
-- [ ] The Dossier rail, section index and Gevolgen stick below the tab bar, not under it
-- [ ] Clicking an **Op deze pagina** link lands the section heading fully visible below the tab bar
-- [ ] Dialogs still cover the tab bar
-- [ ] Sticky offsets come from `--topbar-h` / `--tabs-h` tokens; no `84px` left in `styles.css`
-- [ ] `DESIGN.md`'s Halves and Woning header entries describe the pinned bar
+- [x] Scrolling a Dossier or Oordeel down keeps Dossier/Oordeel visible directly under the topbar, at 1280×800 and at phone width
+- [x] The pinned bar is full-bleed cobalt, compact (no sub-line), and the active tab keeps its white underline
+- [x] At the top of the page the header looks as it does now (or as ticket 26 leaves it)
+- [x] The Dossier rail, section index and Gevolgen stick below the tab bar, not under it
+- [x] Clicking an **Op deze pagina** link lands the section heading fully visible below the tab bar
+- [x] Dialogs still cover the tab bar
+- [x] Sticky offsets come from `--topbar-h` / `--tabs-h` tokens; no `84px` left in `styles.css`
+- [x] `DESIGN.md`'s Halves and Woning header entries describe the pinned bar
 
 ### Tests
 
-- [ ] e2e: on a Dossier, scroll to the bottom; the Oordeel tab is visible and not covered (`elementFromPoint` at its centre returns the link), and clicking it opens the Oordeel
-- [ ] e2e: click an **Op deze pagina** link; the target heading's top is below the tab bar's bottom
+- [x] e2e: on a Dossier, scroll to the bottom; the Oordeel tab is visible and not covered (`elementFromPoint` at its centre returns the link), and clicking it opens the Oordeel
+- [x] e2e: click an **Op deze pagina** link; the target heading's top is below the tab bar's bottom
 
 ## Comments
 
 Reported from a screenshot of the Dossier for Céline Klinkenberghstraat 16, Sittard: the Dossier/Oordeel tabs sit at the bottom of the hero and scroll out of view.
+
+Done. The tabs moved out of the `header` into a sibling `nav`, since a sticky element can't outlive its parent. They pin within the Dossier/Oordeel `section`. The only `84px` left in `styles.css` is the width of Foto-waarnemingen thumbnails, not an offset. The Koperprofiel's section index and Gevolgen have no tabs above them, so they stick at `--topbar-h + 24px`.

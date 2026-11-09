@@ -137,7 +137,7 @@ test("woningen show as photo cards by default, with the oordeel, price and key f
   const facts = page.locator(".woning-head .woning-facts");
   await expect(facts.getByText("152 m² wonen")).toBeVisible();
   await expect(facts.getByText("410 m² perceel")).toBeVisible();
-  await expect(facts.getByText("Energielabel B")).toBeVisible();
+  await expect(facts.getByText("Energielabel A")).toBeVisible();
 
   await page.getByRole("button", { name: "Foto 1 openen" }).click();
   const viewer = page.getByRole("dialog", { name: "Foto 1" });

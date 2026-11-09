@@ -32,7 +32,13 @@
   --radius-s: 6px;
   --radius-m: 4px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Sticky offsets: the topbar, and on a Woning the Dossier/Oordeel tabs pinned under it. */
+  --topbar-h: 60px;
+  --tabs-full-h: 68px;
+  --tabs-h: 44px;
+  --halves-gap: 36px;
   /* Stacking order: anything that floats takes one of these, so an overlay never lands under the topbar. */
+  --z-tabs: 10;
   --z-topbar: 20;
   --z-tray: 30;
   --z-dialog: 40;
@@ -80,7 +86,7 @@ td.tone-favorable, td.tone-concern, td.tone-shortfall { font-weight: 600; }
 /* App shell: one bar, two destinations. */
 .topbar { position: sticky; top: 0; z-index: var(--z-topbar); background: var(--hero); border-bottom: 1px solid var(--on-hero-line); color: var(--on-hero); }
 .topbar :focus-visible, .hero :focus-visible { outline-color: #fff; }
-.topbar-inner { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: 60px; display: flex; align-items: center; gap: 40px; }
+.topbar-inner { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: var(--topbar-h); display: flex; align-items: center; gap: 40px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--on-hero); text-decoration: none; font-weight: 750; font-size: 17px; letter-spacing: -0.02em; font-stretch: 88%; }
 .wordmark:hover { color: var(--on-hero); }
 .wordmark-mark { width: 22px; height: 22px; border-radius: 5px; background: linear-gradient(to bottom, #fff 0 50%, var(--ink) 50%); }
@@ -285,7 +291,7 @@ button.row-menu:hover:not(:disabled), button.row-menu[data-popup-open] { backgro
 .tier-hard_no { background: var(--vermilion-tint); color: var(--vermilion); box-shadow: inset 0 0 0 1px #e6b39b; }
 
 /* Woning header, shared by Dossier and Oordeel. */
-.woning-head.hero { margin-bottom: 36px; padding-bottom: 0; }
+.woning-head.hero { margin-bottom: 0; padding-bottom: 24px; }
 .woning-nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
 .back-link, .stepper a, .stepper span { display: inline-flex; align-items: center; gap: 4px; font-weight: 550; text-decoration: none; }
 .hero .back-link { color: var(--on-hero-2); margin-left: -2px; }
@@ -340,15 +346,24 @@ button.photo-step:hover:not(:disabled) { background: #fff; }
 .photo-position { margin-right: auto; }
 a.button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; font-weight: 550; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-s); text-decoration: none; transition: background 150ms, border-color 150ms; }
 a.button:hover { background: var(--band); border-color: var(--ink-3); }
-.halves { display: flex; gap: 0; margin: 24px 0 0; border-bottom: 0; }
-.halves a { display: flex; flex-direction: column; padding: 12px 24px 14px 0; margin-right: 24px; color: var(--on-hero-2); text-decoration: none; font-size: 17px; font-weight: 650; box-shadow: inset 0 -4px 0 transparent; transition: box-shadow 180ms var(--ease), color 150ms; }
+/* The tabs continue the hero and pin under the topbar once it scrolls past: full-bleed cobalt,
+   compact, the address at the right. The margin grows as the bar shrinks, so the page doesn't jump. */
+.halves { position: sticky; top: var(--topbar-h); z-index: var(--z-tabs); display: flex; height: var(--tabs-full-h); margin: 0 0 var(--halves-gap); background: var(--hero); box-shadow: 0 0 0 100vmax var(--hero); clip-path: inset(0 -100vmax); transition: height 180ms var(--ease), margin-bottom 180ms var(--ease); }
+.halves[data-stuck] { height: var(--tabs-h); margin-bottom: calc(var(--halves-gap) + var(--tabs-full-h) - var(--tabs-h)); }
+.halves-sentinel { height: 1px; margin-bottom: -1px; }
+.halves a { display: flex; flex-direction: column; justify-content: center; padding: 0 24px 0 0; margin-right: 24px; color: var(--on-hero-2); text-decoration: none; font-size: 17px; font-weight: 650; box-shadow: inset 0 -4px 0 transparent; transition: box-shadow 180ms var(--ease), color 150ms; }
 .halves a:hover { color: var(--on-hero); }
+.halves a:focus-visible { outline-color: #fff; outline-offset: -2px; }
 .halves a[aria-current="page"] { color: var(--on-hero); box-shadow: inset 0 -4px 0 #fff; }
 .halves-note { font-size: 13px; font-weight: 400; color: var(--on-hero-2); }
+.halves[data-stuck] a { font-size: 15px; }
+.halves[data-stuck] .halves-note { display: none; }
+.halves-address { display: none; min-width: 0; margin-left: auto; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--on-hero-2); }
+.halves[data-stuck] .halves-address { display: block; }
 
 /* Dossier: content column beside a sticky overview rail. */
 .dossier-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 56px; align-items: start; }
-.dossier-rail { position: sticky; top: 84px; display: grid; gap: 28px; max-height: calc(100vh - 100px); overflow-y: auto; padding-right: 4px; }
+.dossier-rail { position: sticky; top: calc(var(--topbar-h) + var(--tabs-h) + 24px); display: grid; gap: 28px; max-height: calc(100vh - var(--topbar-h) - var(--tabs-h) - 40px); overflow-y: auto; padding-right: 4px; }
 .rail-title { font-size: 13px; font-weight: 650; color: var(--ink); margin-bottom: 8px; }
 .rail-count { display: block; font-weight: 400; color: var(--ink-2); margin-top: 2px; }
 .on-this-page ol { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -365,10 +380,10 @@ a.button:hover { background: var(--band); border-color: var(--ink-3); }
 .herkomst-legend dt { flex: none; }
 .herkomst-legend dd { margin: 0; color: var(--ink-2); }
 
-.dossier-main > section, .dossier-main > details, .oordeel > section { padding: 28px 0 32px; border-top: 1px solid var(--line); scroll-margin-top: 80px; }
+.dossier-main > section, .dossier-main > details, .oordeel > section { padding: 28px 0 32px; border-top: 1px solid var(--line); scroll-margin-top: calc(var(--topbar-h) + var(--tabs-h) + 20px); }
 .dossier-main > :first-child { border-top: 0; padding-top: 0; }
 .dossier-main h2, .oordeel h2 { margin-bottom: 14px; }
-.dossier-main h2:not(.rail-title), .oordeel section > h2 { scroll-margin-top: 80px; }
+.dossier-main h2:not(.rail-title), .oordeel section > h2 { scroll-margin-top: calc(var(--topbar-h) + var(--tabs-h) + 20px); }
 
 /* Key figures: one band, big numerals, no boxes. */
 .figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0; margin: 0; }
@@ -392,7 +407,7 @@ a.button:hover { background: var(--band); border-color: var(--ink-3); }
 .fact-group > summary .muted { font-size: 14px; }
 .fact-group > :not(summary) { margin-top: 12px; }
 .facts { list-style: none; margin: 0; padding: 0; }
-.fact { display: grid; grid-template-columns: 28px minmax(160px, 2fr) minmax(0, 3fr) minmax(200px, 2.2fr); gap: 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 90px; }
+.fact { display: grid; grid-template-columns: 28px minmax(160px, 2fr) minmax(0, 3fr) minmax(200px, 2.2fr); gap: 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--line); scroll-margin-top: calc(var(--topbar-h) + var(--tabs-h) + 30px); }
 .fact:last-child { border-bottom: 0; }
 .vak-number { font-size: 12px; font-weight: 600; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .fact-label { color: var(--ink-2); }
@@ -425,7 +440,7 @@ a.stamp-finding:hover { background: var(--band); color: var(--ink); }
 .flag-con h3 { color: var(--ochre); }
 .flag-glyph-risk { color: var(--vermilion); }
 .flags, .evidence { list-style: none; margin: 0; padding: 0; }
-.flags > li { border-bottom: 1px solid var(--line); scroll-margin-top: 90px; }
+.flags > li { border-bottom: 1px solid var(--line); scroll-margin-top: calc(var(--topbar-h) + var(--tabs-h) + 30px); }
 .flags > li:last-child { border-bottom: 0; }
 .flags summary { display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; list-style: none; font-weight: 550; }
 .flags summary::-webkit-details-marker { display: none; }
@@ -508,7 +523,7 @@ button.signaal-chip { min-height: 34px; padding: 0 12px 0 8px; border-radius: 99
 .koperprofiel > h1 { margin-bottom: 28px; }
 .profile-form { display: grid; grid-template-columns: 200px minmax(0, 1fr) 300px; column-gap: 48px; align-items: start; }
 .profile-form > * { grid-column: 2; }
-.section-index, .gevolgen { position: sticky; top: 84px; grid-row: 1 / span 20; }
+.section-index, .gevolgen { position: sticky; top: calc(var(--topbar-h) + 24px); grid-row: 1 / span 20; }
 .section-index { grid-column: 1; }
 .section-index ol { list-style: none; margin: 0; padding: 0; display: grid; }
 .section-index a { display: block; padding: 6px 12px; margin-left: -12px; border-radius: var(--radius-s); color: var(--ink-2); text-decoration: none; font-weight: 550; }
@@ -523,7 +538,7 @@ button.signaal-chip { min-height: 34px; padding: 0 12px 0 8px; border-radius: 99
 .gevolgen-figures dd.num { text-align: left; font-size: 26px; font-weight: 650; letter-spacing: -0.015em; }
 .gevolgen-figures .note { font-size: 13px; }
 .section-select { display: none; }
-.form-section { border-top: 1px solid var(--line); scroll-margin-top: 80px; }
+.form-section { border-top: 1px solid var(--line); scroll-margin-top: calc(var(--topbar-h) + 20px); }
 .form-section:first-of-type { border-top: 0; }
 .form-section summary { display: flex; align-items: baseline; gap: 16px; cursor: pointer; list-style: none; padding: 18px 0; }
 .form-section summary::-webkit-details-marker { display: none; }
@@ -609,14 +624,15 @@ fieldset.vak { border: 0; }
   .fact .stamp { grid-column: 2 / -1; }
 }
 @media (max-width: 719px) {
-  .topbar-inner { padding: 0 16px; gap: 16px; height: 56px; }
+  :root { --topbar-h: 56px; --halves-gap: 24px; }
+  .topbar-inner { padding: 0 16px; gap: 16px; }
   .wordmark { font-size: 0; gap: 0; }
   .wordmark-mark { width: 24px; height: 24px; }
   .api-state { font-size: 0; gap: 0; }
   main { padding: 0 16px 72px; }
   main > :first-child:not(.hero) { margin-top: 24px; }
   .hero { padding: 24px 0; margin-bottom: 24px; }
-  .woning-head.hero { padding-bottom: 0; }
+  .woning-head.hero { padding-bottom: 20px; }
   h1, .woning-title h1 { font-size: 28px; }
   .woning-title.with-photos { grid-template-columns: minmax(0, 1fr); }
   .header-photos { order: -1; grid-template-columns: repeat(4, 1fr); height: auto; }
@@ -648,6 +664,7 @@ fieldset.vak { border: 0; }
   .woning-nav { flex-wrap: wrap; }
   .stepper { width: 100%; justify-content: space-between; margin: 0 -10px; }
   .halves a { padding-right: 0; margin-right: 24px; font-size: 16px; }
+  .halves[data-stuck] .halves-address { display: none; }
   .key-figures { padding: 16px; }
   .figures { grid-template-columns: 1fr 1fr; row-gap: 16px; }
   .figure { border-right: 0; margin-right: 0; padding-right: 8px; }
