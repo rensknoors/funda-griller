@@ -320,6 +320,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
               {advice.derivation ? (
                 <>
                   {basisLine(advice, advice.derivation) && <li>{basisLine(advice, advice.derivation)}</li>}
+                  {marginSourceLine(advice.derivation) && <li>{marginSourceLine(advice.derivation)}</li>}
                   <li>{bindingLine(advice, advice.derivation)}</li>
                 </>
               ) : (
@@ -417,6 +418,22 @@ function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | 
     ? ` − ${euro.format(derivation.renovation_direct)} Direct nodig`
     : "";
   return `${basis.line} ${euro.format(value)}${renovation} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
+}
+
+const HOUSE_LABELS: Record<string, string> = {
+  appartement: "een appartement",
+  tussenwoning: "een tussenwoning",
+  hoekwoning: "een hoekwoning",
+  twee_onder_een_kap: "een twee-onder-een-kapwoning",
+  vrijstaand: "een vrijstaande woning",
+};
+
+/** "Marge: gemiddeld overbod voor een tussenwoning (NVM …, 2e kwartaal 2026)". */
+function marginSourceLine(derivation: WalkAwayDerivation): string | null {
+  const source = derivation.margin_source;
+  if (!source || derivation.margin === null) return null;
+  const house = source.house_type ? (HOUSE_LABELS[source.house_type] ?? source.house_type) : "alle woningen";
+  return `Marge ${percent(derivation.margin)}: gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
 }
 
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */

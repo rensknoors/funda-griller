@@ -4,7 +4,7 @@
 
 **Blocked by:** 28 (Accurate affordability and Oordeel inputs)
 
-**Status:** needs-triage
+**Status:** ready-for-human (the NHG 2027 primary-source check and the paid regression run are left)
 
 ### Current state
 
@@ -22,16 +22,41 @@
 
 ### Acceptance criteria
 
-- [ ] `ask_far_above_woz` reads the indexed WOZ; the Dossier shows raw and indexed WOZ with the index date
-- [ ] Comparables of another house type do not count towards coverage or the median
-- [ ] The weakly grounded Walk-away margin comes from config with a cited source, and the Biedadvies names it
-- [ ] VvE and erfpachtcanon, when known, show beside the net monthly cost in the Dossier and the export
+- [x] `ask_far_above_woz` reads the indexed WOZ; the Dossier shows raw and indexed WOZ with the index date
+- [x] Comparables of another house type do not count towards coverage or the median
+- [x] The weakly grounded Walk-away margin comes from config with a cited source, and the Biedadvies names it (per soort woning, at the user's request)
 - [ ] The 2027 NHG limit in `config/affordability.toml` is checked against NHG's Voorwaarden en normen 2027 (now four consistent secondary sources: Geld.nl, Hypotheker, Banken.nl, Univé), and the SECONDARY mark dropped
-- [ ] From 2027 an NHG loan on a label E, F or G house includes a standard €20.000 for energy-saving measures, with an NHG limit of €530.000 for such loans (Banken.nl, Geld.nl); decide whether the affordable maximum and the Renovation Estimate should reflect it
-- [ ] Flag rule set version bumped; Verdict regression set re-run, changes explained in Comments
+- [x] From 2027 an NHG loan on a label E, F or G house includes a standard €20.000 for energy-saving measures, with an NHG limit of €530.000 for such loans (Banken.nl, Geld.nl); decide whether the affordable maximum and the Renovation Estimate should reflect it (decided: named in the Dossier, not counted)
+- [x] Flag rule set version bumped
+- [ ] Verdict regression set re-run, changes explained in Comments
+
+VvE and erfpachtcanon moved to ticket 32.
 
 ### Tests
 
-- [ ] API: WOZ indexed from peildatum to today against a hand-computed example
-- [ ] API: an apartment comparable is left out for a detached house
-- [ ] API: Biedadvies derivation carries the margin source
+Agreed seams: the HTTP API, plus the pure functions (indexing, WOZ dates, house type categories).
+
+- [x] API: WOZ indexed from peildatum to today against a hand-computed example
+- [x] API: an apartment comparable is left out for a detached house
+- [x] API: Biedadvies derivation carries the margin source
+- [x] Pure: WOZ dates in both notations, indexing to the latest published month, house type categories
+
+## Comments
+
+Done (2026-11-09). What changed and why:
+
+- **WOZ in today's prices.** `config/price_index.toml` holds CBS 85773NED (national, monthly, 2020 = 100) from January 2019 to September 2026. The latest WOZ value is brought from the month of its peildatum to the latest published month: WOZ × index(now) / index(peildatum). `ask_far_above_woz` (rule version 2) reads the indexed value; the Dossier and the list show both. On the live Listing (WOZ 392.000, peildatum 2025-01-01) the ask goes from +51,8% to +41,6%.
+- **WOZ dates.** Real stored runs date WOZ values as "1 jan 2025", not ISO as the fixtures did; the latest value was picked by string order. Dates are now parsed in both notations, so the latest value is chosen by date.
+- **Woningtype.** The Listing and each comparable carry funda's object type and soort woning (`house_type`, also a Listing fact). Comparables of another kind (apartment vs house) never count; with at least `comparables_min_count` (now 5) of the same soort woning only those count. `comparables_max_fetches` went from 5 to 8, or five sufficient comparables would hardly ever be reached.
+- **Margin per soort woning** (user's request: overbidding differs strongly by type). `config/bid_margins.toml`: NVM Marktoverzicht Nederland 2e kwartaal 2026, via openwoning.nl (SECONDARY; NVM's bijlage could not be fetched): tussenwoning 5,9%, appartement 5,6%, hoekwoning 4,4%, twee-onder-een-kap 3,5%, vrijstaand 0,6%, all homes 4,6%. NVM's 3rd quarter puts all homes at 3,3%, so these may run high; refresh when NVM's per-type figures for Q3 are found. The Case carries the margin, so a new table makes Verdicts Achterhaald. The live Listing's soort woning is unknown in the fixtures, so its weakly grounded Maximumbod goes from 624.750 (5%) to 622.370 (4,6%).
+- **NHG E/F/G.** `nhg_energy_measures` names the standard €20.000 (2027) when the label is E, F or G and the loan stays under €530.000; the figures leave it out, as agreed.
+- **Verdict prompt version 6:** names the indexed WOZ, the type-matched comparables and the margin source.
+- **Not done:** the 2027 NHG limit is still SECONDARY (NHG's V&N 2027 not readable); the regression set was not re-run (paid; prompt and flag rules changed, so tiers may move). Run `uv run python -m app.verdict_regression run --yes` in `backend/`.
+
+Code review (2026-11-09) found, and fixed before commit:
+
+- A WOZ value whose peildatum falls outside the index series silenced `ask_far_above_woz`; the rule (version 3) now falls back to the raw WOZ value. Source facts are ordered by their parsed date, so "1 jan 2025" style dates sort right.
+- The Case's `asking_price_margin` carries `provenance: rule` and `computed_at`, as rule values must (CODING_STANDARDS.md, Evidence).
+- The NHG energy amount is named only when the loan actually goes with NHG.
+- Comparables of unknown type keep counting (benefit of the doubt); a test now pins that choice.
+- Left as judgement calls: Dutch house type labels exist in both backend and frontend; the "indexed, else raw" WOZ choice exists in the list and the Dossier; each new versioned table touches settings, loader, assembly, Case and Verdict staleness.

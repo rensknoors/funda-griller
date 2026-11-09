@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,8 +14,9 @@ VERDICT = "/api/listings/80907644/verdict"
 
 # The typical household can pay at most 650_351 for the live Listing (asking 595_000, headroom 55_351).
 AFFORDABLE_MAXIMUM = 650_351
-# Without comparables the Walk-away Maximum is the asking price plus the default 5% margin.
-WALK_AWAY_MAXIMUM = 624_750
+# Without comparables the Walk-away Maximum is the asking price plus 4,6%, NVM's average overbid for
+# all homes (the live Listing's soort woning is unknown).
+WALK_AWAY_MAXIMUM = 622_370
 
 
 def model_says(tier="consider", **overrides):
@@ -356,7 +359,8 @@ def test_a_new_affordability_rule_table_marks_the_verdict_out_of_date(
     client.post(VERDICT)
 
     table = tmp_path / "rules.toml"
-    table.write_text(settings.affordability_rules_path.read_text().replace("version = 1\n", "version = 2\n", 1))
+    text = settings.affordability_rules_path.read_text()
+    table.write_text(re.sub(r"^version = \d+$", "version = 999", text, count=1, flags=re.MULTILINE))
     settings.affordability_rules_path = table
 
     assert client.get(VERDICT).json()["changed"] == ["rules"]

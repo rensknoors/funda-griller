@@ -315,6 +315,16 @@ export type Metrics = {
     woz_as_of: string;
     difference: number;
     percent: number;
+    /** The WOZ value brought from its peildatum to today with the CBS price index; null when the
+     * peildatum is outside the series. */
+    indexed: {
+      woz_value: number;
+      index_from: string;
+      index_to: string;
+      difference: number;
+      percent: number;
+      source: string;
+    } | null;
     provenance: "computed";
   } | null;
   asking_vs_comparables: AskingVsComparables;
@@ -330,6 +340,11 @@ export type AskingVsComparables = {
   coverage: ComparablesCoverage;
   count: number;
   min_count: number;
+  /** Compared within the same soort woning, the same kind (apartment or house), or unfiltered when
+   * the woning's own type is unknown. */
+  matched_on: "house_type" | "object_type" | null;
+  /** Comparables left out for being another type. */
+  excluded: number;
   price_per_m2: number | null;
   median_price_per_m2: number | null;
   percent: number | null;
@@ -343,6 +358,9 @@ export type Affordability = {
   equity: number;
   /** Extra borrowing capacity for a single adult (alleenstaandenbonus). */
   single_bonus: number;
+  /** What an NHG loan includes as standard for energy measures on a label E, F or G house; named,
+   * not counted in the other figures. */
+  nhg_energy_measures: number;
   kosten_koper: { transfer_tax: number; fixed_costs: number; nhg_fee: number; total: number } | null;
   /** What the lender lends at the asking price: at most the price itself. */
   mortgage_needed: number | null;
@@ -540,6 +558,8 @@ export type WalkAwayDerivation = {
   /** Absent on Verdicts made before the Renovation Estimate. */
   renovation_direct?: number;
   margin: number | null;
+  /** Where an asking price margin comes from; absent on Verdicts made before it was sourced. */
+  margin_source?: { house_type: string | null; source: string; period: string } | null;
   basis_maximum: number | null;
   binding: "basis" | "affordability";
   weakly_grounded: boolean;

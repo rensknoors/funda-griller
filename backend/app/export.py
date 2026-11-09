@@ -20,6 +20,7 @@ from datetime import datetime
 
 from app.buyer_profile import reduce_profile
 from app.case import VersionedProfile
+from app.house_type import LABELS
 
 # Rounding of euro amounts derived from the household's finances.
 AMOUNT_STEP = 5_000
@@ -228,6 +229,7 @@ FACT_LABELS = {
     "rooms": "Kamers",
     "bedrooms": "Slaapkamers",
     "construction_year": "Bouwjaar",
+    "house_type": "Soort woning",
     "energy_label": "Energielabel",
     "heating": "Verwarming",
     "ownership_situation": "Eigendomssituatie",
@@ -773,6 +775,12 @@ def _derivation(advice: dict) -> list[str]:
         )
     else:
         lines.append(f"- Basis: {BASES[derivation['basis']]}")
+    if source := derivation.get("margin_source"):
+        house = LABELS.get(source["house_type"]) if source["house_type"] else None
+        lines.append(
+            f"- Marge: {_number(round(derivation['margin'] * 100, 1))}% is het gemiddelde overbod voor "
+            f"{f'een {house}' if house else 'alle woningen'} ({source['source']}, {source['period']})"
+        )
     lines.append(
         "- Het Maximumbod is **begrensd door betaalbaarheid**: wat het huishouden kan betalen ligt lager dan de basis."
         if derivation["binding"] == "affordability"

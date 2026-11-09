@@ -37,6 +37,8 @@ def live_listing() -> Listing:
         areas=Areas(living=152, plot=410),
         rooms=Rooms(total=6, bedrooms=4),
         property_details=PropertyDetails(
+            object_type="house",
+            house_type="Villa, vrijstaande woning",
             construction_year=1931,
             energy_label="B",
             status="available",

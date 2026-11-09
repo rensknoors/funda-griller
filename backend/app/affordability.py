@@ -52,6 +52,9 @@ class Affordability:
     nhg: bool | None = None
     mortgage_rate: float | None = None
     single_bonus: int = 0
+    # What an NHG loan may include as standard for energy-saving measures on a label E, F or G
+    # house. Named, never counted in the figures above: it is earmarked for the measures.
+    nhg_energy_measures: int = 0
 
 
 @dataclass(frozen=True)
@@ -80,6 +83,8 @@ class Rules:
     energy_label_bonus: dict[str, int]
     nhg_limit: int
     nhg_fee_rate: float
+    nhg_energy_measures_efg: int
+    nhg_limit_with_measures: int
     transfer_tax_rate: float
     starter_min_age: int
     starter_max_age: int
@@ -110,6 +115,8 @@ class Rules:
             energy_label_bonus=table["energy_label_bonus"],
             nhg_limit=table["nhg"]["limit"],
             nhg_fee_rate=table["nhg"]["fee_rate"],
+            nhg_energy_measures_efg=table["nhg"]["energy_measures_efg"],
+            nhg_limit_with_measures=table["nhg"]["limit_with_measures"],
             transfer_tax_rate=tax["rate"],
             starter_min_age=tax["starter_min_age"],
             starter_max_age=tax["starter_max_age"],
@@ -366,4 +373,14 @@ def compute(
         nhg=purchase.nhg,
         mortgage_rate=rate,
         single_bonus=capacity.single_bonus,
+        nhg_energy_measures=_nhg_energy_measures(energy_label, purchase, rules),
     )
+
+
+def _nhg_energy_measures(energy_label: str | None, purchase: _Purchase, rules: Rules) -> int:
+    """The standard NHG amount for energy measures, when this loan goes with NHG on a label E, F or
+    G house and still fits under the NHG limit with the measures."""
+    amount = rules.nhg_energy_measures_efg
+    efg = (energy_label or "").strip().upper() in ("E", "F", "G")
+    fits = purchase.nhg and purchase.mortgage + amount <= rules.nhg_limit_with_measures
+    return amount if efg and amount and fits else 0

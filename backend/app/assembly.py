@@ -10,7 +10,14 @@ from app.buyer_profile import reduce_profile
 from app.case import SourceInputs, VersionedProfile, build_case
 from app.gemini_client import VERDICT_PROMPT_VERSION
 from app.ports import LlmClient
-from app.rules_loader import expected_levering, load_cost_table, load_flag_rules, load_rules
+from app.rules_loader import (
+    expected_levering,
+    load_bid_margins,
+    load_cost_table,
+    load_flag_rules,
+    load_price_index,
+    load_rules,
+)
 from app.settings import Settings
 from app.verdict import WalkAwayMargins, judge
 
@@ -36,6 +43,8 @@ def assemble_case(
         levering,
         load_flag_rules(settings.flag_rules_path),
         load_cost_table(settings.renovation_costs_path),
+        load_price_index(settings.price_index_path),
+        load_bid_margins(settings.bid_margins_path),
         now,
         sources,
         observation_runs,
@@ -59,7 +68,7 @@ def make_verdict(
         reduce_profile(profile.version, profile.profile),
         llm_client,
         settings.verdict_model,
-        WalkAwayMargins(settings.walk_away_comparables_premium, settings.walk_away_asking_price_margin),
+        WalkAwayMargins(settings.walk_away_comparables_premium),
         lambda price: _monthly_costs_at(compute(profile.profile, price, energy_label, rules, levering, renovation_direct)),
     )
     return {**verdict, "prompt_version": None if verdict["deterministic"] else VERDICT_PROMPT_VERSION}

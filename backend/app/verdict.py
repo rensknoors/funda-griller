@@ -37,11 +37,10 @@ PROVENANCE_LEGEND = {
 
 @dataclass(frozen=True)
 class WalkAwayMargins:
-    """How far above its basis a Walk-away Maximum may sit: what sufficient comparables put the
-    house at, or, when they are thin or missing, the asking price."""
+    """How far above what sufficient comparables put the house at a Walk-away Maximum may sit. Above
+    the asking price (comparables thin or missing) the Case's `asking_price_margin` applies."""
 
     comparables_premium: float
-    asking_price_margin: float
 
 
 class WalkAwayDerivation(TypedDict):
@@ -53,6 +52,8 @@ class WalkAwayDerivation(TypedDict):
     basis: Literal["comparables", "asking_price", "affordability"]
     renovation_direct: int
     margin: float | None
+    # Where an asking price margin comes from: the soort woning and the market source.
+    margin_source: dict | None
     basis_maximum: int | None
     binding: Literal["basis", "affordability"]
     weakly_grounded: bool
@@ -111,7 +112,7 @@ def derive_walk_away_maximum(case: dict, margins: WalkAwayMargins) -> WalkAwayDe
     if comparables["coverage"] == "sufficient" and comparables["comparables_value"] is not None:
         basis, margin, value = "comparables", margins.comparables_premium, comparables["comparables_value"]
     elif asking is not None:
-        basis, margin, value = "asking_price", margins.asking_price_margin, asking
+        basis, margin, value = "asking_price", case["asking_price_margin"]["value"], asking
     else:
         basis, margin, value = "affordability", None, None
     basis_maximum = (
@@ -125,6 +126,11 @@ def derive_walk_away_maximum(case: dict, margins: WalkAwayMargins) -> WalkAwayDe
         "basis": basis,
         "renovation_direct": renovation_direct,
         "margin": margin,
+        "margin_source": (
+            {key: case["asking_price_margin"][key] for key in ("house_type", "source", "period")}
+            if basis == "asking_price"
+            else None
+        ),
         "basis_maximum": basis_maximum,
         "binding": binding,
         "weakly_grounded": basis != "comparables",
@@ -166,11 +172,20 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         changed.append("case")
     if then["profile_version"] != current["profile_version"]:
         changed.append("buyer_profile")
-    if (then["flag_rules_version"], then["rules_year"], then.get("rules_version"), then.get("cost_table_version")) != (
+    if (
+        then["flag_rules_version"],
+        then["rules_year"],
+        then.get("rules_version"),
+        then.get("cost_table_version"),
+        then.get("price_index_version"),
+        then.get("bid_margins_version"),
+    ) != (
         current["flag_rules_version"],
         current["rules_year"],
         current.get("rules_version"),
         current.get("cost_table_version"),
+        current.get("price_index_version"),
+        current.get("bid_margins_version"),
     ):
         changed.append("rules")
     if not verdict["deterministic"] and then["model"] != current["model"]:

@@ -229,6 +229,13 @@ export function CaseView(props: {
                 note={`WOZ ${yearOf(state.data.metrics.asking_vs_woz.woz_as_of)}`}
               />
             )}
+            {state.data.metrics.asking_vs_woz?.indexed && (
+              <ComputedRow
+                label="Vraagprijs t.o.v. WOZ naar vandaag"
+                value={`${percentChange.format(state.data.metrics.asking_vs_woz.indexed.percent)}% (WOZ ${euro.format(state.data.metrics.asking_vs_woz.indexed.woz_value)})`}
+                note={`prijsindex ${state.data.metrics.asking_vs_woz.indexed.index_from} → ${state.data.metrics.asking_vs_woz.indexed.index_to}, ${state.data.metrics.asking_vs_woz.indexed.source}`}
+              />
+            )}
           </SourceGroup>
           <Vergelijkbaar
             metric={state.data.metrics.asking_vs_comparables}
@@ -373,10 +380,10 @@ function KeyFigures({
         <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
         <Figure
           label="t.o.v. WOZ"
-          tone={priceTone(metrics.asking_vs_woz?.percent)}
-          value={metrics.asking_vs_woz ? signedPercent(metrics.asking_vs_woz.percent) : "–"}
+          tone={priceTone(wozPercent(metrics))}
+          value={metrics.asking_vs_woz ? signedPercent(wozPercent(metrics)) : "–"}
         >
-          {metrics.asking_vs_woz && "~ WOZ onofficieel"}
+          {metrics.asking_vs_woz && (metrics.asking_vs_woz.indexed ? "~ WOZ naar vandaag" : "~ WOZ onofficieel")}
         </Figure>
         <Figure
           label="t.o.v. vergelijkbaar"
@@ -509,12 +516,23 @@ function Betaalruimte({
   );
 }
 
+/** Against the WOZ value in today's prices when it can be indexed; the raw one lags the market. */
+function wozPercent(metrics: Metrics): number | null {
+  const woz = metrics.asking_vs_woz;
+  return woz ? (woz.indexed ?? woz).percent : null;
+}
+
 function bonusNote(affordability: Affordability): string | null {
   const parts = [
     affordability.energy_label_bonus > 0 && `${euro.format(affordability.energy_label_bonus)} voor energielabel`,
     affordability.single_bonus > 0 && `${euro.format(affordability.single_bonus)} voor alleenstaande`,
   ].filter(Boolean);
-  return parts.length ? `incl. ${parts.join(" en ")}` : null;
+  const included = parts.length ? `incl. ${parts.join(" en ")}` : null;
+  const nhg =
+    affordability.nhg_energy_measures > 0
+      ? `Met NHG kan bij label E, F of G standaard ${euro.format(affordability.nhg_energy_measures)} extra mee voor energiebesparende maatregelen (niet meegerekend)`
+      : null;
+  return [included, nhg].filter(Boolean).join(". ") || null;
 }
 
 /** Gross beside net with the rate and NHG, then a warning when a lender would not lend this. */

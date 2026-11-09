@@ -39,6 +39,8 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
         "profile_version": 1,
         "flag_rules_version": FLAG_RULES_VERSION,
         "cost_table_version": COST_TABLE_VERSION,
+        "price_index_version": 1,
+        "bid_margins_version": 1,
         "observation_run": 1,
         "documents": None,
     }
@@ -60,6 +62,7 @@ def test_typical_household_affordability(client, listing_provider):
         "max_mortgage": 443_174,
         "energy_label_bonus": 10_000,
         "single_bonus": 0,
+        "nhg_energy_measures": 0,
         "kosten_koper": {"transfer_tax": 11_900, "fixed_costs": 5_050, "nhg_fee": 1_540, "total": 18_490},
         "equity": 172_000,
         "mortgage_needed": 386_490,
@@ -293,3 +296,52 @@ def test_the_mortgage_needed_stops_at_the_price_and_the_rest_is_a_shortfall(clie
 
     assert affordability["mortgage_needed"] == 300_000
     assert affordability["own_funds_shortfall"] == 6_270
+
+
+def test_an_e_f_or_g_label_names_the_nhg_room_for_energy_measures_without_counting_it(client, listing_provider):
+    """NHG 2027: on a label E, F or G house a loan with NHG includes €20.000 for energy-saving
+    measures as standard. It is earmarked for the measures, so the figures leave it out."""
+    capture(client, listing_provider, energy_label="E")
+    client.put("/api/buyer-profile", json=typical_profile())
+
+    affordability = client.get("/api/listings/80907644/case").json()["affordability"]
+
+    assert affordability["nhg_energy_measures"] == 20_000
+    assert affordability["max_mortgage"] == 433_174
+
+
+def test_no_nhg_energy_room_for_a_better_label(client, listing_provider):
+    capture(client, listing_provider, energy_label="B")
+    client.put("/api/buyer-profile", json=typical_profile())
+
+    assert client.get("/api/listings/80907644/case").json()["affordability"]["nhg_energy_measures"] == 0
+
+
+def test_no_nhg_energy_room_before_2027(client, listing_provider, settings):
+    settings.expected_levering_months = 0
+    capture(client, listing_provider, energy_label="E")
+    client.put("/api/buyer-profile", json=typical_profile())
+
+    assert client.get("/api/listings/80907644/case").json()["affordability"]["nhg_energy_measures"] == 0
+
+
+def test_no_nhg_energy_room_named_when_the_loan_goes_without_nhg(client, listing_provider):
+    """€505.000 to borrow is over the €500.000 NHG limit, so no NHG and no standard energy amount,
+    although €525.000 with it would fit under €530.000."""
+    capture(client, listing_provider, energy_label="E")
+    profile = {**typical_profile(), "gross_annual_income": 150_000, "current_home": None}
+    client.put("/api/buyer-profile", json={**profile, "assets": {"savings": 106_950, "investments": 0}})
+
+    affordability = client.get("/api/listings/80907644/case").json()["affordability"]
+
+    assert (affordability["mortgage_needed"], affordability["nhg"]) == (505_000, False)
+    assert affordability["nhg_energy_measures"] == 0
+
+
+def test_the_asking_price_margin_is_a_rule_value_with_its_time(client, listing_provider):
+    capture(client, listing_provider)
+
+    margin = client.get("/api/listings/80907644/case").json()["asking_price_margin"]
+
+    assert margin["provenance"] == "rule"
+    assert margin["computed_at"] == "2026-10-24T12:00:00+00:00"

@@ -122,6 +122,8 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
         "profile_version": 1,
         "flag_rules_version": FLAG_RULES_VERSION,
         "cost_table_version": COST_TABLE_VERSION,
+        "price_index_version": 1,
+        "bid_margins_version": 1,
         "observation_run": None,
         "documents": [],
     }

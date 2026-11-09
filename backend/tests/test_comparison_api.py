@@ -29,10 +29,11 @@ def test_list_shows_price_area_and_key_metrics_per_listing(client, listing_provi
     assert row["asking_price"] == 595_000
     assert (row["living_area"], row["plot_area"]) == (152, 410)
     assert row["energy_label"] == {"value": "A", "official": True}
-    assert row["asking_vs_woz_percent"] == 19.0
+    # Against the WOZ brought to today (536.082), not the raw 500.000 (+19,0%).
+    assert row["asking_vs_woz_percent"] == 11.0
     case = client.get("/api/listings/80907644/case").json()
     assert row["headroom"] == case["affordability"]["headroom"] > 0
-    assert row["flag_counts"] == {"pro": 1, "con": 1, "risk": 0}
+    assert row["flag_counts"] == {"pro": 1, "con": 0, "risk": 0}
     assert row["status"] == "available"
 
 

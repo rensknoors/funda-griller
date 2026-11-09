@@ -42,7 +42,10 @@ test("dossier shows bronnen: official energielabel, third-party WOZ, coverage an
   await expect(page.getByText("Nee: advertentie B, register A")).toBeVisible();
   await expect(page.getByText("WOZ-waarde 2025")).toBeVisible();
   await expect(page.getByLabel(/Bron: WOZ \(prijshistorie\), onofficieel/).first()).toBeVisible();
-  await expect(page.getByText("Vraagprijs t.o.v. WOZ")).toBeVisible();
+  await expect(page.getByText("Vraagprijs t.o.v. WOZ", { exact: true })).toBeVisible();
+  // 392.000 at peildatum 2025-01-01, in today's prices with the CBS index: 420.289.
+  await expect(page.getByText("Vraagprijs t.o.v. WOZ naar vandaag", { exact: true })).toBeVisible();
+  await expect(page.getByText(/WOZ €\s420\.289/)).toBeVisible();
 
   await page.getByRole("button", { name: "WOZ (prijshistorie) opnieuw ophalen" }).click();
   await expect(page.getByText("WOZ-waarde 2024")).toBeVisible();

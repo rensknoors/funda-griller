@@ -44,9 +44,9 @@ test("list compares woningen by oordeel, price and key figures", async ({ page }
   await expect(buchterweg.getByText("Harde afwijzing")).toBeVisible();
   await expect(buchterweg.getByText("Deal-breaker: Garage")).toBeVisible();
   await expect(buchterweg.getByText("€ 595.000")).toBeVisible();
-  await expect(buchterweg.getByText("+51,8%", { exact: true })).toBeHidden();
+  await expect(buchterweg.getByText("+41,6%", { exact: true })).toBeHidden();
   const buchterwegDetails = await details(page, "Buchterweg 15");
-  await expect(buchterwegDetails.getByText("+51,8%", { exact: true })).toBeVisible();
+  await expect(buchterwegDetails.getByText("+41,6%", { exact: true })).toBeVisible();
   await expect(buchterwegDetails.getByText("152 / 410")).toBeVisible();
   await expect(buchterwegDetails.getByText("A", { exact: true })).toBeVisible();
   await expect(row(page, "Markt 3").getByText("Nog geen oordeel")).toBeVisible();
@@ -123,7 +123,7 @@ test("woningen show as photo cards by default, with the oordeel, price and key f
   await expect(buchterweg.getByText("Harde afwijzing")).toBeVisible();
   await expect(buchterweg.getByText("€ 595.000")).toBeVisible();
   await expect(buchterweg.getByText("Deal-breaker: Garage")).toBeVisible();
-  await expect(buchterweg.getByText("WOZ +51,8%")).toBeVisible();
+  await expect(buchterweg.getByText("WOZ +41,6%")).toBeVisible();
   await expect(buchterweg.locator("img")).toHaveAttribute("src", /\/api\/listings\/80907644\/photos\//);
 
   // The choice of view is remembered.

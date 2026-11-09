@@ -25,7 +25,8 @@ def summarise(snapshots: list[dict], case: dict, tier: str | None = None) -> dic
         "living_area": latest.get("living_area"),
         "plot_area": latest.get("plot_area"),
         "energy_label": _energy_label(case["facts"], latest.get("energy_label")),
-        "asking_vs_woz_percent": woz["percent"] if woz else None,
+        # Against the WOZ value in today's prices when it can be indexed; the raw one lags the market.
+        "asking_vs_woz_percent": (woz["indexed"] or woz)["percent"] if woz else None,
         "asking_vs_comparables_percent": case["metrics"]["asking_vs_comparables"]["percent"],
         "headroom": affordability["headroom"] if affordability else None,
         "renovation_direct": case["renovation_estimate"]["classes"]["direct"],

@@ -23,7 +23,7 @@ def test_typical_household_sees_maximum_mortgage_equity_and_budget(client):
         "equity": 172_000,
         "budget": 640_586,
         "rules": {
-            "version": 1,
+            "version": 2,
             "year": 2027,
             "is_current_year": True,
             "levering_on": "2027-01-24",

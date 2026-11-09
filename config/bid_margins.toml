@@ -1,0 +1,20 @@
+# How far above the asking price the Walk-away Maximum may go when it rests on the asking price
+# (too few comparables): the average overbid for the house's soort woning. Bump `version` on any
+# change: the Case records it, so Verdicts built on the old table become Achterhaald.
+#
+# Source: NVM, Marktoverzicht Nederland 2e kwartaal 2026, gemiddeld percentage boven de vraagprijs
+# per woningtype, as tabled by openwoning.nl (checked 2026-11-09). SECONDARY: NVM's own quarterly
+# bijlage could not be fetched. NVM's 3rd quarter 2026 puts all homes at 3,3% (65,9% sold above
+# asking), down from 4,6%; no per-type national figures for that quarter were found.
+version = 1
+source = "NVM, Marktoverzicht Nederland 2e kwartaal 2026 (via openwoning.nl)"
+period = "2e kwartaal 2026"
+
+# Categories as in app/house_type.py; `all` when the soort woning is unknown or another kind.
+[average_overbid]
+all = 0.046
+appartement = 0.056
+tussenwoning = 0.059
+hoekwoning = 0.044
+twee_onder_een_kap = 0.035
+vrijstaand = 0.006

@@ -15,6 +15,7 @@ export const FACT_LABELS: Record<string, string> = {
   rooms: "Kamers",
   bedrooms: "Slaapkamers",
   construction_year: "Bouwjaar",
+  house_type: "Soort woning",
   energy_label: "Energielabel",
   heating: "Verwarming",
   ownership_situation: "Eigendomssituatie",

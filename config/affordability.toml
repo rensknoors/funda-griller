@@ -22,7 +22,8 @@
 #                     Nibud (advies 2027 §5.2) advises the same for other non-deductible loans.
 #                     Unchanged for 2027 (advies 2027 tabel 8).
 #   energy_label_bonus  Trhk art. 4 lid 3; unchanged for 2027 (advies 2027 tabel 6).
-#   nhg               nhg.nl Voorwaarden en normen 2026-1: €470.000, borgtochtprovisie 0,4%.
+#   nhg               nhg.nl Voorwaarden en normen 2026-1: €470.000 (€498.200 with energy-saving
+#                     measures), borgtochtprovisie 0,4%.
 #                     2027: €500.000 (Geld.nl, 2026-10-13; NHG V&N 2027 not yet readable). SECONDARY.
 #   transfer_tax      2% for an owner-occupied home. Startersvrijstelling per buyer for their own
 #                     share, aged 18 to 34 at levering, once in a lifetime, whole price at or below
@@ -39,7 +40,7 @@
 
 # Bump on any change to this file: the Case records it, so Verdicts built on the old table become
 # Achterhaald.
-version = 1
+version = 2
 
 # Offered mortgage rates, ten years fixed, annuity: the test rate for a rentevaste periode of ten
 # years or longer and the rate the monthly cost is worked out at. A market snapshot, not a year
@@ -159,6 +160,10 @@ above_income = 30000
 [years.2026.nhg]
 limit = 470000
 fee_rate = 0.004
+# Standard extra for energy-saving measures on a label E, F or G house, and the NHG limit for a loan
+# that includes such measures (2026: no standard amount; limit €498.200, NHG V&N 2026-1).
+energy_measures_efg = 0
+limit_with_measures = 498200
 
 [years.2026.transfer_tax]
 rate = 0.02
@@ -283,6 +288,11 @@ above_income = 31000
 [years.2027.nhg]
 limit = 500000
 fee_rate = 0.004
+# From 2027 a loan with NHG on a label E, F or G house includes €20.000 for energy-saving measures
+# as standard; with measures the limit is €530.000 (Banken.nl, Geld.nl, 2026-10; SECONDARY). Named
+# in the Dossier, never counted: it is earmarked for the measures, not the price.
+energy_measures_efg = 20000
+limit_with_measures = 530000
 
 [years.2027.transfer_tax]
 rate = 0.02

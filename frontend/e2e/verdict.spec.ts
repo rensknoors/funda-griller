@@ -32,15 +32,17 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   const bedragen = advies.getByRole("group", { name: "Bedragen" });
   await expect(bedragen.getByText("Openingsbod")).toBeVisible();
   await expect(bedragen.getByText("€ 580.000")).toBeVisible();
-  // No vergelijkbare woningen fetched: the Maximumbod is the vraagprijs plus 5%, and says it is weak.
-  await expect(bedragen.getByText("€ 624.750", { exact: true })).toBeVisible();
+  // No vergelijkbare woningen fetched: the Maximumbod is the vraagprijs plus NVM's 4,6% average overbid,
+  // and says it is weak.
+  await expect(bedragen.getByText("€ 622.370", { exact: true })).toBeVisible();
   // The scale above draws the same bid as one stretch.
-  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 580.000, Maximumbod € 624.750", { exact: false })).toBeAttached();
+  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 580.000, Maximumbod € 622.370", { exact: false })).toBeAttached();
   await expect(advies.getByText(/Zwak onderbouwd: te weinig vergelijkbare woningen/)).toBeVisible();
   await expect(advies.getByText("Bouwkundige keuring")).toBeVisible();
   await advies.getByText("Hoe berekend").click();
   await expect(advies.getByText("Betaalruimte: tot € 667.928")).toBeVisible();
-  await expect(advies.getByText("Vraagprijs € 595.000 + 5%: € 624.750")).toBeVisible();
+  await expect(advies.getByText("Vraagprijs € 595.000 + 4,6%: € 622.370")).toBeVisible();
+  await expect(advies.getByText(/^Marge 4,6%: gemiddeld overbod voor alle woningen \(NVM/)).toBeVisible();
   const redenering = page.getByRole("region", { name: "Redenering" });
   await expect(redenering.getByRole("button", { name: /Vraagprijs ver boven de WOZ-waarde/ })).toBeVisible();
   await expect(page.getByText(/Koperprofiel versie \d+/).first()).toBeVisible();

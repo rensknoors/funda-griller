@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     affordability_rules_path: Path = CONFIG_DIR / "affordability.toml"
     flag_rules_path: Path = CONFIG_DIR / "flag_rules.toml"
     renovation_costs_path: Path = CONFIG_DIR / "renovation_costs.toml"
+    price_index_path: Path = CONFIG_DIR / "price_index.toml"
+    bid_margins_path: Path = CONFIG_DIR / "bid_margins.toml"
 
     gemini_api_key: str | None = None
     # RVO EP-Online API key for the energielabel register; without it that Source is skipped.
@@ -60,13 +62,12 @@ class Settings(BaseSettings):
 
     # Comparables: at most this many follow-up provider fetches per user request; fewer usable
     # comparables than the minimum count as thin.
-    comparables_max_fetches: int = 5
-    comparables_min_count: int = 3
+    comparables_max_fetches: int = 8
+    comparables_min_count: int = 5
     # The derived Walk-away Maximum sits this share above what sufficient comparables put the house
-    # at, or, when comparables are thin or missing, this share above the asking price (never above
-    # what the household can afford).
+    # at (never above what the household can afford). When comparables are thin or missing it sits
+    # the average overbid for the soort woning above the asking price (config/bid_margins.toml).
     walk_away_comparables_premium: float = 0.10
-    walk_away_asking_price_margin: float = 0.05
 
     # Months from today to the expected levering at the notary: the affordability rules, the
     # starters' ages and the startersvrijstelling limit are taken at that date.

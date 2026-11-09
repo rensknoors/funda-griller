@@ -370,8 +370,8 @@ def test_direct_nodig_comes_off_the_asking_price_basis_of_the_walk_away_maximum(
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    # (595_000 - 6_000) x 1.05
-    assert advice["walk_away_maximum"] == 618_450
+    # (595_000 - 6_000) x 1.046, the average overbid for all homes
+    assert advice["walk_away_maximum"] == 616_094
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM_AFTER_DAMP
     assert advice["derivation"]["renovation_direct"] == 6000
     assert advice["derivation"]["basis"] == "asking_price"
@@ -380,10 +380,16 @@ def test_direct_nodig_comes_off_the_asking_price_basis_of_the_walk_away_maximum(
 def test_direct_nodig_comes_off_the_comparables_basis_of_the_walk_away_maximum(
     client, listing_provider, llm_client, source_clients
 ):
-    # Price per m² 4000, 4000, 4200 -> median 4000, so 152 m² is worth 608_000 by comparables.
+    # Price per m² 4000, 4000, 4200, 3800, 4000 -> median 4000, so 152 m² is worth 608_000 by comparables.
     source_clients["comparables"].facts = [
         SourceFact("comparable", {"funda_id": n, "asking_price": price, "living_area": area})
-        for n, price, area in (("101", 500_000, 125), ("102", 480_000, 120), ("103", 630_000, 150))
+        for n, price, area in (
+            ("101", 500_000, 125),
+            ("102", 480_000, 120),
+            ("103", 630_000, 150),
+            ("104", 380_000, 100),
+            ("105", 440_000, 110),
+        )
     ]
     llm_client.observations = [PHOTO_DAMP]
     capture(client, listing_provider)
@@ -406,7 +412,7 @@ def test_without_direct_nodig_items_the_maxima_are_unchanged(client, listing_pro
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    assert advice["walk_away_maximum"] == 624_750
+    assert advice["walk_away_maximum"] == 622_370
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM
     assert advice["derivation"]["renovation_direct"] == 0
 

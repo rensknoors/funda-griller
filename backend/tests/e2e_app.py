@@ -69,7 +69,7 @@ _source_clients["flood_soil"].facts = [
     SourceFact("pile_rot_risk_pct", 2.1),
 ]
 _source_clients["noise"].error = SourceSkipped("no_coordinates")
-# Fetched only when the user asks. Per m²: 4000, 4200, 4400 -> median 4200.
+# Fetched only when the user asks. Per m²: 4000, 4200, 4400, 4200, 4200 -> median 4200.
 _source_clients["comparables"].facts = [
     SourceFact(
         "comparable",
@@ -88,6 +88,8 @@ _source_clients["comparables"].facts = [
         ("80900001", "Dorpsstraat 3", 500_000, 125),
         ("80900002", "Kerkstraat 8", 630_000, 150),
         ("80900003", "Molenweg 21", 550_000, 125),
+        ("80900004", "Beekstraat 5", 420_000, 100),
+        ("80900005", "Lindelaan 9", 462_000, 110),
     )
 ]
 

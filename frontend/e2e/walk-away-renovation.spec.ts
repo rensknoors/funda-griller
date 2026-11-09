@@ -49,8 +49,8 @@ test("verbouwingskosten by urgency, geschat with evidence, subtracted in the bie
   const advies = page.getByRole("region", { name: "Biedadvies" });
   await advies.getByText("Hoe berekend").click();
   await expect(advies.getByText(/na aftrek van €\s6\.000 Direct nodig onderhoud/)).toBeVisible();
-  // (595.000 − 6.000) × 1,05
-  await expect(advies.getByText("Vraagprijs € 595.000 − € 6.000 Direct nodig + 5%: € 618.450")).toBeVisible();
+  // (595.000 − 6.000) × 1,046: NVM's average overbid for all homes (soort woning unknown).
+  await expect(advies.getByText("Vraagprijs € 595.000 − € 6.000 Direct nodig + 4,6%: € 616.094")).toBeVisible();
 
   await page.getByRole("link", { name: "Dossier", exact: true }).click();
   await page.getByRole("link", { name: "Terug naar woningen" }).click();

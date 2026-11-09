@@ -23,8 +23,8 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
   await expect(group.getByText("Nog niet opgehaald")).toBeVisible();
   await group.getByRole("button", { name: "Vergelijkbare woningen ophalen" }).click();
 
-  // Per m² 4000, 4200 and 4400: median 4200, so 152 m² is € 638.400 by comparables.
-  await expect(group.getByText("3 vergelijkbare woningen")).toBeVisible();
+  // Per m² 4000, 4200, 4400, 4200 and 4200: median 4200, so 152 m² is € 638.400 by comparables.
+  await expect(group.getByText("5 vergelijkbare woningen", { exact: true })).toBeVisible();
   await expect(group.getByRole("link", { name: "Kerkstraat 8" })).toBeVisible();
   await expect(group.getByText("Vraagprijs per m² t.o.v. vergelijkbaar")).toBeVisible();
   await expect(group.getByText(/-6,8%/)).toBeVisible();
