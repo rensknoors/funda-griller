@@ -24,7 +24,8 @@
 #   energy_label_bonus  Trhk art. 4 lid 3; unchanged for 2027 (advies 2027 tabel 6).
 #   nhg               nhg.nl Voorwaarden en normen 2026-1: €470.000 (€498.200 with energy-saving
 #                     measures), borgtochtprovisie 0,4%.
-#                     2027: €500.000 (Geld.nl, 2026-10-13; NHG V&N 2027 not yet readable). SECONDARY.
+#                     2027: €500.000 (€530.000 with energy-saving measures), borgtochtprovisie
+#                     0,4% (nhg.nl, "NHG-grens in 2027 naar 500.000 euro", 2026-10-13).
 #   transfer_tax      2% for an owner-occupied home. Startersvrijstelling per buyer for their own
 #                     share, aged 18 to 34 at levering, once in a lifetime, whole price at or below
 #                     the limit (Belastingdienst, Rijksoverheid). Limit 2026 €555.000 (SRA, 2026-01);
@@ -289,8 +290,9 @@ above_income = 31000
 limit = 500000
 fee_rate = 0.004
 # From 2027 a loan with NHG on a label E, F or G house includes €20.000 for energy-saving measures
-# as standard; with measures the limit is €530.000 (Banken.nl, Geld.nl, 2026-10; SECONDARY). Named
-# in the Dossier, never counted: it is earmarked for the measures, not the price.
+# as standard (Banken.nl, Geld.nl, 2026-10; SECONDARY: not on NHG's own announcement). With
+# measures the limit is €530.000 (nhg.nl, 2026-10-13). Named in the Dossier, never counted: it is
+# earmarked for the measures, not the price.
 energy_measures_efg = 20000
 limit_with_measures = 530000
 

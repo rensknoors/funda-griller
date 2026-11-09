@@ -4,7 +4,7 @@
 
 **Blocked by:** 28 (Accurate affordability and Oordeel inputs)
 
-**Status:** ready-for-human (only the NHG 2027 primary-source check is left)
+**Status:** resolved
 
 ### Current state
 
@@ -25,7 +25,7 @@
 - [x] `ask_far_above_woz` reads the indexed WOZ; the Dossier shows raw and indexed WOZ with the index date
 - [x] Comparables of another house type do not count towards coverage or the median
 - [x] The weakly grounded Walk-away margin comes from config with a cited source, and the Biedadvies names it (per soort woning, at the user's request)
-- [ ] The 2027 NHG limit in `config/affordability.toml` is checked against NHG's Voorwaarden en normen 2027 (now four consistent secondary sources: Geld.nl, Hypotheker, Banken.nl, Univé), and the SECONDARY mark dropped
+- [x] The 2027 NHG limit in `config/affordability.toml` is checked against NHG's Voorwaarden en normen 2027 (now four consistent secondary sources: Geld.nl, Hypotheker, Banken.nl, Univé), and the SECONDARY mark dropped
 - [x] From 2027 an NHG loan on a label E, F or G house includes a standard €20.000 for energy-saving measures, with an NHG limit of €530.000 for such loans (Banken.nl, Geld.nl); decide whether the affordable maximum and the Renovation Estimate should reflect it (decided: named in the Dossier, not counted)
 - [x] Flag rule set version bumped
 - [x] Verdict regression set re-run, changes explained in Comments
@@ -132,3 +132,5 @@ Regression run analysed (2026-11-09, prompt version 6, Flag rule set 13):
   - Unchanged for the other 3. Two rest on sufficient comparables. The third, `example-asking-far-above-woz`, is bound by affordability.
 - **WOZ Signaal.** Nothing changes for any entry. Every entry that raised `ask_far_above_woz` still does with the indexed WOZ, and the indexed percentages are a few points lower.
 - **Comparables.** The two real entries were frozen before the soort woning was captured. Their comparables are therefore not filtered by type, and the type filter is not exercised by the set yet. Re-adding them after a fresh capture would cover it.
+
+NHG 2027 checked against NHG's own announcement ("NHG-grens in 2027 naar 500.000 euro", nhg.nl, 2026-10-13, found by the user): €500.000, €530.000 with energy-saving measures, borgtochtprovisie 0,4%. The config now cites it; only the standard €20.000 for E/F/G labels stays SECONDARY, since that page does not mention it.
