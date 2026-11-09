@@ -29,7 +29,7 @@ export function Verbouwingskosten({ estimate, facts }: { estimate: RenovationEst
         <h2 id="verbouwingskosten-title">Verbouwingskosten</h2>
         <span className="muted">
           {plural(estimate.items.length, "post", "posten")}
-          {years.length > 0 && ` · prijspeil ${years.join(", ")}`}
+          {years.length > 0 && ` · prijspeil\u00a0${years.join(", ")}`}
         </span>
       </summary>
       {estimate.missing_inputs.length > 0 && (

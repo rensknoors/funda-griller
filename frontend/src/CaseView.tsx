@@ -59,9 +59,11 @@ const REASON_COPY: Record<string, string> = {
   no_route: "geen route gevonden",
 };
 
+/** The year of a WOZ peildatum, which the source gives as "1 jan 2024" or as an ISO date. */
+const yearOf = (asOf: string | null | undefined) => asOf?.match(/\d{4}/)?.[0] ?? "";
 
 function sourceFactLabel(fact: SourceFact): string {
-  if (fact.key === "woz_value") return `WOZ-waarde ${fact.as_of?.slice(0, 4) ?? ""}`.trim();
+  if (fact.key === "woz_value") return `WOZ-waarde ${yearOf(fact.as_of)}`.trim();
   if (fact.key === "energy_label") return "Energielabel (register)";
   if (isCommuteFact(fact.value)) return `Reistijd naar ${fact.value.destination}`;
   if (ENVIRONMENT_FACTS[fact.key]) return ENVIRONMENT_FACTS[fact.key].label;
@@ -224,7 +226,7 @@ export function CaseView(props: {
               <ComputedRow
                 label="Vraagprijs t.o.v. WOZ"
                 value={`${percentChange.format(state.data.metrics.asking_vs_woz.percent)}% (${signedEuro(state.data.metrics.asking_vs_woz.difference)})`}
-                note={`WOZ ${state.data.metrics.asking_vs_woz.woz_as_of.slice(0, 4)}`}
+                note={`WOZ ${yearOf(state.data.metrics.asking_vs_woz.woz_as_of)}`}
               />
             )}
           </SourceGroup>
@@ -331,7 +333,7 @@ function Brondekking(props: {
                 {source.status !== "succeeded" && source.reason && REASON_COPY[source.reason] && (
                   <span className="muted"> ({REASON_COPY[source.reason]})</span>
                 )}
-                {source.attempted_at && <span className="muted"> · {shortDate(source.attempted_at)}</span>}
+                {source.attempted_at && <span className="muted source-date"> · {shortDate(source.attempted_at)}</span>}
               </span>
               <button
                 type="button"

@@ -365,7 +365,8 @@ a.button:hover { background: var(--band); border-color: var(--ink-3); }
 
 /* Dossier: content column beside a sticky overview rail. */
 .dossier-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 56px; align-items: start; }
-.dossier-rail { position: sticky; top: calc(var(--topbar-h) + var(--tabs-h) + 24px); display: grid; gap: 28px; max-height: calc(100vh - var(--topbar-h) - var(--tabs-h) - 40px); overflow-y: auto; padding-right: 4px; }
+.dossier-rail { position: sticky; top: calc(var(--topbar-h) + var(--tabs-h) + 24px); display: grid; gap: 28px; max-height: calc(100vh - var(--topbar-h) - var(--tabs-h) - 40px); overflow-y: auto; padding: 0 4px 24px 0; mask-image: linear-gradient(#000 calc(100% - 24px), transparent); }
+.source-date { white-space: nowrap; }
 .rail-title { font-size: 13px; font-weight: 650; color: var(--ink); margin-bottom: 8px; }
 .rail-count { display: block; font-weight: 400; color: var(--ink-2); margin-top: 2px; }
 .on-this-page ol { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -640,7 +641,7 @@ fieldset.vak { border: 0; }
 /* Narrower desktops: the rail and Gevolgen fold into the flow. */
 @media (max-width: 1180px) {
   .dossier-body { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .dossier-rail { position: static; max-height: none; overflow: visible; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px 40px; margin-bottom: 36px; padding: 0 0 28px; border-bottom: 1px solid var(--line); }
+  .dossier-rail { position: static; max-height: none; overflow: visible; mask-image: none; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px 40px; margin-bottom: 36px; padding: 0 0 28px; border-bottom: 1px solid var(--line); }
   .on-this-page { display: none; }
   .dossier-main > :first-child { border-top: 0; }
 }
@@ -660,7 +661,7 @@ fieldset.vak { border: 0; }
   .wordmark-mark { width: 24px; height: 24px; }
   .api-state { font-size: 0; gap: 0; }
   main { padding: 0 16px 72px; }
-  main > :first-child:not(.hero) { margin-top: 24px; }
+  main > :first-child:not(.hero, :has(> .hero:first-child)) { margin-top: 24px; }
   .hero { padding: 24px 0; margin-bottom: 24px; }
   .woning-head.hero { padding-bottom: 20px; }
   h1, .woning-title h1 { font-size: 28px; }
