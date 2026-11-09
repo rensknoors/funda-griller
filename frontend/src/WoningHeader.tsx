@@ -38,6 +38,7 @@ export function WoningHeader(props: {
               <a
                 href={href({ view: page, fundaId: neighbours.previous.funda_id })}
                 title={addressOf(neighbours.previous)}
+                data-step="previous"
               >
                 <ChevronLeft size={16} aria-hidden="true" />
                 Vorige woning
@@ -52,6 +53,7 @@ export function WoningHeader(props: {
               <a
                 href={href({ view: page, fundaId: neighbours.next.funda_id })}
                 title={addressOf(neighbours.next)}
+                data-step="next"
               >
                 Volgende woning
                 <ChevronRight size={16} aria-hidden="true" />
@@ -80,7 +82,7 @@ export function WoningHeader(props: {
               <ExportMarkdown fundaId={fundaId} />
             </div>
           </div>
-          <HeaderPhotos photos={latest.photos ?? []} />
+          <HeaderPhotos fundaId={fundaId} photos={latest.photos ?? []} />
         </div>
       </header>
       <Halves fundaId={fundaId} page={page} address={addressOf(listing)} />
@@ -117,6 +119,7 @@ function Halves(props: { fundaId: string; page: "dossier" | "oordeel"; address: 
           <span className="halves-note" aria-hidden="true">
             feiten en bronnen
           </span>
+          {page === "dossier" && <span className="halves-underline" aria-hidden="true" />}
         </a>
         <a
           href={href({ view: "oordeel", fundaId })}
@@ -126,6 +129,7 @@ function Halves(props: { fundaId: string; page: "dossier" | "oordeel"; address: 
           <span className="halves-note" aria-hidden="true">
             uitkomst en biedadvies
           </span>
+          {page === "oordeel" && <span className="halves-underline" aria-hidden="true" />}
         </a>
         <span className="halves-address" aria-hidden="true">
           {props.address}
@@ -140,7 +144,7 @@ const THUMBNAILS = 4;
 
 /** The first photo large, the next few in a block beside it: the Woning as funda shows it, opening
  * the viewer. */
-function HeaderPhotos({ photos }: { photos: CasePhoto[] }) {
+function HeaderPhotos({ fundaId, photos }: { fundaId: string; photos: CasePhoto[] }) {
   const [viewing, setViewing] = useState<CasePhoto | null>(null);
   if (photos.length === 0) return null;
   const [first, ...rest] = photos;
@@ -149,7 +153,7 @@ function HeaderPhotos({ photos }: { photos: CasePhoto[] }) {
   return (
     <div className="header-photos" data-thumbs={thumbnails.length}>
       <button type="button" className="header-photo-main" aria-label="Foto 1 openen" onClick={() => setViewing(first)}>
-        <img src={first.url} alt="" />
+        <img src={first.url} alt="" data-photo-for={fundaId} />
       </button>
       {thumbnails.length > 0 && (
         <ul className="header-thumbs">

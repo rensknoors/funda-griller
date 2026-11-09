@@ -360,6 +360,8 @@ A small 12.5px tag with a lucide icon and a word, its border telling trust: Regi
 ### Motion
 One easing, `cubic-bezier(0.22, 1, 0.36, 1)`. Hovers at 120 to 150ms, disclosures and tabs at 180ms, the tier band wipe at 420ms, cobalt-tint flashes at 900ms to 1.6s. Reduced motion collapses all to 1ms.
 
+Moving between screens is one View Transition (`routeTransition.ts`), the app's authored moment: the Woning's photo is its identity, so opening a Woning flies its card photo into the header's main photo (460ms, `cubic-bezier(0.16, 1, 0.3, 1)`) and Terug naar woningen flies it back (360ms) while the page crossfades. Vorige/Volgende woning slides the page 48px the way the step goes; switching Dossier/Oordeel slides the white underline across (280ms) and holds the hero still; the top bar never moves. In the photo viewer a step slides the next photo in from its side (240ms). Without View Transitions screens swap as before; with reduced motion they only crossfade (150ms), with no flight or slide.
+
 ## Do's and Don'ts
 
 ### Do:

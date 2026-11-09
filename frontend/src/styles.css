@@ -84,7 +84,7 @@ td.tone-favorable, td.tone-concern, td.tone-shortfall { font-weight: 600; }
 @keyframes spin { to { rotate: 360deg; } }
 
 /* App shell: one bar, two destinations. */
-.topbar { position: sticky; top: 0; z-index: var(--z-topbar); background: var(--hero); border-bottom: 1px solid var(--on-hero-line); color: var(--on-hero); }
+.topbar { position: sticky; top: 0; z-index: var(--z-topbar); view-transition-name: topbar; background: var(--hero); border-bottom: 1px solid var(--on-hero-line); color: var(--on-hero); }
 .topbar :focus-visible, .hero :focus-visible { outline-color: #fff; }
 .topbar-inner { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: var(--topbar-h); display: flex; align-items: center; gap: 40px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--on-hero); text-decoration: none; font-weight: 750; font-size: 17px; letter-spacing: -0.02em; font-stretch: 88%; }
@@ -351,10 +351,12 @@ a.button:hover { background: var(--band); border-color: var(--ink-3); }
 .halves { position: sticky; top: var(--topbar-h); z-index: var(--z-tabs); display: flex; height: var(--tabs-full-h); margin: 0 0 var(--halves-gap); background: var(--hero); box-shadow: 0 0 0 100vmax var(--hero); clip-path: inset(0 -100vmax); transition: height 180ms var(--ease), margin-bottom 180ms var(--ease); }
 .halves[data-stuck] { height: var(--tabs-h); margin-bottom: calc(var(--halves-gap) + var(--tabs-full-h) - var(--tabs-h)); }
 .halves-sentinel { height: 1px; margin-bottom: -1px; }
-.halves a { display: flex; flex-direction: column; justify-content: center; padding: 0 24px 0 0; margin-right: 24px; color: var(--on-hero-2); text-decoration: none; font-size: 17px; font-weight: 650; box-shadow: inset 0 -4px 0 transparent; transition: box-shadow 180ms var(--ease), color 150ms; }
+.halves a { position: relative; display: flex; flex-direction: column; justify-content: center; padding: 0 24px 0 0; margin-right: 24px; color: var(--on-hero-2); text-decoration: none; font-size: 17px; font-weight: 650; transition: color 150ms; }
 .halves a:hover { color: var(--on-hero); }
 .halves a:focus-visible { outline-color: #fff; outline-offset: -2px; }
-.halves a[aria-current="page"] { color: var(--on-hero); box-shadow: inset 0 -4px 0 #fff; }
+.halves a[aria-current="page"] { color: var(--on-hero); }
+/* Its own view-transition layer, so switching halves slides the underline across. */
+.halves-underline { position: absolute; inset: auto 0 0 0; height: 4px; background: #fff; view-transition-name: halves-underline; }
 .halves-note { font-size: 13px; font-weight: 400; color: var(--on-hero-2); }
 .halves[data-stuck] a { font-size: 15px; }
 .halves[data-stuck] .halves-note { display: none; }
@@ -469,6 +471,10 @@ button.photo-thumb:hover:not(:disabled) { opacity: 0.85; }
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-dialog { top: 4%; width: min(1000px, calc(100vw - 32px)); }
 .photo-dialog img { display: block; max-width: 100%; max-height: 74vh; margin: 0 auto; border-radius: var(--radius-s); }
+/* A step slides the next photo in from the side it came from. */
+.photo-dialog img[data-direction] { animation: photo-step 240ms var(--ease); }
+.photo-dialog img[data-direction="previous"] { --from: -28px; }
+@keyframes photo-step { from { opacity: 0; translate: var(--from, 28px) 0; } }
 .document-list { list-style: none; margin: 0 0 16px; padding: 0; }
 .document { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .document a { font-weight: 600; }
@@ -605,7 +611,31 @@ fieldset.vak { border: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+  /* Route changes keep a short crossfade (routeTransition.ts sends no shared photo or slide). */
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation-duration: 150ms !important; }
 }
+
+/* Moving between screens (routeTransition.ts). The topbar holds still on its own layer; the page
+   crossfades. Opening a Woning flies its card photo into the header and back again on return;
+   Vorige/Volgende slides the page the way the step goes; Dossier/Oordeel slides the underline. */
+::view-transition-old(root) { animation: 160ms ease-in both vt-fade-out; }
+::view-transition-new(root) { animation: 240ms var(--ease) both vt-fade-in; }
+::view-transition-group(woning-photo) { animation-duration: 460ms; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); overflow: hidden; border-radius: 6px; }
+::view-transition-old(woning-photo), ::view-transition-new(woning-photo) { height: 100%; object-fit: cover; animation-duration: 460ms; }
+:root[data-transition="close"] ::view-transition-group(woning-photo) { animation-duration: 360ms; }
+:root[data-transition="close"] ::view-transition-old(woning-photo), :root[data-transition="close"] ::view-transition-new(woning-photo) { animation-duration: 360ms; }
+:root[data-transition="open"] ::view-transition-new(root) { animation-delay: 80ms; }
+:root[data-transition="step-next"] ::view-transition-old(root) { animation: 200ms ease-in both vt-out-left; }
+:root[data-transition="step-next"] ::view-transition-new(root) { animation: 320ms var(--ease) both vt-in-right; }
+:root[data-transition="step-previous"] ::view-transition-old(root) { animation: 200ms ease-in both vt-out-right; }
+:root[data-transition="step-previous"] ::view-transition-new(root) { animation: 320ms var(--ease) both vt-in-left; }
+::view-transition-group(halves-underline) { animation-duration: 280ms; animation-timing-function: var(--ease); }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+@keyframes vt-out-left { to { opacity: 0; translate: -48px 0; } }
+@keyframes vt-out-right { to { opacity: 0; translate: 48px 0; } }
+@keyframes vt-in-right { from { opacity: 0; translate: 48px 0; } }
+@keyframes vt-in-left { from { opacity: 0; translate: -48px 0; } }
 
 /* Narrower desktops: the rail and Gevolgen fold into the flow. */
 @media (max-width: 1180px) {

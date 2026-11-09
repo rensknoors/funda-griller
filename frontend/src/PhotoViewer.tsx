@@ -1,5 +1,6 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
 
 import type { CasePhoto } from "./api";
 
@@ -11,13 +12,23 @@ export function PhotoViewer(props: {
 }) {
   const { photos, viewing } = props;
   const index = viewing ? photos.findIndex((p) => p.number === viewing.number) : -1;
+  // Which way the last step went, so the next photo slides in from that side.
+  const [direction, setDirection] = useState<"next" | "previous" | null>(null);
   const step = (by: number) => {
     if (index < 0 || photos.length === 0) return;
+    setDirection(by > 0 ? "next" : "previous");
     props.onView(photos[(index + by + photos.length) % photos.length]);
   };
 
   return (
-    <Dialog.Root open={viewing !== null} onOpenChange={(open) => !open && props.onView(null)}>
+    <Dialog.Root
+      open={viewing !== null}
+      onOpenChange={(open) => {
+        if (open) return;
+        setDirection(null);
+        props.onView(null);
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Backdrop className="dialog-backdrop" />
         <Dialog.Popup
@@ -30,7 +41,7 @@ export function PhotoViewer(props: {
           <Dialog.Title>{viewing && `Foto ${viewing.number}`}</Dialog.Title>
           {viewing && (
             <div className="photo-stage">
-              <img src={viewing.url} alt={`Foto ${viewing.number}`} />
+              <img key={viewing.number} src={viewing.url} alt={`Foto ${viewing.number}`} data-direction={direction ?? undefined} />
               {photos.length > 1 && (
                 <>
                   <button type="button" className="photo-step previous" aria-label="Vorige foto" onClick={() => step(-1)}>

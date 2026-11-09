@@ -13,6 +13,8 @@ async function openDossier(page: Page) {
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
   // The Dossier body loads after the header; scroll only once the page has its full length.
   await expect(page.getByRole("complementary", { name: "Overzicht" })).toBeVisible();
+  // Let the photo's flight into the header finish; the page is only a picture until then.
+  await expect(page.locator("html")).not.toHaveAttribute("data-transition");
 }
 
 for (const viewport of [

@@ -68,7 +68,7 @@ function ListingCard(props: {
     <li className={classes.filter(Boolean).join(" ")} aria-label={address}>
       <div className="card-photo">
         {photos.length > 0 ? (
-          <img src={photos[0].url} alt="" loading="lazy" />
+          <img src={photos[0].url} alt="" loading="lazy" data-photo-for={listing.funda_id} />
         ) : (
           <span className="card-no-photo" aria-hidden="true">
             <House size={32} strokeWidth={1.5} />

@@ -23,6 +23,7 @@ import {
 import { ERROR_COPY, nameFromUrl, useCaptures } from "./captures";
 import { NO_FILTERS, visibleListings } from "./comparison";
 import { type Route, href, parseRoute } from "./route";
+import { transitionRoute } from "./routeTransition";
 
 type ApiState = "checking" | "reachable" | "unreachable";
 type ListState = "laden" | "klaar" | "fout";
@@ -37,8 +38,13 @@ const VERDICT_ERROR_COPY: Record<VerdictError["kind"], string> = {
 /** The view follows the URL hash, so the browser's back button and reload keep the user's place. */
 function useRoute(): Route {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
+  const current = useRef(route);
   useEffect(() => {
-    const onChange = () => setRoute(parseRoute(window.location.hash));
+    const onChange = () => {
+      const next = parseRoute(window.location.hash);
+      transitionRoute(current.current, next, () => setRoute(next));
+      current.current = next;
+    };
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
