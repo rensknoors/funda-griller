@@ -128,7 +128,7 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
     facts = {fact["key"]: fact for fact in case["facts"]}
     assert facts["asking_price"]["value"] == 595000
     assert {fact["provenance"] for fact in facts.values()} == {"listing"}
-    assert case["affordability"]["headroom"] == 109_519
+    assert case["affordability"]["headroom"] == 55_351
 
 
 def test_refetch_after_manual_entry_uses_the_provider(client, listing_provider):

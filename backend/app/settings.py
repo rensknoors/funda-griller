@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     walk_away_comparables_premium: float = 0.10
     walk_away_asking_price_margin: float = 0.05
 
+    # Months from today to the expected levering at the notary: the affordability rules, the
+    # starters' ages and the startersvrijstelling limit are taken at that date.
+    expected_levering_months: int = 3
+
     # Days after which a Source's facts count as Stale.
     source_ttl_days: dict[str, int] = Field(
         default_factory=lambda: {

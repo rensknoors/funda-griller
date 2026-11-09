@@ -1,29 +1,149 @@
-# Dutch affordability rules, one table per year. Updating for a new year is a table change.
-# Decision support, not advice. Verification status per figure (checked 2026-10-24):
-#   verified   energy_label_bonus (Volkshuisvesting Nederland, "Maximale hypotheek op basis van
-#              energielabel", effective 2026-01-01), starter_price_limit and age (SRA, 2026-01).
-#   estimate   fixed_costs: midpoints of ranges quoted by lenders (notary 1000-1500, valuation
-#              400-900, advice 1500-4000).
-#   UNVERIFIED test_rate, term_months, mortgage_rate, housing_ratio. A third-party table
-#              (hypotheker.nl) lists woonquotes of 19.3% to 26.5% for 3-3.5% mortgage rates, well
-#              below the ratios here, and the official 2026 financieringslast table was not found.
+# Dutch affordability rules, one table per year, plus one market rate snapshot shared by all years.
+# Updating for a new year is a table change. Decision support, not advice.
+#
+# Which year applies: the table for the expected levering (today + `expected_levering_months` in
+# settings), since the startersvrijstelling and the lender's norms follow the date of transfer.
+#
+# Sources and verification (checked 2026-11-09):
+#   financing_ratio   Tijdelijke regeling hypothecair krediet (Trhk), Bijlage 1 tabel 1 (not yet
+#                     AOW age, rente aftrekbaar). 2026: wetten.overheid.nl BWBR0032503 as of
+#                     2026-01-01. 2027: Wijzigingsregeling hypothecair krediet 2027, Stcrt. 2026,
+#                     38415 (published 2026-11-02). Both spot-checked against the worked maximum
+#                     mortgages in Nibud, Advies hypotheeknormen 2027, tabel 3 and 4 (exact to the euro).
+#                     Rows list the lowest toetsinkomen they apply from; rows identical to the one
+#                     above are left out.
+#   toetsrente        AFM minimum test rate for a rentevaste periode under ten years: 5% (Q1–Q3
+#                     2026, Nibud advies 2027 §2.1.6). Ten years or longer tests at the offered rate.
+#   single_bonus      Trhk art. 3 lid 8: an alleenstaande (not yet AOW age) with a toetsinkomen above
+#                     the threshold may borrow this much more. 2026: €17.000 above €30.000 (Trhk
+#                     2026-01-01); 2027: €18.000 above €31.000 (Stcrt. 2026, 38415).
+#   debt_gross_up     Trhk art. 3a lid 2: the monthly cost of a DUO study loan is multiplied by this
+#                     factor, per toetsrente column, before it comes off the allowed monthly cost.
+#                     Nibud (advies 2027 §5.2) advises the same for other non-deductible loans.
+#                     Unchanged for 2027 (advies 2027 tabel 8).
+#   energy_label_bonus  Trhk art. 4 lid 3; unchanged for 2027 (advies 2027 tabel 6).
+#   nhg               nhg.nl Voorwaarden en normen 2026-1: €470.000, borgtochtprovisie 0,4%.
+#                     2027: €500.000 (Geld.nl, 2026-10-13; NHG V&N 2027 not yet readable). SECONDARY.
+#   transfer_tax      2% for an owner-occupied home. Startersvrijstelling per buyer for their own
+#                     share, aged 18 to 34 at levering, once in a lifetime, whole price at or below
+#                     the limit (Belastingdienst, Rijksoverheid). Limit 2026 €555.000 (SRA, 2026-01);
+#                     2027 €615.000 is the Belastingplan 2027 proposal, NOT YET LAW.
+#   tax               Hypotheekrenteaftrek at most at the second-bracket rate: 2026 37,56%, 2027
+#                     38,16% (estimate from Prinsjesdag 2026, Nibud advies 2027 tabel 2).
+#                     Eigenwoningforfait 0,35% up to the villataks threshold (2026 €1.350.000,
+#                     2027 €1.360.000 proposed), 2,35% above. The asking price stands in for the WOZ.
+#   fixed_costs       ESTIMATE: midpoints of ranges quoted by lenders (notary 1000-1500, valuation
+#                     400-900, advice 1500-4000).
+#   max_ltv           Hypotheek at most 100% of the market value (Trhk art. 4): kosten koper and
+#                     renovation come from own funds and equity.
+
+# Bump on any change to this file: the Case records it, so Verdicts built on the old table become
+# Achterhaald.
+version = 1
+
+# Offered mortgage rates, ten years fixed, annuity: the test rate for a rentevaste periode of ten
+# years or longer and the rate the monthly cost is worked out at. A market snapshot, not a year
+# rule: update by hand. Source: Van Bruggen rente-index, 2026-11-02 (averages; with NHG 4,40%,
+# without 4,78%).
+[market_rate]
+as_of = 2026-11-02
+nhg = 0.0440
+no_nhg = 0.0478
 
 [years.2026]
-# Interest rate and term the lender tests the maximum mortgage against.
-test_rate = 0.05
+toetsrente = 0.05
 term_months = 360
-# Rate assumed for the monthly cost of the mortgage actually needed.
-mortgage_rate = 0.04
+max_ltv = 1.00
 
-# Share of gross annual income that may go to housing, by income band (first band that fits;
-# a band without up_to is open-ended).
-housing_ratio = [
-  { up_to = 30000, ratio = 0.20 },
-  { up_to = 50000, ratio = 0.26 },
-  { up_to = 80000, ratio = 0.30 },
-  { up_to = 120000, ratio = 0.33 },
-  { ratio = 0.35 },
+# Financieringslastpercentage by toetsinkomen (rows) and toetsrente (columns). A column holds
+# rates up to its bound in rate_bands, inclusive; the last column every rate above the last bound.
+[years.2026.financing_ratio]
+rate_bands = [0.015, 0.020, 0.025, 0.030, 0.035, 0.040, 0.045, 0.050, 0.055, 0.060, 0.065]
+rows = [
+  { from = 0, percent = [15.5, 16.5, 17.5, 18.4, 19.3, 20.1, 20.9, 21.6, 22.2, 22.7, 23.2, 23.7] },
+  { from = 30000, percent = [15.5, 16.5, 17.5, 18.4, 19.3, 20.1, 20.9, 21.6, 22.2, 22.7, 23.2, 23.7] },
+  { from = 31000, percent = [16.2, 17.3, 18.3, 19.3, 20.2, 21.2, 22.0, 22.7, 23.4, 24.1, 24.6, 25.1] },
+  { from = 32000, percent = [16.7, 17.9, 19.0, 20.1, 21.1, 22.1, 23.0, 23.8, 24.6, 25.3, 25.9, 26.4] },
+  { from = 33000, percent = [17.1, 18.3, 19.5, 20.6, 21.6, 22.6, 23.6, 24.6, 25.4, 26.1, 26.8, 27.4] },
+  { from = 34000, percent = [17.3, 18.5, 19.6, 20.6, 21.6, 22.6, 23.6, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 35000, percent = [17.4, 18.5, 19.6, 20.6, 21.6, 22.6, 23.6, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 57000, percent = [17.5, 18.5, 19.6, 20.6, 21.6, 22.6, 23.6, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 58000, percent = [17.6, 18.6, 19.6, 20.6, 21.6, 22.6, 23.6, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 60000, percent = [17.7, 18.7, 19.7, 20.7, 21.6, 22.6, 23.6, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 61000, percent = [17.7, 18.7, 19.7, 20.7, 21.7, 22.6, 23.6, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 62000, percent = [17.8, 18.8, 19.8, 20.7, 21.7, 22.7, 23.6, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 63000, percent = [17.8, 18.9, 19.9, 20.9, 21.8, 22.7, 23.7, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 64000, percent = [17.9, 18.9, 19.9, 21.0, 21.9, 22.8, 23.7, 24.6, 25.5, 26.4, 27.3, 28.1] },
+  { from = 65000, percent = [18.0, 19.0, 20.0, 21.0, 22.0, 22.9, 23.8, 24.7, 25.5, 26.4, 27.3, 28.1] },
+  { from = 66000, percent = [18.1, 19.1, 20.1, 21.1, 22.1, 23.0, 23.9, 24.7, 25.6, 26.4, 27.3, 28.1] },
+  { from = 67000, percent = [18.2, 19.2, 20.2, 21.2, 22.2, 23.1, 24.0, 24.8, 25.7, 26.5, 27.3, 28.1] },
+  { from = 68000, percent = [18.3, 19.4, 20.4, 21.4, 22.3, 23.2, 24.1, 25.0, 25.8, 26.7, 27.4, 28.2] },
+  { from = 69000, percent = [18.5, 19.5, 20.5, 21.5, 22.5, 23.4, 24.3, 25.1, 26.0, 26.8, 27.6, 28.3] },
+  { from = 70000, percent = [18.6, 19.7, 20.7, 21.7, 22.7, 23.6, 24.5, 25.3, 26.2, 27.0, 27.8, 28.5] },
+  { from = 71000, percent = [18.8, 19.9, 20.9, 21.9, 22.9, 23.8, 24.7, 25.6, 26.4, 27.2, 28.0, 28.7] },
+  { from = 72000, percent = [19.0, 20.0, 21.1, 22.1, 23.1, 24.1, 25.0, 25.8, 26.6, 27.4, 28.2, 28.9] },
+  { from = 73000, percent = [19.1, 20.2, 21.3, 22.3, 23.3, 24.3, 25.2, 26.0, 26.9, 27.6, 28.4, 29.2] },
+  { from = 74000, percent = [19.3, 20.4, 21.5, 22.5, 23.5, 24.5, 25.4, 26.3, 27.1, 27.9, 28.6, 29.3] },
+  { from = 75000, percent = [19.4, 20.5, 21.6, 22.6, 23.7, 24.6, 25.6, 26.4, 27.3, 28.1, 28.8, 29.5] },
+  { from = 76000, percent = [19.5, 20.6, 21.7, 22.8, 23.8, 24.8, 25.7, 26.6, 27.5, 28.2, 29.0, 29.7] },
+  { from = 77000, percent = [19.6, 20.8, 21.9, 22.9, 24.0, 24.9, 25.9, 26.8, 27.6, 28.4, 29.2, 29.9] },
+  { from = 78000, percent = [19.7, 20.9, 22.0, 23.1, 24.1, 25.1, 26.1, 27.0, 27.8, 28.6, 29.4, 30.1] },
+  { from = 79000, percent = [19.8, 20.9, 22.1, 23.2, 24.2, 25.2, 26.2, 27.1, 27.9, 28.7, 29.5, 30.2] },
+  { from = 80000, percent = [19.9, 21.0, 22.2, 23.2, 24.3, 25.3, 26.3, 27.2, 28.1, 28.9, 29.6, 30.3] },
+  { from = 81000, percent = [20.0, 21.1, 22.2, 23.3, 24.3, 25.4, 26.4, 27.3, 28.1, 29.0, 29.7, 30.4] },
+  { from = 82000, percent = [20.1, 21.2, 22.3, 23.4, 24.4, 25.4, 26.4, 27.3, 28.2, 29.0, 29.8, 30.5] },
+  { from = 83000, percent = [20.1, 21.2, 22.3, 23.4, 24.4, 25.4, 26.4, 27.4, 28.2, 29.1, 29.9, 30.6] },
+  { from = 84000, percent = [20.2, 21.3, 22.4, 23.4, 24.5, 25.5, 26.5, 27.4, 28.3, 29.1, 29.9, 30.6] },
+  { from = 85000, percent = [20.2, 21.3, 22.4, 23.5, 24.5, 25.5, 26.5, 27.4, 28.3, 29.2, 29.9, 30.7] },
+  { from = 86000, percent = [20.2, 21.4, 22.5, 23.5, 24.6, 25.6, 26.5, 27.4, 28.4, 29.2, 30.0, 30.7] },
+  { from = 87000, percent = [20.3, 21.4, 22.5, 23.6, 24.6, 25.6, 26.6, 27.5, 28.4, 29.2, 30.0, 30.8] },
+  { from = 88000, percent = [20.4, 21.5, 22.5, 23.6, 24.6, 25.6, 26.6, 27.5, 28.4, 29.3, 30.1, 30.8] },
+  { from = 89000, percent = [20.5, 21.5, 22.6, 23.7, 24.7, 25.7, 26.6, 27.6, 28.4, 29.3, 30.1, 30.8] },
+  { from = 90000, percent = [20.5, 21.6, 22.6, 23.7, 24.7, 25.7, 26.7, 27.6, 28.5, 29.3, 30.1, 30.9] },
+  { from = 91000, percent = [20.5, 21.6, 22.7, 23.7, 24.8, 25.8, 26.7, 27.6, 28.5, 29.3, 30.2, 30.9] },
+  { from = 92000, percent = [20.6, 21.7, 22.7, 23.8, 24.8, 25.8, 26.8, 27.7, 28.6, 29.4, 30.2, 31.0] },
+  { from = 93000, percent = [20.7, 21.7, 22.8, 23.8, 24.8, 25.8, 26.8, 27.7, 28.6, 29.4, 30.2, 31.0] },
+  { from = 94000, percent = [20.8, 21.8, 22.8, 23.9, 24.9, 25.9, 26.9, 27.8, 28.6, 29.5, 30.2, 31.0] },
+  { from = 95000, percent = [20.8, 21.9, 22.9, 23.9, 25.0, 25.9, 26.9, 27.8, 28.7, 29.5, 30.3, 31.0] },
+  { from = 96000, percent = [20.9, 21.9, 23.0, 24.0, 25.0, 26.0, 26.9, 27.9, 28.7, 29.5, 30.3, 31.0] },
+  { from = 97000, percent = [21.0, 22.0, 23.0, 24.0, 25.0, 26.0, 27.0, 27.9, 28.8, 29.6, 30.4, 31.1] },
+  { from = 98000, percent = [21.0, 22.1, 23.1, 24.1, 25.1, 26.1, 27.0, 27.9, 28.8, 29.6, 30.4, 31.1] },
+  { from = 99000, percent = [21.1, 22.1, 23.2, 24.2, 25.1, 26.1, 27.1, 28.0, 28.8, 29.6, 30.4, 31.2] },
+  { from = 100000, percent = [21.1, 22.2, 23.2, 24.2, 25.2, 26.1, 27.1, 28.0, 28.9, 29.7, 30.5, 31.2] },
+  { from = 101000, percent = [21.2, 22.2, 23.3, 24.3, 25.3, 26.2, 27.1, 28.0, 28.9, 29.7, 30.5, 31.2] },
+  { from = 102000, percent = [21.2, 22.3, 23.4, 24.4, 25.3, 26.3, 27.1, 28.1, 28.9, 29.8, 30.5, 31.3] },
+  { from = 103000, percent = [21.3, 22.4, 23.4, 24.4, 25.4, 26.3, 27.2, 28.1, 29.0, 29.8, 30.6, 31.3] },
+  { from = 104000, percent = [21.3, 22.4, 23.5, 24.5, 25.5, 26.4, 27.3, 28.1, 29.0, 29.8, 30.6, 31.3] },
+  { from = 105000, percent = [21.3, 22.5, 23.5, 24.5, 25.5, 26.5, 27.3, 28.2, 29.1, 29.9, 30.6, 31.4] },
+  { from = 106000, percent = [21.4, 22.5, 23.6, 24.6, 25.6, 26.5, 27.4, 28.2, 29.1, 29.9, 30.7, 31.4] },
+  { from = 107000, percent = [21.4, 22.5, 23.7, 24.7, 25.6, 26.6, 27.5, 28.3, 29.1, 30.0, 30.7, 31.5] },
+  { from = 108000, percent = [21.5, 22.6, 23.7, 24.7, 25.7, 26.7, 27.5, 28.4, 29.2, 30.0, 30.8, 31.5] },
+  { from = 109000, percent = [21.5, 22.6, 23.7, 24.8, 25.8, 26.7, 27.6, 28.4, 29.2, 30.0, 30.8, 31.5] },
+  { from = 110000, percent = [21.6, 22.7, 23.7, 24.8, 25.8, 26.7, 27.7, 28.5, 29.3, 30.0, 30.8, 31.5] },
+  { from = 111000, percent = [21.6, 22.7, 23.8, 24.8, 25.9, 26.8, 27.7, 28.5, 29.3, 30.1, 30.8, 31.6] },
+  { from = 112000, percent = [21.7, 22.8, 23.8, 24.9, 25.9, 26.8, 27.7, 28.6, 29.4, 30.1, 30.9, 31.6] },
+  { from = 113000, percent = [21.7, 22.8, 23.9, 24.9, 25.9, 26.9, 27.8, 28.7, 29.4, 30.2, 30.9, 31.7] },
+  { from = 114000, percent = [21.8, 22.9, 23.9, 25.0, 25.9, 26.9, 27.8, 28.7, 29.5, 30.2, 30.9, 31.7] },
+  { from = 115000, percent = [21.8, 22.9, 24.0, 25.0, 26.0, 26.9, 27.9, 28.7, 29.5, 30.3, 31.0, 31.7] },
+  { from = 116000, percent = [21.8, 22.9, 24.0, 25.0, 26.0, 27.0, 27.9, 28.8, 29.6, 30.3, 31.0, 31.7] },
+  { from = 117000, percent = [21.9, 23.0, 24.1, 25.1, 26.1, 27.0, 28.0, 28.8, 29.6, 30.4, 31.1, 31.8] },
+  { from = 118000, percent = [21.9, 23.0, 24.1, 25.1, 26.1, 27.1, 28.0, 28.9, 29.7, 30.4, 31.1, 31.8] },
+  { from = 119000, percent = [22.0, 23.1, 24.1, 25.2, 26.2, 27.1, 28.0, 28.9, 29.7, 30.5, 31.2, 31.9] },
+  { from = 120000, percent = [22.0, 23.1, 24.2, 25.2, 26.2, 27.2, 28.1, 28.9, 29.8, 30.5, 31.3, 31.9] },
+  { from = 121000, percent = [22.0, 23.2, 24.2, 25.3, 26.3, 27.2, 28.1, 29.0, 29.8, 30.6, 31.3, 32.0] },
+  { from = 122000, percent = [22.1, 23.2, 24.3, 25.3, 26.3, 27.3, 28.2, 29.0, 29.9, 30.6, 31.4, 32.0] },
+  { from = 123000, percent = [22.1, 23.2, 24.3, 25.4, 26.4, 27.3, 28.2, 29.1, 29.9, 30.7, 31.4, 32.1] },
+  { from = 124000, percent = [22.2, 23.3, 24.4, 25.4, 26.4, 27.4, 28.3, 29.1, 29.9, 30.8, 31.5, 32.1] },
+  { from = 125000, percent = [22.2, 23.3, 24.4, 25.5, 26.5, 27.4, 28.3, 29.2, 30.0, 30.8, 31.5, 32.2] },
 ]
+
+# Gross-up factor for the monthly cost of other loans, per toetsrente column (same columns).
+[years.2026.debt_gross_up]
+factors = [1.05, 1.05, 1.10, 1.15, 1.20, 1.20, 1.25, 1.30, 1.30, 1.35, 1.40, 1.40]
+
+[years.2026.single_bonus]
+amount = 17000
+above_income = 30000
 
 # Extra borrowing capacity for an energy-efficient house, by energielabel.
 [years.2026.energy_label_bonus]
@@ -36,15 +156,148 @@ housing_ratio = [
 "C" = 5000
 "D" = 5000
 
+[years.2026.nhg]
+limit = 470000
+fee_rate = 0.004
+
 [years.2026.transfer_tax]
 rate = 0.02
-# Exempt when every adult is within the age range and the price is at or below the limit.
 starter_min_age = 18
 starter_max_age = 34
 starter_price_limit = 555000
 
+[years.2026.tax]
+interest_deduction_rate = 0.3756
+forfait_rate = 0.0035
+forfait_high_rate = 0.0235
+forfait_threshold = 1350000
+
 # Fixed kosten koper, in euro.
 [years.2026.fixed_costs]
+notary = 1250
+valuation = 800
+advice = 3000
+
+[years.2027]
+toetsrente = 0.05
+term_months = 360
+max_ltv = 1.00
+
+# Financieringslastpercentage by toetsinkomen (rows) and toetsrente (columns). A column holds
+# rates up to its bound in rate_bands, inclusive; the last column every rate above the last bound.
+[years.2027.financing_ratio]
+rate_bands = [0.015, 0.020, 0.025, 0.030, 0.035, 0.040, 0.045, 0.050, 0.055, 0.060, 0.065]
+rows = [
+  { from = 0, percent = [16.8, 17.8, 18.8, 19.8, 20.7, 21.5, 22.3, 22.9, 23.6, 24.1, 24.6, 25.0] },
+  { from = 31000, percent = [16.8, 17.8, 18.8, 19.8, 20.7, 21.5, 22.3, 22.9, 23.6, 24.1, 24.6, 25.0] },
+  { from = 32000, percent = [17.4, 18.6, 19.7, 20.7, 21.6, 22.5, 23.4, 24.1, 24.8, 25.4, 25.9, 26.4] },
+  { from = 33000, percent = [17.8, 19.0, 20.1, 21.1, 22.1, 23.1, 24.1, 25.0, 25.8, 26.4, 27.0, 27.6] },
+  { from = 34000, percent = [18.0, 19.0, 20.1, 21.1, 22.1, 23.1, 24.1, 25.0, 25.9, 26.8, 27.8, 28.6] },
+  { from = 35000, percent = [18.0, 19.0, 20.1, 21.1, 22.1, 23.1, 24.1, 25.0, 25.9, 26.8, 27.8, 28.7] },
+  { from = 61000, percent = [18.0, 19.1, 20.1, 21.1, 22.1, 23.1, 24.1, 25.0, 25.9, 26.8, 27.8, 28.7] },
+  { from = 62000, percent = [18.1, 19.1, 20.1, 21.1, 22.1, 23.1, 24.1, 25.0, 25.9, 26.8, 27.8, 28.7] },
+  { from = 63000, percent = [18.1, 19.1, 20.2, 21.1, 22.1, 23.1, 24.1, 25.0, 25.9, 26.8, 27.8, 28.7] },
+  { from = 64000, percent = [18.1, 19.2, 20.2, 21.2, 22.1, 23.1, 24.1, 25.0, 25.9, 26.8, 27.8, 28.7] },
+  { from = 65000, percent = [18.2, 19.2, 20.2, 21.2, 22.2, 23.1, 24.1, 25.0, 25.9, 26.8, 27.8, 28.7] },
+  { from = 66000, percent = [18.2, 19.3, 20.3, 21.3, 22.2, 23.2, 24.1, 25.0, 25.9, 26.8, 27.8, 28.7] },
+  { from = 67000, percent = [18.4, 19.4, 20.4, 21.4, 22.4, 23.3, 24.2, 25.1, 26.0, 26.9, 27.8, 28.7] },
+  { from = 68000, percent = [18.5, 19.6, 20.6, 21.6, 22.6, 23.5, 24.4, 25.3, 26.2, 27.1, 27.9, 28.7] },
+  { from = 69000, percent = [18.7, 19.7, 20.8, 21.8, 22.8, 23.7, 24.6, 25.5, 26.3, 27.2, 28.1, 28.9] },
+  { from = 70000, percent = [18.8, 19.9, 21.0, 22.0, 23.0, 23.9, 24.8, 25.7, 26.5, 27.4, 28.2, 29.0] },
+  { from = 71000, percent = [19.0, 20.1, 21.1, 22.2, 23.2, 24.1, 25.0, 25.9, 26.7, 27.5, 28.4, 29.2] },
+  { from = 72000, percent = [19.2, 20.3, 21.3, 22.4, 23.4, 24.3, 25.2, 26.1, 26.9, 27.7, 28.6, 29.4] },
+  { from = 73000, percent = [19.3, 20.4, 21.5, 22.6, 23.6, 24.5, 25.5, 26.3, 27.2, 28.0, 28.7, 29.6] },
+  { from = 74000, percent = [19.5, 20.6, 21.7, 22.8, 23.8, 24.8, 25.7, 26.6, 27.4, 28.2, 28.9, 29.7] },
+  { from = 75000, percent = [19.7, 20.8, 21.9, 22.9, 24.0, 25.0, 25.9, 26.8, 27.6, 28.4, 29.2, 29.9] },
+  { from = 76000, percent = [19.8, 20.9, 22.0, 23.1, 24.2, 25.1, 26.1, 27.0, 27.9, 28.7, 29.4, 30.1] },
+  { from = 77000, percent = [19.9, 21.1, 22.2, 23.3, 24.3, 25.3, 26.3, 27.2, 28.1, 28.9, 29.6, 30.3] },
+  { from = 78000, percent = [20.1, 21.2, 22.3, 23.5, 24.5, 25.5, 26.5, 27.4, 28.3, 29.1, 29.9, 30.6] },
+  { from = 79000, percent = [20.2, 21.3, 22.5, 23.6, 24.6, 25.7, 26.6, 27.6, 28.4, 29.2, 30.0, 30.7] },
+  { from = 80000, percent = [20.3, 21.5, 22.6, 23.7, 24.8, 25.8, 26.8, 27.7, 28.6, 29.4, 30.2, 30.9] },
+  { from = 81000, percent = [20.4, 21.5, 22.7, 23.8, 24.9, 25.9, 26.9, 27.8, 28.7, 29.5, 30.3, 31.1] },
+  { from = 82000, percent = [20.4, 21.6, 22.8, 23.9, 24.9, 26.0, 27.0, 27.9, 28.8, 29.6, 30.4, 31.2] },
+  { from = 83000, percent = [20.5, 21.7, 22.8, 23.9, 25.0, 26.0, 27.0, 28.0, 28.9, 29.7, 30.5, 31.2] },
+  { from = 84000, percent = [20.5, 21.7, 22.8, 24.0, 25.0, 26.1, 27.1, 28.0, 28.9, 29.8, 30.6, 31.3] },
+  { from = 85000, percent = [20.6, 21.7, 22.9, 24.0, 25.1, 26.1, 27.1, 28.0, 29.0, 29.8, 30.6, 31.3] },
+  { from = 86000, percent = [20.6, 21.7, 22.9, 24.0, 25.1, 26.1, 27.1, 28.1, 29.0, 29.8, 30.6, 31.4] },
+  { from = 87000, percent = [20.6, 21.8, 22.9, 24.0, 25.1, 26.2, 27.2, 28.1, 29.0, 29.9, 30.7, 31.4] },
+  { from = 88000, percent = [20.7, 21.8, 23.0, 24.1, 25.2, 26.2, 27.2, 28.1, 29.0, 29.9, 30.7, 31.5] },
+  { from = 89000, percent = [20.8, 21.9, 23.0, 24.1, 25.2, 26.2, 27.2, 28.2, 29.1, 29.9, 30.7, 31.5] },
+  { from = 90000, percent = [20.8, 21.9, 23.0, 24.1, 25.2, 26.3, 27.3, 28.2, 29.1, 30.0, 30.8, 31.5] },
+  { from = 91000, percent = [20.9, 22.0, 23.1, 24.2, 25.2, 26.3, 27.3, 28.2, 29.1, 30.0, 30.8, 31.6] },
+  { from = 92000, percent = [20.9, 22.0, 23.1, 24.2, 25.3, 26.3, 27.3, 28.3, 29.2, 30.0, 30.8, 31.6] },
+  { from = 93000, percent = [21.0, 22.1, 23.1, 24.2, 25.3, 26.4, 27.4, 28.3, 29.2, 30.1, 30.9, 31.6] },
+  { from = 94000, percent = [21.1, 22.1, 23.2, 24.3, 25.3, 26.4, 27.4, 28.3, 29.2, 30.1, 30.9, 31.6] },
+  { from = 95000, percent = [21.1, 22.2, 23.3, 24.3, 25.4, 26.4, 27.4, 28.4, 29.3, 30.1, 30.9, 31.7] },
+  { from = 96000, percent = [21.2, 22.3, 23.3, 24.3, 25.4, 26.4, 27.4, 28.4, 29.3, 30.1, 31.0, 31.7] },
+  { from = 97000, percent = [21.3, 22.3, 23.4, 24.4, 25.4, 26.5, 27.5, 28.4, 29.3, 30.2, 31.0, 31.7] },
+  { from = 98000, percent = [21.3, 22.4, 23.5, 24.5, 25.5, 26.5, 27.5, 28.4, 29.4, 30.2, 31.0, 31.8] },
+  { from = 99000, percent = [21.4, 22.5, 23.5, 24.5, 25.5, 26.5, 27.5, 28.5, 29.4, 30.2, 31.0, 31.8] },
+  { from = 100000, percent = [21.4, 22.5, 23.6, 24.6, 25.6, 26.6, 27.6, 28.5, 29.4, 30.3, 31.1, 31.8] },
+  { from = 101000, percent = [21.5, 22.6, 23.6, 24.7, 25.6, 26.6, 27.6, 28.5, 29.4, 30.3, 31.1, 31.9] },
+  { from = 102000, percent = [21.5, 22.6, 23.7, 24.7, 25.7, 26.7, 27.6, 28.6, 29.5, 30.3, 31.1, 31.9] },
+  { from = 103000, percent = [21.6, 22.7, 23.8, 24.8, 25.8, 26.7, 27.6, 28.6, 29.5, 30.3, 31.2, 31.9] },
+  { from = 104000, percent = [21.6, 22.7, 23.8, 24.8, 25.8, 26.8, 27.7, 28.6, 29.5, 30.4, 31.2, 31.9] },
+  { from = 105000, percent = [21.7, 22.8, 23.9, 24.9, 25.9, 26.8, 27.7, 28.6, 29.5, 30.4, 31.2, 32.0] },
+  { from = 106000, percent = [21.7, 22.8, 23.9, 25.0, 25.9, 26.9, 27.8, 28.7, 29.5, 30.4, 31.2, 32.0] },
+  { from = 107000, percent = [21.8, 22.9, 24.0, 25.0, 26.0, 26.9, 27.8, 28.7, 29.6, 30.4, 31.2, 32.0] },
+  { from = 108000, percent = [21.8, 22.9, 24.0, 25.1, 26.1, 27.0, 27.9, 28.8, 29.6, 30.5, 31.3, 32.0] },
+  { from = 109000, percent = [21.9, 23.0, 24.1, 25.1, 26.1, 27.1, 28.0, 28.8, 29.7, 30.5, 31.3, 32.0] },
+  { from = 110000, percent = [21.9, 23.0, 24.1, 25.1, 26.2, 27.1, 28.0, 28.9, 29.7, 30.5, 31.3, 32.1] },
+  { from = 111000, percent = [22.0, 23.1, 24.2, 25.2, 26.2, 27.2, 28.1, 28.9, 29.7, 30.5, 31.3, 32.1] },
+  { from = 112000, percent = [22.0, 23.1, 24.2, 25.2, 26.2, 27.2, 28.1, 29.0, 29.8, 30.6, 31.4, 32.1] },
+  { from = 113000, percent = [22.0, 23.2, 24.3, 25.3, 26.3, 27.3, 28.2, 29.0, 29.8, 30.6, 31.4, 32.2] },
+  { from = 114000, percent = [22.1, 23.2, 24.3, 25.3, 26.3, 27.3, 28.2, 29.1, 29.9, 30.7, 31.4, 32.2] },
+  { from = 115000, percent = [22.1, 23.3, 24.3, 25.4, 26.4, 27.4, 28.3, 29.1, 30.0, 30.7, 31.5, 32.2] },
+  { from = 116000, percent = [22.2, 23.3, 24.4, 25.4, 26.4, 27.4, 28.3, 29.2, 30.0, 30.8, 31.5, 32.2] },
+  { from = 117000, percent = [22.2, 23.3, 24.4, 25.5, 26.5, 27.5, 28.4, 29.3, 30.1, 30.8, 31.6, 32.3] },
+  { from = 118000, percent = [22.3, 23.4, 24.5, 25.5, 26.5, 27.5, 28.4, 29.3, 30.1, 30.9, 31.6, 32.3] },
+  { from = 119000, percent = [22.3, 23.4, 24.5, 25.6, 26.6, 27.6, 28.5, 29.4, 30.2, 30.9, 31.7, 32.3] },
+  { from = 120000, percent = [22.3, 23.5, 24.6, 25.6, 26.6, 27.6, 28.5, 29.4, 30.2, 31.0, 31.7, 32.4] },
+  { from = 121000, percent = [22.3, 23.5, 24.6, 25.7, 26.7, 27.7, 28.6, 29.4, 30.3, 31.0, 31.8, 32.4] },
+  { from = 122000, percent = [22.3, 23.5, 24.7, 25.7, 26.7, 27.7, 28.6, 29.5, 30.3, 31.1, 31.8, 32.5] },
+  { from = 123000, percent = [22.3, 23.6, 24.7, 25.8, 26.8, 27.7, 28.7, 29.5, 30.3, 31.1, 31.9, 32.5] },
+  { from = 124000, percent = [22.4, 23.6, 24.7, 25.8, 26.8, 27.8, 28.7, 29.6, 30.4, 31.2, 31.9, 32.6] },
+  { from = 125000, percent = [22.5, 23.6, 24.8, 25.8, 26.9, 27.8, 28.8, 29.6, 30.4, 31.2, 32.0, 32.6] },
+]
+
+# Gross-up factor for the monthly cost of other loans, per toetsrente column (same columns).
+[years.2027.debt_gross_up]
+factors = [1.05, 1.05, 1.10, 1.15, 1.20, 1.20, 1.25, 1.30, 1.30, 1.35, 1.40, 1.40]
+
+[years.2027.single_bonus]
+amount = 18000
+above_income = 31000
+
+# Extra borrowing capacity for an energy-efficient house, by energielabel.
+[years.2027.energy_label_bonus]
+"A++++" = 30000  # 40000 with an energy performance guarantee of at least ten years
+"A+++" = 25000
+"A++" = 20000
+"A+" = 20000
+"A" = 10000
+"B" = 10000
+"C" = 5000
+"D" = 5000
+
+[years.2027.nhg]
+limit = 500000
+fee_rate = 0.004
+
+[years.2027.transfer_tax]
+rate = 0.02
+starter_min_age = 18
+starter_max_age = 34
+starter_price_limit = 615000
+
+[years.2027.tax]
+interest_deduction_rate = 0.3816
+forfait_rate = 0.0035
+forfait_high_rate = 0.0235
+forfait_threshold = 1360000
+
+# Fixed kosten koper, in euro.
+[years.2027.fixed_costs]
 notary = 1250
 valuation = 800
 advice = 3000

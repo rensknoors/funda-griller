@@ -19,7 +19,7 @@ test("first run opens Huishouden only, with one-line hints and the Gevolgen hint
 
   await expect(page.getByLabel("Geboortedatum lid 1")).toBeVisible();
   await expect(page.getByLabel("Bruto jaarinkomen huishouden (€)")).toBeHidden();
-  await expect(page.getByText("Bruto jaarinkomen van het huishouden.")).toBeVisible();
+  await expect(page.getByText("Bruto jaarinkomen, rentevaste periode en maandlasten van andere leningen.")).toBeVisible();
   await expect(page.getByText("Vul inkomen in om je budget te zien")).toBeVisible();
 
   await openSection(page, "Inkomen");
@@ -34,9 +34,12 @@ test("Gevolgen panel follows the vakken live, with the rules year", async ({ pag
   await page.getByLabel("Bruto jaarinkomen huishouden (€)").fill("95000");
 
   const gevolgen = page.getByRole("complementary", { name: "Gevolgen" });
-  await expect(gevolgen.getByText("€ 486.660")).toBeVisible();
-  await expect(gevolgen.getByText("€ 472.166")).toBeVisible();
-  await expect(gevolgen.getByText(/^Regels 2026/)).toBeVisible();
+  // 2027 norms, ten years fixed with NHG at 4,40%. Nothing saved yet: kosten koper cannot be
+  // borrowed, so the budget is nil.
+  await expect(gevolgen.getByText("€ 433.174")).toBeVisible();
+  // Overwaarde and budget both read nil.
+  await expect(gevolgen.getByText("€ 0", { exact: true })).toHaveCount(2);
+  await expect(gevolgen.getByText(/^Leennormen 2027, levering rond/)).toBeVisible();
 
   await openSection(page, "Vermogen en eigen woning");
   await page.getByLabel("Spaargeld (€)").fill("40000");
@@ -46,7 +49,7 @@ test("Gevolgen panel follows the vakken live, with the rules year", async ({ pag
   await page.getByLabel("Verkoopkosten (€)").fill("8000");
 
   await expect(gevolgen.getByText("€ 172.000")).toBeVisible();
-  await expect(gevolgen.getByText("€ 680.009")).toBeVisible();
+  await expect(gevolgen.getByText("€ 625.880")).toBeVisible();
 });
 
 test("a vak is checked on blur; save stays disabled until it is fixed", async ({ page }) => {

@@ -42,3 +42,17 @@ export function headroomTone(amount: number | null | undefined): Tone | undefine
   if (amount == null) return undefined;
   return amount >= 0 ? "favorable" : "shortfall";
 }
+
+const monthYear = new Intl.DateTimeFormat("nl-NL", { month: "long", year: "numeric" });
+
+/** An ISO date as month and year: "januari 2027". */
+export function monthOf(isoDate: string): string {
+  return monthYear.format(new Date(`${isoDate}T12:00:00`));
+}
+
+const dayMonthYear = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long", year: "numeric" });
+
+/** An ISO date in full: "2 november 2026". */
+export function longDate(isoDate: string): string {
+  return dayMonthYear.format(new Date(`${isoDate}T12:00:00`));
+}

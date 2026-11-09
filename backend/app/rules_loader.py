@@ -2,6 +2,7 @@
 renovation cost table."""
 
 import tomllib
+from datetime import date
 from pathlib import Path
 
 from app.affordability import Rules
@@ -9,13 +10,27 @@ from app.flags import RuleSet
 from app.renovation import CostTable
 
 
-def load_rules(path: Path, today_year: int) -> Rules:
-    """The table for `today_year`, else the latest earlier year, else the earliest one."""
+def expected_levering(today: date, months: int) -> date:
+    """When a bid made today is expected to transfer at the notary: `months` on, same day (or the
+    month's last day)."""
+    month_index = today.month - 1 + months
+    year, month = today.year + month_index // 12, month_index % 12 + 1
+    for day in range(today.day, 0, -1):
+        try:
+            return date(year, month, day)
+        except ValueError:
+            continue
+    raise AssertionError("unreachable")
+
+
+def load_rules(path: Path, levering_year: int) -> Rules:
+    """The table for `levering_year`, else the latest earlier year, else the earliest one."""
     with path.open("rb") as f:
-        years = {int(year): table for year, table in tomllib.load(f)["years"].items()}
-    earlier = [year for year in years if year <= today_year]
+        data = tomllib.load(f)
+    years = {int(year): table for year, table in data["years"].items()}
+    earlier = [year for year in years if year <= levering_year]
     year = max(earlier) if earlier else min(years)
-    return Rules.from_table(year, years[year])
+    return Rules.from_table(data["version"], year, years[year], data["market_rate"])
 
 
 def load_flag_rules(path: Path) -> RuleSet:

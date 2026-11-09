@@ -132,7 +132,15 @@ def _household_amounts(export: "ExportInput") -> dict[int, int]:
         affordability["equity"] + own_funds,
     ]
     advice = export.verdict["bid_advice"] if export.verdict else None
-    monthly = [affordability["monthly_cost"], advice.get("monthly_cost_at_walk_away_maximum") if advice else None]
+    monthly = [
+        affordability["monthly_cost"],
+        affordability.get("monthly_cost_net"),
+        *(
+            (advice.get("monthly_cost_at_walk_away_maximum"), advice.get("monthly_cost_net_at_walk_away_maximum"))
+            if advice
+            else ()
+        ),
+    ]
     amounts = {abs(a): AMOUNT_STEP for a in euros if a} | {abs(a): MONTHLY_STEP for a in monthly if a}
     if export.with_profile and advice:
         amounts.pop(advice["walk_away_maximum"], None)
@@ -549,7 +557,9 @@ def _affordability_lines(affordability: dict) -> list[str]:
     if affordability["mortgage_needed"] is not None:
         lines.append(f"  - Benodigde hypotheek bij de vraagprijs: {rounded_euro(affordability['mortgage_needed'])}")
     if affordability["monthly_cost"] is not None:
-        lines.append(f"  - Maandlasten bij de vraagprijs: {rounded_monthly(affordability['monthly_cost'])}")
+        lines.append(
+            f"  - Maandlasten bij de vraagprijs: {_net_and_gross(affordability.get('monthly_cost_net'), affordability['monthly_cost'])}"
+        )
     if affordability["kosten_koper"]:
         lines.append(f"  - Kosten koper bij de vraagprijs: {rounded_euro(affordability['kosten_koper']['total'])}")
     return lines
@@ -771,8 +781,18 @@ def _derivation(advice: dict) -> list[str]:
     if derivation["weakly_grounded"]:
         lines.append("- **Zwak onderbouwd**: niet gebaseerd op voldoende vergelijkbare woningen.")
     if advice.get("monthly_cost_at_walk_away_maximum") is not None:
-        lines.append(f"- Maandlasten bij het Maximumbod: {rounded_monthly(advice['monthly_cost_at_walk_away_maximum'])}")
+        lines.append(
+            "- Maandlasten bij het Maximumbod: "
+            + _net_and_gross(advice.get("monthly_cost_net_at_walk_away_maximum"), advice["monthly_cost_at_walk_away_maximum"])
+        )
     return lines
+
+
+def _net_and_gross(net: int | None, gross: int) -> str:
+    """Net of hypotheekrenteaftrek first, gross beside it; Verdicts from before net costs carry gross only."""
+    if net is None:
+        return rounded_monthly(gross)
+    return f"{rounded_monthly(net)} netto ({rounded_monthly(gross)} bruto)"
 
 
 def buyer_profile(export: ExportInput) -> list[str]:

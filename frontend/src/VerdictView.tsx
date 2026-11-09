@@ -347,8 +347,16 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
         </div>
       </div>
       <dl className="figures bid-context">
-        <BidFigure label="Maandlasten bij vraagprijs" amount={advice.monthly_cost_at_asking_price} perMonth />
-        <BidFigure label="Maandlasten bij Maximumbod" amount={advice.monthly_cost_at_walk_away_maximum} perMonth />
+        <MonthlyFigure
+          label="vraagprijs"
+          gross={advice.monthly_cost_at_asking_price}
+          net={advice.monthly_cost_net_at_asking_price}
+        />
+        <MonthlyFigure
+          label="Maximumbod"
+          gross={advice.monthly_cost_at_walk_away_maximum}
+          net={advice.monthly_cost_net_at_walk_away_maximum}
+        />
         <div className="figure">
           <dt>Ruimte boven vraag</dt>
           <dd className="num">
@@ -434,6 +442,18 @@ function LegacyBindingLimit({ advice }: { advice: BidAdvice }) {
         ? `Het Maximumbod blijft daar ${euro.format(below)} onder.`
         : "Het Maximumbod is gelijk aan die grens."}
     </>
+  );
+}
+
+/** Net of hypotheekrenteaftrek with gross beneath; Verdicts from before net costs show gross only. */
+function MonthlyFigure({ label, gross, net }: { label: string; gross: number | null; net?: number | null }) {
+  if (net == null) return <BidFigure label={`Maandlasten bij ${label}`} amount={gross} perMonth />;
+  return (
+    <div className="figure">
+      <dt>Netto maandlasten bij {label}</dt>
+      <dd className="num">{euro.format(net)} p/m</dd>
+      {gross !== null && <dd className="muted note">bruto {euro.format(gross)} p/m</dd>}
+    </div>
   );
 }
 

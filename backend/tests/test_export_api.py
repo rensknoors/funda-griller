@@ -194,7 +194,13 @@ def test_the_buyer_profile_part_is_anonymised(client, listing_provider, llm_clie
     for raw in (87_321, 41_234, 15_678, 412_345, 221_111, 8_765):
         assert not mentions(markdown, raw), raw
     exact_home_equity = 412_345 - 221_111 - 8_765
-    for exact in (exact_home_equity, affordability["affordable_maximum"], affordability["headroom"], affordability["monthly_cost"]):
+    for exact in (
+        exact_home_equity,
+        affordability["affordable_maximum"],
+        affordability["headroom"],
+        affordability["monthly_cost"],
+        affordability["monthly_cost_net"],
+    ):
         assert not mentions(markdown, exact), exact
     for private in (HOME_ADDRESS, "Eikenlaan", OFFICE, "Kantoorlaan", "Kantoor Philips"):
         assert private not in markdown
@@ -548,3 +554,14 @@ def test_boiler_and_wiring_findings_have_dutch_labels(client, listing_provider, 
 
     assert "- Cv-ketel oud (van toepassing): Ketel uit 2005." in facts
     assert "- Elektra oud (van toepassing): Oude groepenkast." in facts
+
+
+def test_monthly_costs_are_exported_net_with_gross_beside_them(client, listing_provider, llm_client):
+    """Typical household at the asking price: €1.935 gross, €1.461 net of hypotheekrenteaftrek."""
+    capture(client, listing_provider, typical_profile())
+    llm_client.verdict = model_says()
+    client.post(VERDICT)
+
+    markdown = client.get(EXPORT).text
+
+    assert "Maandlasten bij de vraagprijs: ≈ € 1.450 per maand netto (≈ € 1.950 per maand bruto)" in markdown

@@ -58,6 +58,13 @@ class WalkAwayDerivation(TypedDict):
     weakly_grounded: bool
 
 
+class MonthlyCosts(TypedDict):
+    """Monthly cost of the mortgage needed at a price: gross, and net of hypotheekrenteaftrek."""
+
+    gross: int | None
+    net: int | None
+
+
 class InvalidVerdict(Exception):
     """The model's answer broke the Verdict contract; it is reported, never stored or shown."""
 
@@ -72,7 +79,7 @@ def judge(
     llm_client: LlmClient | None,
     model: str | None,
     margins: WalkAwayMargins,
-    monthly_cost_at: Callable[[int], int | None],
+    monthly_cost_at: Callable[[int], MonthlyCosts],
 ) -> dict:
     """A Verdict for the Case, without id, version or creation time (the store adds those)."""
     built_from = inputs_of(case, model)
@@ -140,6 +147,7 @@ def inputs_of(case: dict, model: str | None) -> dict:
     return {
         **case["built_from"],
         "rules_year": case["rules"]["year"],
+        "rules_version": case["rules"].get("version"),
         "source_fetches": source_fetches,
         "model": model,
     }
@@ -158,9 +166,10 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         changed.append("case")
     if then["profile_version"] != current["profile_version"]:
         changed.append("buyer_profile")
-    if (then["flag_rules_version"], then["rules_year"], then.get("cost_table_version")) != (
+    if (then["flag_rules_version"], then["rules_year"], then.get("rules_version"), then.get("cost_table_version")) != (
         current["flag_rules_version"],
         current["rules_year"],
+        current.get("rules_version"),
         current.get("cost_table_version"),
     ):
         changed.append("rules")
@@ -189,7 +198,7 @@ def _cited(flag: dict) -> dict:
 
 
 def _validated(
-    response: object, case: dict, derivation: WalkAwayDerivation, monthly_cost_at: Callable[[int], int | None]
+    response: object, case: dict, derivation: WalkAwayDerivation, monthly_cost_at: Callable[[int], MonthlyCosts]
 ) -> dict:
     if not isinstance(response, dict):
         raise InvalidVerdict(["not_an_object"])
@@ -226,7 +235,7 @@ def _bid_advice(
     tier: object,
     case: dict,
     derivation: WalkAwayDerivation,
-    monthly_cost_at: Callable[[int], int | None],
+    monthly_cost_at: Callable[[int], MonthlyCosts],
 ) -> tuple[dict | None, list[str]]:
     """The model supplies only the opening bid and conditions; any Walk-away Maximum it sends is
     ignored in favour of the derived one."""
@@ -245,6 +254,7 @@ def _bid_advice(
     problems = ["opening_bid_above_walk_away_maximum"] if opening > walk_away_maximum else []
     affordability = case["affordability"]
     comparables = case["metrics"]["asking_vs_comparables"]
+    at_walk_away = monthly_cost_at(walk_away_maximum)
     return {
         "opening_bid": opening,
         "walk_away_maximum": walk_away_maximum,
@@ -259,7 +269,9 @@ def _bid_advice(
         "derivation": {key: value for key, value in derivation.items() if key != "walk_away_maximum"},
         "asking_price": _asking_price(case),
         "monthly_cost_at_asking_price": affordability["monthly_cost"],
-        "monthly_cost_at_walk_away_maximum": monthly_cost_at(walk_away_maximum),
+        "monthly_cost_net_at_asking_price": affordability["monthly_cost_net"],
+        "monthly_cost_at_walk_away_maximum": at_walk_away["gross"],
+        "monthly_cost_net_at_walk_away_maximum": at_walk_away["net"],
     }, problems
 
 

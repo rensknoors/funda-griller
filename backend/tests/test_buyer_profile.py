@@ -4,11 +4,13 @@ import pytest
 
 VALID_PROFILE = {
     "household": [
-        {"role": "adult", "birth_date": "1988-04-12"},
-        {"role": "adult", "birth_date": "1990-09-30"},
-        {"role": "child", "birth_date": "2020-01-15"},
+        {"role": "adult", "birth_date": "1988-04-12", "starter_exemption_used": False},
+        {"role": "adult", "birth_date": "1990-09-30", "starter_exemption_used": True},
+        {"role": "child", "birth_date": "2020-01-15", "starter_exemption_used": False},
     ],
     "gross_annual_income": 95_000,
+    "fixed_rate_years": 20,
+    "other_monthly_debt": 120,
     "assets": {"savings": 40_000, "investments": 15_000},
     "current_home": {
         "value": 400_000,
@@ -116,6 +118,9 @@ INVALID_INPUT = [
     ("zero commute minutes", _set("commute_destinations.0.max_minutes", 0), "commute_destinations.0.max_minutes", "Bedrag buiten bereik"),
     ("tolerance too high", _set("renovation_tolerance", 6), "renovation_tolerance", "Kies een waarde van 1 tot en met 5"),
     ("tolerance missing", _remove("renovation_tolerance"), "renovation_tolerance", "Verplicht veld"),
+    ("no fixed rate period", _set("fixed_rate_years", 0), "fixed_rate_years", "Kies 1 tot en met 30 jaar"),
+    ("fixed rate period beyond the term", _set("fixed_rate_years", 31), "fixed_rate_years", "Kies 1 tot en met 30 jaar"),
+    ("negative monthly debt", _set("other_monthly_debt", -1), "other_monthly_debt", "Bedrag buiten bereik"),
     ("postcode in a must-have", _set("must_haves.0", "dichtbij 3511 AB"), "must_haves.0", NO_ADDRESS),
     ("postcode in a nice-to-have", _set("nice_to_haves.0", "rond 1012ab"), "nice_to_haves.0", NO_ADDRESS),
     ("street address in a deal-breaker", _set("deal_breakers.0", "verder dan Dorpsstraat 12"), "deal_breakers.0", NO_ADDRESS),

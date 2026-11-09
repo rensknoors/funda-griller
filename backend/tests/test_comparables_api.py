@@ -6,15 +6,15 @@ import pytest
 from app.ports import SourceFact
 
 from tests.listing_fixtures import LIVE_URL, live_listing
-from tests.profile_fixtures import typical_profile
+from tests.profile_fixtures import well_off_profile
 
 CASE = "/api/listings/80907644/case"
 FETCH_COMPARABLES = "/api/listings/80907644/sources/comparables/refetch"
 VERDICT = "/api/listings/80907644/verdict"
 NOW = "2026-10-24T12:00:00+00:00"
 
-# The typical household can pay at most 704_519 for the live Listing (asking 595_000, 152 m²).
-AFFORDABLE_MAXIMUM = 704_519
+# The well-off household can pay at most 709_174 for the live Listing (asking 595_000, 152 m²).
+AFFORDABLE_MAXIMUM = 709_174
 
 
 def comparable(funda_id, asking_price, living_area, recently_sold=True):
@@ -142,7 +142,7 @@ def test_the_comparison_row_shows_asking_vs_comparables(client, listing_provider
 
 def test_sufficient_comparables_derive_the_walk_away_maximum(client, listing_provider, source_clients, llm_client):
     with_comparables(client, listing_provider, source_clients, SEVERAL)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -175,7 +175,7 @@ def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_
     # 800_000 for 150 m² each: comparables put the house at 810_667, plus 10% far above affordability.
     pricey = [comparable(str(i), 800_000, 150) for i in (101, 102, 103)]
     with_comparables(client, listing_provider, source_clients, pricey)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -197,7 +197,7 @@ def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_th
         capture(client, listing_provider)
     else:
         with_comparables(client, listing_provider, source_clients, facts)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -221,7 +221,7 @@ def test_with_neither_comparables_nor_an_asking_price_only_affordability_bounds_
 ):
     listing_provider.listings[LIVE_URL] = live_listing(asking_price=None)
     client.post("/api/listings", json={"url": LIVE_URL})
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -242,7 +242,7 @@ def test_the_asking_price_margin_comes_from_configuration(
 ):
     settings.walk_away_asking_price_margin = 0.08
     with_comparables(client, listing_provider, source_clients, [])
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -252,7 +252,7 @@ def test_the_asking_price_margin_comes_from_configuration(
 
 def test_a_walk_away_maximum_from_the_model_is_ignored(client, listing_provider, source_clients, llm_client):
     with_comparables(client, listing_provider, source_clients, SEVERAL)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid(walk_away_maximum=700_000)
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -264,7 +264,7 @@ def test_an_opening_bid_above_the_derived_walk_away_maximum_is_rejected(
     client, listing_provider, source_clients, llm_client
 ):
     with_comparables(client, listing_provider, source_clients, [comparable("101", 500_000, 125)])
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid(opening_bid=630_000)
 
     rejected = client.post(VERDICT)
@@ -278,7 +278,7 @@ def test_fetching_comparables_makes_an_earlier_verdict_out_of_date(
     client, listing_provider, source_clients, llm_client
 ):
     capture(client, listing_provider)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
     client.post(VERDICT)
 

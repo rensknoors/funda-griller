@@ -10,7 +10,8 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
     data: {
       household: [{ role: "adult", birth_date: "1988-04-12" }],
       gross_annual_income: 95000,
-      assets: { savings: 40000, investments: 15000 },
+      // Enough saved that the comparables, not affordability, bound the Maximumbod.
+      assets: { savings: 100000, investments: 15000 },
       current_home: { value: 400000, outstanding_mortgage: 220000, selling_costs: 8000 },
       renovation_tolerance: 3,
     },

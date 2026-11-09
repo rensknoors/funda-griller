@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 4
+VERDICT_PROMPT_VERSION = 5
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -57,6 +57,14 @@ triggered it (inspection items rest on the build year alone). The Direct nodig m
 taken off the affordable maximum and the walk-away basis (`case.walk_away.renovation_direct`); do not
 subtract it again. Weigh the estimate against `buyer_profile.renovation_tolerance`, and name
 `missing_inputs` (no photos read, no Vragenlijst, no energielabel) as gaps in what is known.
+
+`case.affordability` follows the Dutch lending norms for the year of the expected levering
+(`case.rules.year`, `case.rules.levering_on`). The mortgage may not exceed the price, so kosten koper
+and the Direct nodig renovation come from own funds and equity. `monthly_cost` is the gross annuity
+of the mortgage needed at the asking price; `monthly_cost_net` is what the household pays after
+hypotheekrenteaftrek, the figure to weigh affordability by. `nhg` says whether that mortgage fits
+under the NHG limit. When `case.rules.is_current_year` is false the norms are from an earlier year;
+say so.
 
 Write summary, reasoning and conditions in Dutch.
 """

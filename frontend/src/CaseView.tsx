@@ -17,7 +17,7 @@ import {
 import { Documenten, VerkoperInformatie } from "./Documenten";
 import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
-import { type Tone, euro, headroomTone, percentChange, priceTone, signedEuro, signedPercent } from "./format";
+import { type Tone, decimal, euro, headroomTone, longDate, monthOf, percentChange, priceTone, signedEuro, signedPercent } from "./format";
 import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
@@ -391,8 +391,8 @@ function KeyFigures({
           value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
         />
         <Figure
-          label="Maandlasten bij vraagprijs"
-          value={affordability?.monthly_cost != null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
+          label="Netto maandlasten bij vraagprijs"
+          value={affordability?.monthly_cost_net != null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
         />
       </dl>
       {askingPrice !== null && <PriceContext askingPrice={askingPrice} affordability={affordability} metrics={metrics} />}
@@ -457,8 +457,7 @@ function Betaalruimte({
       ) : (
         <dl className="figures">
           <Figure label="Maximale hypotheek" value={euro.format(affordability.max_mortgage)}>
-            {affordability.energy_label_bonus > 0 &&
-              `incl. ${euro.format(affordability.energy_label_bonus)} voor energielabel`}
+            {bonusNote(affordability)}
           </Figure>
           <Figure label="Overwaarde eigen woning" value={euro.format(affordability.equity)} />
           <Figure
@@ -466,15 +465,14 @@ function Betaalruimte({
             value={affordability.kosten_koper ? euro.format(affordability.kosten_koper.total) : "–"}
           >
             {affordability.kosten_koper &&
-              `overdrachtsbelasting ${euro.format(affordability.kosten_koper.transfer_tax)}, vaste kosten ${euro.format(affordability.kosten_koper.fixed_costs)}`}
+              `overdrachtsbelasting ${euro.format(affordability.kosten_koper.transfer_tax)}, vaste kosten ${euro.format(affordability.kosten_koper.fixed_costs)}` +
+                (affordability.kosten_koper.nhg_fee > 0 ? `, NHG ${euro.format(affordability.kosten_koper.nhg_fee)}` : "")}
           </Figure>
           <Figure
-            label="Maandlasten bij vraagprijs"
-            value={affordability.monthly_cost !== null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
+            label="Netto maandlasten bij vraagprijs"
+            value={affordability.monthly_cost_net !== null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
           >
-            {affordability.mortgage_needed !== null &&
-              affordability.mortgage_needed > affordability.max_mortgage &&
-              "Let op: de benodigde hypotheek is hoger dan de maximale hypotheek"}
+            {monthlyNote(affordability)}
           </Figure>
           <Figure
             label="Ruimte boven vraag"
@@ -492,22 +490,44 @@ function Betaalruimte({
           total={euro.format(affordability.kosten_koper.total + affordability.renovation_direct)}
           segments={[
             { label: "Overdrachtsbelasting", value: affordability.kosten_koper.transfer_tax, kind: "tax" },
-            { label: "Vaste kosten koper", value: affordability.kosten_koper.fixed_costs, kind: "fees" },
+            { label: "Vaste kosten koper", value: affordability.kosten_koper.fixed_costs + affordability.kosten_koper.nhg_fee, kind: "fees" },
             { label: "Direct nodig onderhoud", value: affordability.renovation_direct, kind: "renovation" },
           ]}
         />
       )}
       <p className="muted rules-year">
-        Regels {rules.year}
+        Leennormen {rules.year}, levering rond {monthOf(rules.levering_on)}; hypotheekrente van{" "}
+        {longDate(rules.market_rate_as_of)}
         {!rules.is_current_year && (
           <>
             {" "}
-            <span className="chip">Achterhaald</span> regels zijn niet van dit jaar
+            <span className="chip">Let op</span> nog geen normen voor het jaar van levering
           </>
         )}
       </p>
     </section>
   );
+}
+
+function bonusNote(affordability: Affordability): string | null {
+  const parts = [
+    affordability.energy_label_bonus > 0 && `${euro.format(affordability.energy_label_bonus)} voor energielabel`,
+    affordability.single_bonus > 0 && `${euro.format(affordability.single_bonus)} voor alleenstaande`,
+  ].filter(Boolean);
+  return parts.length ? `incl. ${parts.join(" en ")}` : null;
+}
+
+/** Gross beside net with the rate and NHG, then a warning when a lender would not lend this. */
+function monthlyNote(affordability: Affordability): string | null {
+  if (affordability.monthly_cost === null || affordability.mortgage_needed === null) return null;
+  if (affordability.mortgage_needed === 0) return "geen hypotheek nodig";
+  const rate = affordability.mortgage_rate !== null ? ` tegen ${decimal.format(affordability.mortgage_rate * 100)}%` : "";
+  const gross = `bruto ${euro.format(affordability.monthly_cost)} p/m${rate}${affordability.nhg ? " met NHG" : ""}`;
+  if (affordability.own_funds_shortfall)
+    return `${gross}. Let op: ${euro.format(affordability.own_funds_shortfall)} eigen geld tekort voor kosten koper; de hypotheek stopt bij de koopsom`;
+  if (affordability.mortgage_needed > affordability.max_mortgage)
+    return `${gross}. Let op: de benodigde hypotheek is hoger dan de maximale hypotheek`;
+  return gross;
 }
 
 /** What each herkomst label means, beside the facts so the labels are learnable. */

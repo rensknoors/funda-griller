@@ -1,8 +1,12 @@
+import type { Rules } from "./api";
+
 export type Role = "adult" | "child";
 
 export type FormState = {
-  household: { role: Role; birth_date: string }[];
+  household: { role: Role; birth_date: string; starter_exemption_used: boolean }[];
   gross_annual_income: string;
+  fixed_rate_years: string;
+  other_monthly_debt: string;
   savings: string;
   investments: string;
   has_home: boolean;
@@ -20,8 +24,10 @@ export type FormState = {
 export type FieldErrors = Record<string, string>;
 
 export const emptyForm: FormState = {
-  household: [{ role: "adult", birth_date: "" }],
+  household: [{ role: "adult", birth_date: "", starter_exemption_used: false }],
   gross_annual_income: "",
+  fixed_rate_years: "10",
+  other_monthly_debt: "",
   savings: "",
   investments: "",
   has_home: false,
@@ -41,8 +47,14 @@ const amount = (text: string) => (text.trim() === "" ? undefined : Number(text))
 
 export function toPayload(form: FormState) {
   return {
-    household: form.household.map(({ role, birth_date }) => ({ role, birth_date })),
+    household: form.household.map(({ role, birth_date, starter_exemption_used }) => ({
+      role,
+      birth_date,
+      starter_exemption_used,
+    })),
     gross_annual_income: amount(form.gross_annual_income),
+    fixed_rate_years: amount(form.fixed_rate_years),
+    other_monthly_debt: amount(form.other_monthly_debt) ?? 0,
     assets: { savings: amount(form.savings), investments: amount(form.investments) },
     current_home: form.has_home
       ? {
@@ -68,7 +80,12 @@ export type SectionId = "huishouden" | "inkomen" | "vermogen" | "wensen" | "reiz
 
 export const SECTIONS: { id: SectionId; title: string; hint: string; fields: string[] }[] = [
   { id: "huishouden", title: "Huishouden", hint: "Wie er gaat wonen, met geboortedata.", fields: ["household"] },
-  { id: "inkomen", title: "Inkomen", hint: "Bruto jaarinkomen van het huishouden.", fields: ["gross_annual_income"] },
+  {
+    id: "inkomen",
+    title: "Inkomen en lasten",
+    hint: "Bruto jaarinkomen, rentevaste periode en maandlasten van andere leningen.",
+    fields: ["gross_annual_income", "fixed_rate_years", "other_monthly_debt"],
+  },
   {
     id: "vermogen",
     title: "Vermogen en eigen woning",
@@ -101,6 +118,8 @@ export function vakOrder(form: FormState): string[] {
   return [
     ...rows("household", form.household.length, [".role", ".birth_date"]),
     "gross_annual_income",
+    "fixed_rate_years",
+    "other_monthly_debt",
     "assets.savings",
     "assets.investments",
     ...(form.has_home
@@ -123,6 +142,9 @@ export function toFinanceDraft(form: FormState) {
   return {
     household: form.household.filter((member) => member.birth_date !== ""),
     gross_annual_income: amount(form.gross_annual_income),
+    // A half-typed period falls back to the default rather than blanking the panel.
+    fixed_rate_years: amount(form.fixed_rate_years) ?? 10,
+    other_monthly_debt: amount(form.other_monthly_debt) ?? 0,
     assets: { savings: amount(form.savings), investments: amount(form.investments) },
     current_home:
       form.has_home && homeFilled
@@ -139,7 +161,7 @@ export type Consequences = {
   max_mortgage: number;
   equity: number;
   budget: number;
-  rules: { year: number; is_current_year: boolean };
+  rules: Rules;
 };
 
 type StoredProfile = ReturnType<typeof toPayload>;
@@ -147,8 +169,13 @@ type StoredProfile = ReturnType<typeof toPayload>;
 export function fromStored(stored: StoredProfile): FormState {
   const text = (value: number | null | undefined) => (value == null ? "" : String(value));
   return {
-    household: stored.household,
+    household: stored.household.map((member) => ({
+      ...member,
+      starter_exemption_used: member.starter_exemption_used ?? false,
+    })),
     gross_annual_income: text(stored.gross_annual_income),
+    fixed_rate_years: text(stored.fixed_rate_years ?? 10),
+    other_monthly_debt: text(stored.other_monthly_debt || null),
     savings: text(stored.assets.savings),
     investments: text(stored.assets.investments),
     has_home: stored.current_home !== null,

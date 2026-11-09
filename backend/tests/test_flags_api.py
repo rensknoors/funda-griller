@@ -72,7 +72,7 @@ def test_asking_price_beyond_affordability_headroom_is_a_con(client, listing_pro
 
     flag = flags_by_rule(case)["ask_beyond_headroom"]
     assert flag["class"] == "con"
-    assert evidence(flag) == {"headroom": -113_534, "asking_price": 300_000, "threshold": 0}
+    assert evidence(flag) == {"headroom": -115_317, "asking_price": 300_000, "threshold": 0}
 
 
 def test_without_a_woz_value_the_overpricing_rule_raises_nothing(client, listing_provider):

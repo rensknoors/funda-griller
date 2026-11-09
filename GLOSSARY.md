@@ -65,7 +65,7 @@ _Dutch UI_: **Biedadvies**; its parts are **Openingsbod**, **Maximumbod** and **
 _Avoid_: Bid strategy, offer
 
 **Walk-away Maximum**:
-The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at, less the Renovation Estimate's Direct nodig midpoint, plus a configured premium. The affordable maximum has set the same Direct nodig midpoint aside from the household's available funds. With thin or missing comparables it rests on the asking price (less Direct nodig) plus a configured margin instead, and the Bid Advice says plainly that it is weakly grounded. With neither sufficient comparables nor an asking price it is the affordable maximum alone, also weakly grounded.
+The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at, less the Renovation Estimate's Direct nodig midpoint, plus a configured premium. The affordable maximum is the highest price a lender would finance under the Dutch lending norms for the year of the expected levering: the mortgage may not exceed the price, so kosten koper and the same Direct nodig midpoint come from the household's own funds and home equity. With thin or missing comparables it rests on the asking price (less Direct nodig) plus a configured margin instead, and the Bid Advice says plainly that it is weakly grounded. With neither sufficient comparables nor an asking price it is the affordable maximum alone, also weakly grounded.
 _Dutch UI_: **Maximumbod**
 _Avoid_: Max price, ceiling
 
@@ -79,7 +79,12 @@ A nearby Listing that funda offers as recently sold or recently listed next to a
 _Dutch UI_: **Vergelijkbare woning**; the metric is **t.o.v. vergelijkbaar**; thin is **Dun**
 _Avoid_: Comps, similar listing, reference house
 
+**Expected levering**:
+The date a bid made today is expected to transfer at the notary (today plus a configured number of months). The year's lending norms, the starters' ages and the startersvrijstelling limit are taken at this date, not today.
+_Dutch UI_: **levering** (as in "levering rond februari 2027")
+_Avoid_: Closing date, transfer date
+
 **Buyer Profile**:
-The household's finances (income, household composition, assets, current home equity) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally.
+The household's finances (income, household composition, assets, current home equity, rentevaste periode, monthly cost of other loans, whether each adult has used the startersvrijstelling) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally.
 _Dutch UI_: **Koperprofiel**; the preference lists keep their English labels **Must-have**, **Nice-to-have** and **Deal-breaker**, which are common usage in Dutch
 _Avoid_: User profile, account, settings

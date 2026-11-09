@@ -2,9 +2,9 @@
 
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
-from app.affordability import Rules, compute
+from app.affordability import Rules, compute, rules_summary
 from app.buyer_profile import BuyerProfile
 from app.findings import USER_DOCUMENT_KIND, document_summaries, finding_facts
 from app.flags import RuleSet, evaluate, hard_no
@@ -63,6 +63,7 @@ def build_case(
     snapshot: dict,
     versioned_profile: VersionedProfile | None,
     rules: Rules,
+    levering: date,
     flag_rules: RuleSet,
     cost_table: CostTable,
     now: datetime,
@@ -113,7 +114,7 @@ def build_case(
         {
             **asdict(
                 compute(
-                    profile, snapshot.get("asking_price"), energy_label, rules, today, renovation["direct_midpoint"]
+                    profile, snapshot.get("asking_price"), energy_label, rules, levering, renovation["direct_midpoint"]
                 )
             ),
             # The label the borrowing capacity was computed with, so figures at other prices (the
@@ -157,7 +158,7 @@ def build_case(
         "renovation_estimate": renovation,
         "flags": flags,
         "hard_no": hard_no(flag_rules, profile.deal_breakers, flags) if profile else None,
-        "rules": {"year": rules.year, "is_current_year": rules.year == today.year},
+        "rules": rules_summary(rules, levering),
     }
 
 

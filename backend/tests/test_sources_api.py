@@ -67,7 +67,7 @@ def test_borrowing_capacity_uses_the_register_label_over_the_listing_claim(
     affordability = read_case(client)["affordability"]
 
     assert affordability["energy_label_bonus"] == 25_000
-    assert affordability["max_mortgage"] == 304_422
+    assert affordability["max_mortgage"] == 265_634
 
 
 WOZ_HISTORY = [

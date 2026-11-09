@@ -17,7 +17,7 @@ import {
   vakOrder,
 } from "./profile";
 import { apiFetch, fetchOutOfDateVerdicts, type Listing } from "./api";
-import { euro } from "./format";
+import { euro, monthOf } from "./format";
 import { href } from "./route";
 import { ErrorText, Vak, type VakInputProps } from "./Vak";
 
@@ -206,7 +206,9 @@ function ProfileForm({
   };
 
   const vak = (field: string, label: string) => ({ field, label, error: errorOf(field) });
-  const amountInput = (key: "gross_annual_income" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs") =>
+  const amountInput = (
+    key: "gross_annual_income" | "fixed_rate_years" | "other_monthly_debt" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs",
+  ) =>
     (props: VakInputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
 
   const sectionBody: Record<SectionId, ReactNode> = {
@@ -229,19 +231,45 @@ function ProfileForm({
               <ProfileVak {...vak(`household.${index}.birth_date`, `Geboortedatum lid ${index + 1}`)}>
                 {(props) => <input {...props} type="date" value={member.birth_date} onChange={(event) => update({ birth_date: event.target.value })} />}
               </ProfileVak>
+              {member.role === "adult" && (
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={member.starter_exemption_used}
+                    onChange={(event) => update({ starter_exemption_used: event.target.checked })}
+                  />{" "}
+                  Startersvrijstelling al gebruikt
+                </label>
+              )}
               <button type="button" className="icon-button" aria-label={`Verwijder lid ${index + 1}`} title="Verwijderen" onClick={() => set("household", form.household.filter((_, i) => i !== index))}>
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
           );
         })}
-        <button type="button" className="add-button" onClick={() => set("household", [...form.household, { role: "adult", birth_date: "" }])}>
+        <button type="button" className="add-button" onClick={() => set("household", [...form.household, { role: "adult", birth_date: "", starter_exemption_used: false }])}>
           <Plus size={16} aria-hidden="true" />
           Lid toevoegen
         </button>
       </>
     ),
-    inkomen: <ProfileVak {...vak("gross_annual_income", "Bruto jaarinkomen huishouden (€)")}>{amountInput("gross_annual_income")}</ProfileVak>,
+    inkomen: (
+      <>
+        <ProfileVak {...vak("gross_annual_income", "Bruto jaarinkomen huishouden (€)")}>{amountInput("gross_annual_income")}</ProfileVak>
+        <ProfileVak
+          {...vak("fixed_rate_years", "Rentevaste periode (jaren)")}
+          hint="Korter dan 10 jaar: de bank toetst met de (hogere) toetsrente van de AFM."
+        >
+          {amountInput("fixed_rate_years")}
+        </ProfileVak>
+        <ProfileVak
+          {...vak("other_monthly_debt", "Maandlasten andere leningen (€ per maand)")}
+          hint="Studieschuld (DUO-maandbedrag), autolening, private lease. Leeg is geen."
+        >
+          {amountInput("other_monthly_debt")}
+        </ProfileVak>
+      </>
+    ),
     vermogen: (
       <>
         <ProfileVak {...vak("assets.savings", "Spaargeld (€)")}>{amountInput("savings")}</ProfileVak>
@@ -514,11 +542,11 @@ function Gevolgen({ state, listings }: { state: GevolgenState | null; listings: 
             </dl>
             <BudgetFit budget={state.data.budget} listings={listings} />
             <p className="muted rules-year">
-              Regels {state.data.rules.year}
+              Leennormen {state.data.rules.year}, levering rond {monthOf(state.data.rules.levering_on)}
               {!state.data.rules.is_current_year && (
                 <>
                   {" "}
-                  <span className="chip">Achterhaald</span> regels zijn niet van dit jaar
+                  <span className="chip">Let op</span> nog geen normen voor het jaar van levering
                 </>
               )}
             </p>

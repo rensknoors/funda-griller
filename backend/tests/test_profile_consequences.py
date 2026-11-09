@@ -16,20 +16,29 @@ def test_typical_household_sees_maximum_mortgage_equity_and_budget(client):
     response = client.post("/api/buyer-profile/consequences", json=draft(typical_profile()))
 
     assert response.status_code == 200
+    # 2027 rules (levering 2027-01-24), ten years fixed with NHG at 4,40%: 27,4% of €95.000. The
+    # budget: price + 2% + €5.050 + 0,4% NHG fee − €227.000 own funds and equity ≤ the mortgage.
     assert response.json() == {
-        "max_mortgage": 486_660,
+        "max_mortgage": 433_174,
         "equity": 172_000,
-        "budget": 694_715,
-        "rules": {"year": 2026, "is_current_year": True},
+        "budget": 640_586,
+        "rules": {
+            "version": 1,
+            "year": 2027,
+            "is_current_year": True,
+            "levering_on": "2027-01-24",
+            "market_rate_as_of": "2026-11-02",
+        },
     }
 
 
 def test_starters_budget_is_not_reduced_by_transfer_tax(client):
     consequences = client.post("/api/buyer-profile/consequences", json=draft(low_income_profile())).json()
 
-    assert consequences["max_mortgage"] == 169_516
+    # 24,1% of €42.000 at 4,40% with NHG; the €12.000 saved covers the fixed costs and NHG fee.
+    assert consequences["max_mortgage"] == 168_444
     assert consequences["equity"] == 0
-    assert consequences["budget"] == 176_466
+    assert consequences["budget"] == 174_723
 
 
 def test_blank_balances_and_undated_members_do_not_block_the_figures(client):
@@ -39,7 +48,7 @@ def test_blank_balances_and_undated_members_do_not_block_the_figures(client):
     )
 
     assert response.status_code == 200
-    assert response.json()["max_mortgage"] == 486_660
+    assert response.json()["max_mortgage"] == 433_174
     assert response.json()["equity"] == 0
 
 
@@ -52,15 +61,131 @@ def test_draft_without_income_has_no_figures(client):
 
 def test_rules_from_an_earlier_year_are_reported_as_such(client, settings, tmp_path):
     table = tmp_path / "rules.toml"
-    table.write_text(settings.affordability_rules_path.read_text().replace("[years.2026", "[years.2001"))
+    text = settings.affordability_rules_path.read_text()
+    table.write_text(text.replace("[years.2026", "[years.2001").replace("[years.2027", "[years.2002"))
     settings.affordability_rules_path = table
 
     consequences = client.post("/api/buyer-profile/consequences", json=draft(typical_profile())).json()
 
-    assert consequences["rules"] == {"year": 2001, "is_current_year": False}
+    assert consequences["rules"]["year"] == 2002
+    assert consequences["rules"]["is_current_year"] is False
 
 
 def test_working_out_consequences_stores_nothing(client):
     client.post("/api/buyer-profile/consequences", json=draft(typical_profile()))
 
     assert client.get("/api/buyer-profile").status_code == 404
+
+
+def couple(income: int, **finances) -> dict:
+    """Two adults in their fifties (no startersvrijstelling, no alleenstaandenbonus), renting, no savings."""
+    return {
+        "household": [
+            {"role": "adult", "birth_date": "1970-01-01"},
+            {"role": "adult", "birth_date": "1971-01-01"},
+        ],
+        "gross_annual_income": income,
+        "assets": {},
+        "current_home": None,
+        **finances,
+    }
+
+
+def test_short_fixed_rate_period_tests_at_the_toetsrente(client):
+    """Nibud, Advies hypotheeknormen 2027, tabel 4: €70.000 at 5% in 2027 (levering falls in 2027)."""
+    consequences = client.post(
+        "/api/buyer-profile/consequences", json=couple(70_000, fixed_rate_years=5)
+    ).json()
+
+    assert consequences["max_mortgage"] == 279_267
+    assert consequences["rules"]["year"] == 2027
+
+
+def with_rules(settings, tmp_path, *replacements: tuple[str, str]) -> None:
+    """Point the app at a copy of the affordability rules with some text replaced."""
+    text = settings.affordability_rules_path.read_text()
+    for old, new in replacements:
+        assert old in text
+        text = text.replace(old, new)
+    table = tmp_path / "rules.toml"
+    table.write_text(text)
+    settings.affordability_rules_path = table
+
+
+def offered_rate(settings, tmp_path, rate: str) -> None:
+    with_rules(settings, tmp_path, ("nhg = 0.0440", f"nhg = {rate}"), ("no_nhg = 0.0478", f"no_nhg = {rate}"))
+
+
+def test_long_fixed_rate_period_tests_at_the_offered_rate(client, settings, tmp_path):
+    """Nibud, Advies hypotheeknormen 2027, tabel 3: €70.000 and €100.000 at 4,25% in 2027."""
+    offered_rate(settings, tmp_path, "0.0425")
+
+    for income, expected in ((70_000, 294_074), (100_000, 467_537)):
+        consequences = client.post(
+            "/api/buyer-profile/consequences", json=couple(income, fixed_rate_years=10)
+        ).json()
+        assert consequences["max_mortgage"] == expected
+
+
+def test_rules_follow_the_year_of_the_expected_levering(client, settings):
+    """Nibud tabel 4, 2026 column: €70.000 at 5%. With no months to levering, 2026 rules apply."""
+    settings.expected_levering_months = 0
+
+    consequences = client.post(
+        "/api/buyer-profile/consequences", json=couple(70_000, fixed_rate_years=5)
+    ).json()
+
+    assert consequences["max_mortgage"] == 274_921
+    assert consequences["rules"]["year"] == 2026
+
+
+def test_a_single_adult_may_borrow_the_alleenstaandenbonus_more(client):
+    """Trhk 2027 art. 3 lid 8: €18.000 above a toetsinkomen of €31.000, on top of Nibud tabel 4."""
+    single = {**couple(70_000, fixed_rate_years=5), "household": [{"role": "adult", "birth_date": "1970-01-01"}]}
+
+    consequences = client.post("/api/buyer-profile/consequences", json=single).json()
+
+    assert consequences["max_mortgage"] == 279_267 + 18_000
+
+
+def test_other_monthly_debt_lowers_the_maximum_mortgage(client, settings, tmp_path):
+    """Nibud advies 2027 §5.1: at 4,25% a study loan of €69,69 a month costs €17.708 of mortgage
+    (gross-up 1,25), so €70 a month costs €17.708 × 70 / 69,69 ≈ €17.787."""
+    offered_rate(settings, tmp_path, "0.0425")
+
+    consequences = client.post(
+        "/api/buyer-profile/consequences", json=couple(70_000, fixed_rate_years=10, other_monthly_debt=70)
+    ).json()
+
+    assert consequences["max_mortgage"] == 294_074 - 17_787
+
+
+def test_kosten_koper_cannot_be_borrowed(client):
+    consequences = client.post(
+        "/api/buyer-profile/consequences", json=couple(70_000, fixed_rate_years=5)
+    ).json()
+
+    assert consequences["budget"] == 0
+
+
+def test_budget_is_the_highest_price_own_funds_and_the_mortgage_cover(client):
+    """€30.000 saved, €279.267 borrowable (tabel 4). Without NHG fee: price + 2% tax + €5.050
+    fixed − €30.000 ≤ €279.267 gives €298.252 (tax rounded to the euro)."""
+    consequences = client.post(
+        "/api/buyer-profile/consequences",
+        json=couple(70_000, fixed_rate_years=5, assets={"savings": 30_000, "investments": 0}),
+    ).json()
+
+    assert consequences["budget"] == 298_252
+
+
+def test_without_nhg_a_lender_finances_what_the_nhg_fee_would_tip_over(client):
+    """€10.000 saved covers 2% tax and €5.050 fixed costs up to €247.525 (2% is €4.950,50, rounded
+    half to even), but not the 0,4% NHG fee on top. A loan without NHG is still within the €279.267
+    income norm."""
+    consequences = client.post(
+        "/api/buyer-profile/consequences",
+        json=couple(70_000, fixed_rate_years=5, assets={"savings": 10_000, "investments": 0}),
+    ).json()
+
+    assert consequences["budget"] == 247_525

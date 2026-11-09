@@ -22,9 +22,11 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
 
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
   await expect(page.getByText("Maximale hypotheek", { exact: true })).toBeVisible();
-  await expect(page.getByText("€ 496.660")).toBeVisible();
-  await expect(page.getByText("+€ 109.519", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/^Regels 2026/)).toBeVisible();
+  // 2027 norms (levering after the turn of the year), NHG at 4,40%, label B and the alleenstaandenbonus.
+  await expect(page.getByText("€ 461.174")).toBeVisible();
+  await expect(page.getByText("+€ 72.928", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("€ 1.461 p/m", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/^Leennormen 2027, levering rond/)).toBeVisible();
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();
 });

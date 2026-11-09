@@ -35,6 +35,8 @@ PreferenceText = Annotated[Text, AfterValidator(_no_address)]
 class HouseholdMember(BaseModel):
     role: Literal["adult", "child"]
     birth_date: date
+    # The startersvrijstelling can be used once in a lifetime.
+    starter_exemption_used: bool = False
 
     @field_validator("birth_date")
     @classmethod
@@ -78,9 +80,23 @@ class CommuteDestination(BaseModel):
         return hashlib.sha256(" ".join(self.address.casefold().split()).encode()).hexdigest()[:16]
 
 
+def _fixed_rate_years(value: int) -> int:
+    if not 1 <= value <= 30:
+        raise ValueError("Kies 1 tot en met 30 jaar")
+    return value
+
+
+# Rentevaste periode: under ten years the lender tests at the AFM toetsrente.
+FixedRateYears = Annotated[int, AfterValidator(_fixed_rate_years)]
+# Monthly cost of other loans: the DUO wettelijk maandbedrag of a study loan, car finance, etc.
+MonthlyDebt = Annotated[int, Field(ge=0, le=100_000)]
+
+
 class BuyerProfile(BaseModel):
     household: list[HouseholdMember]
     gross_annual_income: Income
+    fixed_rate_years: FixedRateYears = 10
+    other_monthly_debt: MonthlyDebt = 0
     assets: Assets
     current_home: CurrentHome | None = None
     must_haves: list[PreferenceText] = []
@@ -118,6 +134,8 @@ class FinanceDraft(BaseModel):
 
     household: list[HouseholdMember] = []
     gross_annual_income: Income
+    fixed_rate_years: FixedRateYears = 10
+    other_monthly_debt: MonthlyDebt = 0
     assets: DraftAssets = DraftAssets()
     current_home: CurrentHome | None = None
 

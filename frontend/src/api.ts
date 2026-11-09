@@ -341,9 +341,20 @@ export type Affordability = {
   max_mortgage: number;
   energy_label_bonus: number;
   equity: number;
-  kosten_koper: { transfer_tax: number; fixed_costs: number; total: number } | null;
+  /** Extra borrowing capacity for a single adult (alleenstaandenbonus). */
+  single_bonus: number;
+  kosten_koper: { transfer_tax: number; fixed_costs: number; nhg_fee: number; total: number } | null;
+  /** What the lender lends at the asking price: at most the price itself. */
   mortgage_needed: number | null;
+  /** What own funds lack for kosten koper and renovation, since the mortgage stops at the price. */
+  own_funds_shortfall: number | null;
+  /** Whether the mortgage needed fits under the NHG limit, and the rate its cost is worked out at. */
+  nhg: boolean | null;
+  mortgage_rate: number | null;
+  /** Gross annuity of the mortgage needed at the asking price. */
   monthly_cost: number | null;
+  /** The same, net of hypotheekrenteaftrek and eigenwoningforfait in the first year. */
+  monthly_cost_net: number | null;
   headroom: number | null;
   /** Highest purchase price the household can pay, kosten koper included, after setting aside
    * `renovation_direct`. */
@@ -406,7 +417,18 @@ export type Case = {
   renovation_estimate: RenovationEstimate;
   flags: Flag[];
   hard_no: HardNo | null;
-  rules: { year: number; is_current_year: boolean };
+  rules: Rules;
+};
+
+/** Which year's lending norms the affordability rests on: the year of the expected levering. */
+export type Rules = {
+  /** Version of the affordability rule table; a new one makes earlier Verdicts achterhaald. */
+  version: number;
+  year: number;
+  /** False when no table exists yet for the year of the expected levering. */
+  is_current_year: boolean;
+  levering_on: string;
+  market_rate_as_of: string;
 };
 
 /** Direct nodig, Binnen 5 jaar, Optioneel. */
@@ -540,6 +562,9 @@ export type BidAdvice = {
   asking_price: number | null;
   monthly_cost_at_asking_price: number | null;
   monthly_cost_at_walk_away_maximum: number | null;
+  /** Net of hypotheekrenteaftrek; absent on Verdicts made before net costs existed. */
+  monthly_cost_net_at_asking_price?: number | null;
+  monthly_cost_net_at_walk_away_maximum?: number | null;
 };
 
 export type Verdict = {

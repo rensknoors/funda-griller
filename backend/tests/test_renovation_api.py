@@ -8,7 +8,7 @@ from app.ports import SourceFact
 from app.settings import Settings
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.pdf_fixtures import make_pdf
-from tests.profile_fixtures import typical_profile
+from tests.profile_fixtures import typical_profile, well_off_profile
 
 CASE = "/api/listings/80907644/case"
 
@@ -329,10 +329,11 @@ def test_the_estimate_is_the_same_for_every_buyer_profile(client, listing_provid
 
 
 VERDICT = "/api/listings/80907644/verdict"
-# The typical household can pay at most 704_519 for the live Listing when nothing is Direct nodig.
-AFFORDABLE_MAXIMUM = 704_519
-# Its available funds, less the 6000 Direct nodig midpoint of damp_repair and leak_repair, over 1.02.
-AFFORDABLE_MAXIMUM_AFTER_DAMP = 698_637
+# The well-off household can pay at most 709_174 for the live Listing when nothing is Direct nodig.
+AFFORDABLE_MAXIMUM = 709_174
+# Its own funds and equity, less the 6000 Direct nodig midpoint of damp_repair and leak_repair, fund
+# kosten koper: (443_174 / 1.004 NHG fee + 287_000 - 6_000 - 5_050) / 1.02.
+AFFORDABLE_MAXIMUM_AFTER_DAMP = 703_292
 
 
 def bid():
@@ -347,7 +348,7 @@ def bid():
 
 def test_direct_nodig_lowers_the_affordable_maximum(client, listing_provider, llm_client):
     capture(client, listing_provider)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     assert client.get(CASE).json()["affordability"]["affordable_maximum"] == AFFORDABLE_MAXIMUM
 
     llm_client.observations = [PHOTO_DAMP]
@@ -364,7 +365,7 @@ def test_direct_nodig_comes_off_the_asking_price_basis_of_the_walk_away_maximum(
 ):
     llm_client.observations = [PHOTO_DAMP]
     capture(client, listing_provider)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -387,7 +388,7 @@ def test_direct_nodig_comes_off_the_comparables_basis_of_the_walk_away_maximum(
     llm_client.observations = [PHOTO_DAMP]
     capture(client, listing_provider)
     client.post("/api/listings/80907644/sources/comparables/refetch")
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -400,7 +401,7 @@ def test_direct_nodig_comes_off_the_comparables_basis_of_the_walk_away_maximum(
 
 def test_without_direct_nodig_items_the_maxima_are_unchanged(client, listing_provider, llm_client):
     capture(client, listing_provider)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
@@ -441,7 +442,7 @@ def test_an_opknapper_deal_breaker_is_a_hard_no_that_skips_the_llm_and_keeps_the
 ):
     llm_client.observations = HIGH_DIRECT
     capture(client, listing_provider)
-    client.put("/api/buyer-profile", json=typical_profile() | {"deal_breakers": ["Geen opknapper"]})
+    client.put("/api/buyer-profile", json=well_off_profile() | {"deal_breakers": ["Geen opknapper"]})
 
     case = client.get(CASE).json()
     verdict = client.post(VERDICT).json()
@@ -455,7 +456,7 @@ def test_an_opknapper_deal_breaker_is_a_hard_no_that_skips_the_llm_and_keeps_the
 def test_the_model_receives_the_estimate_with_its_evidence(client, listing_provider, llm_client):
     llm_client.observations = [PHOTO_DAMP]
     capture(client, listing_provider)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     client.post(VERDICT)
@@ -468,7 +469,7 @@ def test_the_model_receives_the_estimate_with_its_evidence(client, listing_provi
 
 def test_a_cost_table_change_marks_the_verdict_achterhaald(client, listing_provider, llm_client, settings):
     capture(client, listing_provider)
-    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
     client.post(VERDICT)
     assert client.get(VERDICT).json()["changed"] == []
