@@ -26,6 +26,8 @@
 - [ ] Comparables of another house type do not count towards coverage or the median
 - [ ] The weakly grounded Walk-away margin comes from config with a cited source, and the Biedadvies names it
 - [ ] VvE and erfpachtcanon, when known, show beside the net monthly cost in the Dossier and the export
+- [ ] The 2027 NHG limit in `config/affordability.toml` is checked against NHG's Voorwaarden en normen 2027 (now four consistent secondary sources: Geld.nl, Hypotheker, Banken.nl, Univé), and the SECONDARY mark dropped
+- [ ] From 2027 an NHG loan on a label E, F or G house includes a standard €20.000 for energy-saving measures, with an NHG limit of €530.000 for such loans (Banken.nl, Geld.nl); decide whether the affordable maximum and the Renovation Estimate should reflect it
 - [ ] Flag rule set version bumped; Verdict regression set re-run, changes explained in Comments
 
 ### Tests

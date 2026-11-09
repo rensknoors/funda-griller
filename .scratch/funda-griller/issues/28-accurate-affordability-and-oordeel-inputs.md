@@ -4,7 +4,7 @@
 
 **Blocked by:** none
 
-**Status:** ready-for-human (only the paid Verdict regression run is left)
+**Status:** resolved
 
 ### Current state
 
@@ -59,7 +59,7 @@ Review of `backend/app/affordability.py`, `backend/app/verdict.py`, `backend/app
 
 ### Acceptance criteria
 
-- [ ] `affordability.toml` has verified 2026 and 2027 tables; no figure in the header is UNVERIFIED, each cites a primary source and check date (all but the 2027 NHG limit, which cites Geld.nl until NHG's Voorwaarden en normen 2027 can be read; marked SECONDARY)
+- [x] `affordability.toml` has verified 2026 and 2027 tables; no figure in the header is UNVERIFIED, each cites a primary source and check date. Exception: the 2027 NHG limit (€500.000) rests on four consistent secondary sources, marked SECONDARY; checking it against NHG's Voorwaarden en normen 2027 moved to ticket 29.
 - [x] Max mortgage tests at the toetsrente for < 10 years fixed and at the market rate for ≥ 10 years
 - [x] A single adult gets the alleenstaandenbonus; other monthly debt lowers the max mortgage
 - [x] A household with €0 own funds and €0 equity gets an affordable maximum of €0 (kosten koper cannot be financed)
@@ -68,7 +68,7 @@ Review of `backend/app/affordability.py`, `backend/app/verdict.py`, `backend/app
 - [x] Rules are chosen by expected levering date; a November 2026 Case uses the 2027 table
 - [x] NHG rate and fee apply when the mortgage fits under the year's limit
 - [x] The Oordeel and Markdown export show net monthly cost, with gross beside it
-- [ ] Verdict regression set re-run; changes in tier or Maximumbod explained in Comments
+- [x] Verdict regression set re-run; changes in tier or Maximumbod explained in Comments
 - [x] `GLOSSARY.md` updated where terms change (Walk-away Maximum, affordable maximum)
 
 Moved to ticket 29: indexed WOZ, comparables by house type, a sourced Walk-away margin, and VvE/erfpachtcanon in the monthly costs.
@@ -108,6 +108,65 @@ Done (parts a–c, 2026-11-09). What changed and why:
 - **Walk-away tests.** With lower affordability, the typical household's affordability now binds the Maximumbod against sufficient comparables. Tests about a comparables-bound Maximumbod use a new `well_off_profile` (€100k saved) so they keep testing that path.
 - **e2e** use the real clock, so their expected figures assume a levering in 2027; they will shift once a 2028 table is added.
 - **Regression set not run:** it calls the paid Verdict model (6 calls). Run `uv run python -m app.verdict_regression run --yes` in `backend/` and record the outcome here.
+- - Results:
+- - {
+    "run_at": "2026-11-09T21:13:17.771614+00:00",
+    "model": "gemini-3.8-flash",
+    "flag_rules_version": 11,
+    "prompt_version": 5,
+    "agreed": 4,
+    "total": 6,
+    "results": [
+    {
+    "name": "binnenhof-veldhoven",
+    "expected": "consider",
+    "actual": "consider",
+    "outcome": "OK",
+    "error": null,
+    "deterministic": false
+    },
+    {
+    "name": "buchterweg-holtum",
+    "expected": "consider",
+    "actual": "consider",
+    "outcome": "OK",
+    "error": null,
+    "deterministic": false
+    },
+    {
+    "name": "example-asking-far-above-woz",
+    "expected": "skip",
+    "actual": "consider",
+    "outcome": "DIFF",
+    "error": null,
+    "deterministic": false
+    },
+    {
+    "name": "example-efficient-family-home",
+    "expected": "consider",
+    "actual": "consider",
+    "outcome": "OK",
+    "error": null,
+    "deterministic": false
+    },
+    {
+    "name": "example-flood-depth-high",
+    "expected": "skip",
+    "actual": "consider",
+    "outcome": "DIFF",
+    "error": null,
+    "deterministic": false
+    },
+    {
+    "name": "example-label-deal-breaker",
+    "expected": "hard_no",
+    "actual": "hard_no",
+    "outcome": "OK",
+    "error": null,
+    "deterministic": true
+    }
+    ]
+    }
 
 Code review (2026-11-09) found, and fixed before commit:
 
@@ -115,3 +174,11 @@ Code review (2026-11-09) found, and fixed before commit:
 - `mortgage_needed` could exceed the price; it now stops at `max_ltv × price` and the rest is `own_funds_shortfall`, which the Dossier names.
 - The rule table has a `version`; a change marks Verdicts Achterhaald even within the same year. Verdicts made before this change carry no rule table version and show as Achterhaald.
 - "Achterhaald" no longer labels "no norms yet for the levering year" (it means an out-of-date Verdict or Case); that note reads "Let op".
+
+Regression run (2026-11-09, prompt version 5), analysed:
+
+- **Tiers: no change from this ticket.** 4/6 agree. The two DIFFs (`example-asking-far-above-woz` and `example-flood-depth-high`, expected skip, got consider) came out the same in both earlier runs on 2026-10-26 (prompt version 4, before this ticket). They are placeholder entries with guessed tiers (see `config/verdict_regression/README.md`), so they say more about the guesses than about the model.
+- **Maximumbod.** The harness records tiers only, so the Walk-away Maximum was derived for each entry with the code before (4e93821) and after this ticket. It is deterministic, so no model calls were needed.
+  - Unchanged for 3 of 5: `buchterweg-holtum`, `example-efficient-family-home` and `example-flood-depth-high`, whose basis (comparables or asking price) stays below what the household can afford.
+  - Lower for 2 of 5, where affordability now binds instead of the basis. `binnenhof-veldhoven` comes out about 2% lower (real entry, so amounts stay out of this public file). `example-asking-far-above-woz` goes from €672.000 to €645.469.
+  - The cause in both cases is the lower affordable maximum (official woonquote, kosten koper from own funds).
