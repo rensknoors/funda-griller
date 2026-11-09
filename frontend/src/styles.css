@@ -32,6 +32,11 @@
   --radius-s: 6px;
   --radius-m: 4px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Stacking order: anything that floats takes one of these, so an overlay never lands under the topbar. */
+  --z-topbar: 20;
+  --z-tray: 30;
+  --z-dialog: 40;
+  --z-menu: 50;
   --icon-alert: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 8v4M12 16h.01'/%3E%3C/svg%3E");
 
   font-family: "Archivo Variable", "Archivo", system-ui, sans-serif;
@@ -73,7 +78,7 @@ td.tone-favorable, td.tone-concern, td.tone-shortfall { font-weight: 600; }
 @keyframes spin { to { rotate: 360deg; } }
 
 /* App shell: one bar, two destinations. */
-.topbar { position: sticky; top: 0; z-index: 20; background: var(--hero); border-bottom: 1px solid var(--on-hero-line); color: var(--on-hero); }
+.topbar { position: sticky; top: 0; z-index: var(--z-topbar); background: var(--hero); border-bottom: 1px solid var(--on-hero-line); color: var(--on-hero); }
 .topbar :focus-visible, .hero :focus-visible { outline-color: #fff; }
 .topbar-inner { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: 60px; display: flex; align-items: center; gap: 40px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--on-hero); text-decoration: none; font-weight: 750; font-size: 17px; letter-spacing: -0.02em; font-stretch: 88%; }
@@ -251,14 +256,16 @@ th button.expand-all:hover:not(:disabled) { background: none; text-decoration: u
 button.row-menu { min-height: 34px; width: 34px; padding: 0; border-color: transparent; color: var(--ink-2); }
 button.row-menu:hover:not(:disabled), button.row-menu[data-popup-open] { background: var(--band); border-color: transparent; color: var(--ink); }
 
+.menu-positioner { z-index: var(--z-menu); }
 .menu { background: var(--bg); border-radius: var(--radius-m); padding: 6px; min-width: 210px; box-shadow: 0 1px 2px rgb(15 24 48 / 0.08), 0 12px 32px -8px rgb(15 24 48 / 0.22); border: 1px solid var(--line); transform-origin: var(--transform-origin); transition: opacity 120ms, scale 120ms var(--ease); }
 .menu[data-starting-style], .menu[data-ending-style] { opacity: 0; scale: 0.97; }
-.menu [role="menuitem"] { padding: 8px 10px; border-radius: 6px; cursor: pointer; outline: 0; }
-.menu [role="menuitem"][data-highlighted] { background: var(--band); }
+.menu [role^="menuitem"] { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; color: var(--ink); text-decoration: none; cursor: pointer; outline: 0; }
+.menu [role^="menuitem"][data-highlighted] { background: var(--band); }
+.menu-check { display: inline-grid; place-items: center; width: 16px; flex: none; color: var(--ink-2); }
 
-.dialog-backdrop { position: fixed; inset: 0; background: rgb(15 24 48 / 0.36); transition: opacity 180ms; }
+.dialog-backdrop { position: fixed; inset: 0; z-index: var(--z-dialog); background: rgb(15 24 48 / 0.36); transition: opacity 180ms; }
 .dialog-backdrop[data-starting-style], .dialog-backdrop[data-ending-style] { opacity: 0; }
-.dialog { position: fixed; top: 22%; left: 50%; translate: -50% 0; width: min(480px, calc(100vw - 32px)); background: var(--bg); border-radius: 8px; padding: 24px; box-shadow: 0 24px 64px -12px rgb(15 24 48 / 0.35); transition: opacity 180ms, transform 180ms var(--ease); }
+.dialog { position: fixed; z-index: var(--z-dialog); top: 22%; left: 50%; translate: -50% 0; width: min(480px, calc(100vw - 32px)); background: var(--bg); border-radius: 8px; padding: 24px; box-shadow: 0 24px 64px -12px rgb(15 24 48 / 0.35); transition: opacity 180ms, transform 180ms var(--ease); }
 .dialog[data-starting-style], .dialog[data-ending-style] { opacity: 0; transform: translateY(8px); }
 .dialog h2 { font-size: 20px; margin-bottom: 8px; }
 .dialog p { color: var(--ink-2); }
@@ -279,7 +286,7 @@ button.row-menu:hover:not(:disabled), button.row-menu[data-popup-open] { backgro
 
 /* Woning header, shared by Dossier and Oordeel. */
 .woning-head.hero { margin-bottom: 36px; padding-bottom: 0; }
-.woning-nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
+.woning-nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; }
 .back-link, .stepper a, .stepper span { display: inline-flex; align-items: center; gap: 4px; font-weight: 550; text-decoration: none; }
 .hero .back-link { color: var(--on-hero-2); margin-left: -2px; }
 .hero .back-link:hover { color: var(--on-hero); }
@@ -288,7 +295,7 @@ button.row-menu:hover:not(:disabled), button.row-menu[data-popup-open] { backgro
 .stepper a:hover { background: var(--hero-raised); color: var(--on-hero); }
 .stepper span { color: var(--on-hero-2); opacity: 0.5; }
 .woning-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
-.woning-title h1 { font-size: 48px; }
+.woning-title h1 { font-size: 48px; text-wrap: balance; }
 .woning-title h1:focus { outline: 0; }
 .woning-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; color: var(--on-hero-2); }
 .woning-city { color: var(--on-hero); font-weight: 550; font-size: 16px; }
@@ -298,19 +305,32 @@ button.row-menu:hover:not(:disabled), button.row-menu[data-popup-open] { backgro
 .woning-meta .stale-chip { background: #fff; color: var(--ink); }
 .woning-actions button:not(:hover) { border-color: transparent; }
 .woning-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
-.woning-title-text { min-width: 0; flex: 1 1 360px; }
-.woning-title-text .woning-actions { margin-top: 20px; }
-/* The Woning's photos in the hero: the first large, a few small, a count on the main one. */
-.woning-title.with-photos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px); align-items: end; }
-.header-photos { display: grid; gap: 6px; }
-.header-photos button { position: relative; display: block; padding: 0; border: 0; overflow: hidden; background: var(--hero-raised); cursor: zoom-in; }
+.woning-title-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 360px; }
+.woning-title-text .woning-actions { margin-top: auto; padding-top: 20px; }
+.woning-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 14px 0 0; color: var(--on-hero); font-size: 15px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.woning-facts > span:not(.energy-badge) + span::before { content: "·"; margin-right: 14px; color: var(--on-hero-2); }
+.woning-facts > span:not(.energy-badge) + span { display: inline-flex; }
+.woning-actions .export-trigger { gap: 6px; }
+.woning-actions .export-trigger[data-popup-open] { background: var(--band); border-color: var(--ink-3); }
+/* The Woning's photos in the hero: the first large, up to four beside it 2×2, the count on the block.
+ * The photos set the hero's height; the text column stretches to it. */
+.woning-title.with-photos { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; align-items: stretch; }
+.header-photos { position: relative; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 6px; height: clamp(260px, 26vw, 360px); }
+.header-photos[data-thumbs="0"] { grid-template-columns: 1fr; }
+.header-photos[data-thumbs="1"], .header-photos[data-thumbs="2"] { grid-template-columns: 2fr 1fr; }
+.header-photos button { position: relative; display: block; width: 100%; height: 100%; padding: 0; border: 0; overflow: hidden; background: var(--hero-raised); cursor: zoom-in; }
 .header-photos button:hover:not(:disabled) { background: var(--hero-raised); }
 .header-photos button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .header-photos img { display: block; width: 100%; height: 100%; object-fit: cover; transition: scale 400ms var(--ease); }
 .header-photos button:hover img { scale: 1.04; }
-.header-photo-main { aspect-ratio: 3 / 2; border-radius: 6px; }
-.header-thumbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0; padding: 0; list-style: none; }
-.header-thumbs button { width: 100%; aspect-ratio: 4 / 3; border-radius: 4px; }
+.header-photo-main { border-radius: 6px; }
+.header-thumbs { grid-column: 2 / -1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; min-height: 0; margin: 0; padding: 0; list-style: none; }
+.header-photos[data-thumbs="1"] .header-thumbs { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.header-photos[data-thumbs="2"] .header-thumbs { grid-template-columns: 1fr; }
+.header-photos[data-thumbs="3"] .header-thumbs li:first-child { grid-row: span 2; }
+.header-thumbs li { min-height: 0; }
+.header-thumbs button { border-radius: 4px; }
+.header-photos > .card-photo-count { pointer-events: none; }
 .header-thumbs-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgb(15 24 48 / 0.55); color: #fff; font-weight: 650; font-size: 15px; }
 .photo-stage { position: relative; }
 button.photo-step { position: absolute; top: 50%; translate: 0 -50%; width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: rgb(255 255 255 / 0.9); color: var(--ink); box-shadow: 0 2px 8px rgb(15 24 48 / 0.25); }
@@ -323,7 +343,7 @@ a.button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px
 a.button:hover { background: var(--band); border-color: var(--ink-3); }
 .export-markdown { display: grid; gap: 6px; justify-items: start; }
 .export-profile { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--on-hero-2); cursor: pointer; }
-.halves { display: flex; gap: 0; margin: 28px 0 0; border-bottom: 0; }
+.halves { display: flex; gap: 0; margin: 24px 0 0; border-bottom: 0; }
 .halves a { display: flex; flex-direction: column; padding: 12px 24px 14px 0; margin-right: 24px; color: var(--on-hero-2); text-decoration: none; font-size: 17px; font-weight: 650; box-shadow: inset 0 -4px 0 transparent; transition: box-shadow 180ms var(--ease), color 150ms; }
 .halves a:hover { color: var(--on-hero); }
 .halves a[aria-current="page"] { color: var(--on-hero); box-shadow: inset 0 -4px 0 #fff; }
@@ -602,7 +622,13 @@ fieldset.vak { border: 0; }
   .woning-head.hero { padding-bottom: 0; }
   h1, .woning-title h1 { font-size: 28px; }
   .woning-title.with-photos { grid-template-columns: minmax(0, 1fr); }
-  .header-photos { order: -1; }
+  .header-photos { order: -1; grid-template-columns: repeat(4, 1fr); height: auto; }
+  .header-photos[data-thumbs] { grid-template-columns: repeat(4, 1fr); }
+  .header-photo-main { grid-column: 1 / -1; aspect-ratio: 3 / 2; }
+  .header-photos .header-thumbs, .header-photos[data-thumbs] .header-thumbs { grid-column: 1 / -1; grid-template-columns: repeat(4, 1fr); grid-template-rows: auto; }
+  .header-photos[data-thumbs="3"] .header-thumbs li:first-child { grid-row: auto; }
+  .header-thumbs button { aspect-ratio: 4 / 3; }
+  .header-photos > .card-photo-count { top: 10px; bottom: auto; }
   .capture { padding: 16px; }
   .capture-row { flex-direction: column; }
   .list-filters > label:not(.price-filter, .sort-select) { min-height: 32px; }
@@ -645,7 +671,7 @@ fieldset.vak { border: 0; }
 
 /* Ophalen runs in the background: its progress sits in a corner of every view. */
 .capture-hint { margin: 8px 0 0; font-size: 13px; }
-.capture-tray { position: fixed; right: 24px; bottom: 24px; z-index: 20; display: grid; gap: 8px; width: min(360px, calc(100vw - 32px)); }
+.capture-tray { position: fixed; right: 24px; bottom: 24px; z-index: var(--z-tray); display: grid; gap: 8px; width: min(360px, calc(100vw - 32px)); }
 .capture-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px 14px 14px 16px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-m); box-shadow: 0 1px 2px rgb(15 24 48 / 0.08), 0 12px 32px -8px rgb(15 24 48 / 0.22); animation: tray-in 200ms var(--ease); }
 .capture-card.running { grid-template-columns: auto minmax(0, 1fr); }
 .capture-card.failed { border-color: #e6b39b; }

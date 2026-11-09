@@ -2,7 +2,7 @@
 
 **What to build:** The photo viewer opens underneath the sticky topbar. The topbar stays fully lit above the backdrop and covers the top of the viewer, so **Foto N** sits cut off under it. Every dialog should cover the whole app, the topbar included.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ### Cause
 
@@ -10,14 +10,14 @@
 
 ### Acceptance criteria
 
-- [ ] The dialog backdrop dims the topbar and the capture tray as well as the page
-- [ ] Every dialog popup, the photo viewer included, stacks above the topbar and capture tray; its title and **Sluiten** are fully visible at 1280×800 and at phone width
-- [ ] One stacking order in `styles.css` (for example `--z-topbar`, `--z-tray`, `--z-dialog` tokens) instead of loose numbers, so a new overlay can't land under the topbar again
-- [ ] Menus that open inside a dialog still show above it
+- [x] The dialog backdrop dims the topbar and the capture tray as well as the page
+- [x] Every dialog popup, the photo viewer included, stacks above the topbar and capture tray; its title and **Sluiten** are fully visible at 1280×800 and at phone width
+- [x] One stacking order in `styles.css` (for example `--z-topbar`, `--z-tray`, `--z-dialog` tokens) instead of loose numbers, so a new overlay can't land under the topbar again
+- [x] Menus that open inside a dialog still show above it
 
 ### Tests
 
-- [ ] e2e: open the photo viewer from the woning header; the dialog title is visible and not covered by the topbar (for example `elementFromPoint` at the title's centre returns the title)
+- [x] e2e: open the photo viewer from the woning header; the dialog title is visible and not covered by the topbar (for example `elementFromPoint` at the title's centre returns the title)
 
 ## Comments
 

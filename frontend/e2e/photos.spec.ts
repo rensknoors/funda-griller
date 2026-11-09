@@ -33,3 +33,35 @@ test("dossier shows foto-waarnemingen as geschat, citing photos the app serves i
   await expect(group.getByText("≈ 12 jaar oud")).toBeVisible();
   await expect(group.getByRole("alert")).toHaveCount(0);
 });
+
+for (const viewport of [
+  { width: 1280, height: 800 },
+  { width: 390, height: 844 },
+]) {
+  test(`the photo viewer covers the topbar at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/");
+    const existing = page.getByRole("link", { name: "Buchterweg 15" });
+    if (!(await existing.isVisible())) {
+      await page.getByLabel("Funda-link").fill(LISTING_URL);
+      await page.getByRole("button", { name: "Ophalen" }).click();
+    }
+    await page.getByRole("link", { name: "Buchterweg 15" }).click();
+    await page.getByRole("button", { name: "Foto 1 openen" }).click();
+
+    const viewer = page.getByRole("dialog", { name: "Foto 1" });
+    const topmostAt = (selector: string) =>
+      page.locator(selector).first().evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return hit !== null && (element === hit || element.contains(hit));
+      });
+    await expect(viewer.getByRole("heading", { name: "Foto 1" })).toBeVisible();
+    // Wait out the open transition before hit-testing.
+    await expect(viewer).not.toHaveAttribute("data-starting-style");
+    expect(await topmostAt('[role="dialog"] h2')).toBe(true);
+    expect(await topmostAt('[role="dialog"] button:has-text("Sluiten")')).toBe(true);
+    // The backdrop dims the topbar too.
+    expect(await topmostAt(".topbar")).toBe(false);
+  });
+}

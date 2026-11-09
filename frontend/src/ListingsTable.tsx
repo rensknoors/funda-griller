@@ -545,7 +545,7 @@ export function ListingActions(props: {
         <Ellipsis size={18} aria-hidden="true" />
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner align="end">
+        <Menu.Positioner className="menu-positioner" align="end">
           <Menu.Popup className="menu">
             <Menu.Item onClick={() => props.onRefetch(listing.funda_id)}>Opnieuw ophalen</Menu.Item>
             <Menu.Item onClick={() => props.onRerunVerdict(listing.funda_id)}>Oordeel opnieuw draaien</Menu.Item>
