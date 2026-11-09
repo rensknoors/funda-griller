@@ -4,7 +4,7 @@
 
 **Blocked by:** 28 (Accurate affordability and Oordeel inputs)
 
-**Status:** ready-for-human (the NHG 2027 primary-source check and the paid regression run are left)
+**Status:** ready-for-human (only the NHG 2027 primary-source check is left)
 
 ### Current state
 
@@ -28,7 +28,7 @@
 - [ ] The 2027 NHG limit in `config/affordability.toml` is checked against NHG's Voorwaarden en normen 2027 (now four consistent secondary sources: Geld.nl, Hypotheker, Banken.nl, Univé), and the SECONDARY mark dropped
 - [x] From 2027 an NHG loan on a label E, F or G house includes a standard €20.000 for energy-saving measures, with an NHG limit of €530.000 for such loans (Banken.nl, Geld.nl); decide whether the affordable maximum and the Renovation Estimate should reflect it (decided: named in the Dossier, not counted)
 - [x] Flag rule set version bumped
-- [ ] Verdict regression set re-run, changes explained in Comments
+- [x] Verdict regression set re-run, changes explained in Comments
 
 VvE and erfpachtcanon moved to ticket 32.
 
@@ -60,3 +60,75 @@ Code review (2026-11-09) found, and fixed before commit:
 - The NHG energy amount is named only when the loan actually goes with NHG.
 - Comparables of unknown type keep counting (benefit of the doubt); a test now pins that choice.
 - Left as judgement calls: Dutch house type labels exist in both backend and frontend; the "indexed, else raw" WOZ choice exists in the list and the Dossier; each new versioned table touches settings, loader, assembly, Case and Verdict staleness.
+
+### Resultaat verdict regressie
+
+```
+{
+  "run_at": "2026-11-09T21:55:26.301377+00:00",
+  "model": "gemini-3.8-flash",
+  "flag_rules_version": 13,
+  "prompt_version": 6,
+  "agreed": 4,
+  "total": 6,
+  "results": [
+    {
+      "name": "binnenhof-veldhoven",
+      "expected": "consider",
+      "actual": "consider",
+      "outcome": "OK",
+      "error": null,
+      "deterministic": false
+    },
+    {
+      "name": "buchterweg-holtum",
+      "expected": "consider",
+      "actual": "consider",
+      "outcome": "OK",
+      "error": null,
+      "deterministic": false
+    },
+    {
+      "name": "example-asking-far-above-woz",
+      "expected": "skip",
+      "actual": "consider",
+      "outcome": "DIFF",
+      "error": null,
+      "deterministic": false
+    },
+    {
+      "name": "example-efficient-family-home",
+      "expected": "consider",
+      "actual": "consider",
+      "outcome": "OK",
+      "error": null,
+      "deterministic": false
+    },
+    {
+      "name": "example-flood-depth-high",
+      "expected": "skip",
+      "actual": "consider",
+      "outcome": "DIFF",
+      "error": null,
+      "deterministic": false
+    },
+    {
+      "name": "example-label-deal-breaker",
+      "expected": "hard_no",
+      "actual": "hard_no",
+      "outcome": "OK",
+      "error": null,
+      "deterministic": true
+    }
+  ]
+}
+```
+
+Regression run analysed (2026-11-09, prompt version 6, Flag rule set 13):
+
+- **Tiers: unchanged.** 4/6 agree, the same entries as both runs before this ticket. The two DIFFs (`example-asking-far-above-woz`, `example-flood-depth-high`) are placeholder entries with guessed tiers and differed the same way before tickets 28 and 29.
+- **Maximumbod.** This was derived without the model, with the code before this ticket (d946958) and after it.
+  - Lower for 2 of 5: `example-efficient-family-home` goes from €551.250 to €549.150, and `example-flood-depth-high` from €472.500 to €470.700. Both rest on the asking price, and the margin goes from 5% to 4,6% (soort woning unknown).
+  - Unchanged for the other 3. Two rest on sufficient comparables. The third, `example-asking-far-above-woz`, is bound by affordability.
+- **WOZ Signaal.** Nothing changes for any entry. Every entry that raised `ask_far_above_woz` still does with the indexed WOZ, and the indexed percentages are a few points lower.
+- **Comparables.** The two real entries were frozen before the soort woning was captured. Their comparables are therefore not filtered by type, and the type filter is not exercised by the set yet. Re-adding them after a fresh capture would cover it.
