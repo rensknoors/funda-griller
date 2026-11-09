@@ -54,6 +54,9 @@ test("verbouwingskosten by urgency, geschat with evidence, subtracted in the bie
 
   await page.getByRole("link", { name: "Dossier", exact: true }).click();
   await page.getByRole("link", { name: "Terug naar woningen" }).click();
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
   const row = page.getByRole("table", { name: "Woningen" }).getByRole("row", { name: /Dorpsstraat 42/ });
-  await expect(row.getByText("€ 2.000 – € 10.000")).toBeVisible();
+  await row.getByRole("button", { name: "Details tonen" }).click();
+  const details = page.locator("#details-80907652");
+  await expect(details.getByText("€ 2.000 – € 10.000")).toBeVisible();
 });

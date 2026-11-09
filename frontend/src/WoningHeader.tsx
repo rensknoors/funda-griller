@@ -1,7 +1,8 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ArrowLeft, Camera, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { type ReactNode, type RefObject, useState } from "react";
 
-import { exportUrl, type Listing } from "./api";
+import { exportUrl, type CasePhoto, type Listing } from "./api";
+import { PhotoViewer } from "./PhotoViewer";
 import { href } from "./route";
 
 export type Neighbours = { previous?: Listing; next?: Listing };
@@ -54,8 +55,8 @@ export function WoningHeader(props: {
           )}
         </div>
       </div>
-      <div className="woning-title">
-        <div>
+      <div className={`woning-title${(latest.photos ?? []).length > 0 ? " with-photos" : ""}`}>
+        <div className="woning-title-text">
           <h1 id={`${page}-title`} ref={props.headingRef} tabIndex={-1}>
             <span className="visually-hidden">{title}: </span>
             {addressOf(listing)}
@@ -64,11 +65,12 @@ export function WoningHeader(props: {
             {latest.city && <span className="woning-city">{latest.city}</span>}
             {props.meta}
           </div>
+          <div className="woning-actions">
+            {props.actions}
+            <ExportMarkdown fundaId={fundaId} />
+          </div>
         </div>
-        <div className="woning-actions">
-          {props.actions}
-          <ExportMarkdown fundaId={fundaId} />
-        </div>
+        <HeaderPhotos photos={latest.photos ?? []} />
       </div>
       <nav className="halves" aria-label="Woning">
         <a href={href({ view: "dossier", fundaId })} aria-current={page === "dossier" ? "page" : undefined}>
@@ -81,6 +83,47 @@ export function WoningHeader(props: {
         </a>
       </nav>
     </header>
+  );
+}
+
+/** How many thumbnails sit under the main photo; the last one opens the rest. */
+const THUMBNAILS = 4;
+
+/** The first photo large, the next few small: the Woning as funda shows it, opening the viewer. */
+function HeaderPhotos({ photos }: { photos: CasePhoto[] }) {
+  const [viewing, setViewing] = useState<CasePhoto | null>(null);
+  if (photos.length === 0) return null;
+  const [first, ...rest] = photos;
+  const thumbnails = rest.slice(0, THUMBNAILS);
+  const more = photos.length - 1 - thumbnails.length;
+  return (
+    <div className="header-photos">
+      <button type="button" className="header-photo-main" aria-label="Foto 1 openen" onClick={() => setViewing(first)}>
+        <img src={first.url} alt="" />
+        <span className="card-photo-count">
+          <Camera size={13} aria-hidden="true" />
+          {photos.length}
+          <span className="visually-hidden"> foto's</span>
+        </span>
+      </button>
+      {thumbnails.length > 0 && (
+        <ul className="header-thumbs">
+          {thumbnails.map((photo, index) => (
+            <li key={photo.number}>
+              <button type="button" aria-label={`Foto ${photo.number} openen`} onClick={() => setViewing(photo)}>
+                <img src={photo.url} alt="" loading="lazy" />
+                {index === thumbnails.length - 1 && more > 0 && (
+                  <span className="header-thumbs-more" aria-hidden="true">
+                    +{more}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <PhotoViewer photos={photos} viewing={viewing} onView={setViewing} />
+    </div>
   );
 }
 

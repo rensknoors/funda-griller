@@ -192,13 +192,15 @@ components:
 
 A white sheet ruled by a Crouwel-style grid, capped by one committed field of cobalt. The top bar and a full-bleed hero band in deep cobalt form a single region at the top of every screen: it carries the page title and lede, the screen's first task (the Woningen capture field, the woning header with its Dossier/Oordeel tabs, the Koperprofiel title), and nothing else. Below it, hierarchy comes from scale, weight and whitespace, never from frames: one column of sections divided by hairlines, with cobalt-tinted bands laid under the few things that need grouping (key figures, bid figures, Gevolgen, empty states). Archivo, a grotesk with a width axis, does the heavy lifting: condensed and very bold for titles and money, normal width for reading. Numbers are tabular everywhere, because the product is a comparison of figures.
 
-The density is an analyst's, not a dashboard's: an airy comparison table, a dossier of fact rows in fixed tracks so the herkomst stamps line up, and an Oordeel where the tier takes a whole coloured band. Colour is committed at the top and semantic below. Cobalt owns the region and still marks links, selection and focus; ink carries the type and the primary action; green, ochre and vermilion form a three-step scale of favourable, caution and risk that runs through tiers, flags, stamps and the figures themselves.
+The density is an analyst's, not a dashboard's: Woningen as photo cards the way funda shows them, with an airy comparison table one switch away, a dossier of fact rows in fixed tracks so the herkomst stamps line up, and an Oordeel where the tier takes a whole coloured band. Colour is committed at the top and semantic below. Cobalt owns the region and still marks links, selection and focus; ink carries the type and the primary action; green, ochre and vermilion form a three-step scale of favourable, caution and risk that runs through tiers, flags, stamps and the figures themselves.
 
-Frames appear only where a border carries meaning. A herkomst stamp's border style says how far to trust a fact; the Harde afwijzing wears a double vermilion rule. Everything else is open. The boxed form and the SaaS card grid are the rejected alternatives.
+Frames appear only where a border carries meaning. A herkomst stamp's border style says how far to trust a fact; the Harde afwijzing wears a double vermilion rule. Everything else is open, with one exception: a Woning in the list is a photo card, because the house is recognised by its picture before its address. The boxed form and the card grid for anything that is not a Woning remain the rejected alternatives.
 
 **Key Characteristics:**
 - Deep cobalt (#1a44c2) top bar and full-bleed hero band as one region on every screen; white below.
-- Neutrals tinted toward cobalt: bands #eef2fb, hairlines #e1e6f0, ink #0f1830; no cards.
+- Neutrals tinted toward cobalt: bands #eef2fb, hairlines #e1e6f0, ink #0f1830; cards only for Woningen.
+- Photos lead: the first photo on each Woning card and large in the woning header.
+- Figures that are read against each other are also drawn: a price scale, a stacked cost bar, range bars.
 - Archivo variable, condensed (wdth 78 to 88) and heavy (650 to 750) for titles and figures; tabular numerals globally.
 - Ink primary buttons, even on cobalt; cobalt for the region, links, selection and focus.
 - Green favourable, ochre caution, vermilion risk: on tiers, flags, stamps and directional figures.
@@ -241,7 +243,7 @@ A committed cobalt region over a cobalt-tinted white sheet, with a three-step se
 
 **The Ink Is Primary Rule.** The primary action is an ink button everywhere, including on the cobalt hero.
 
-**The Vermilion Means Risk Rule.** Vermilion appears only for risk flags, errors, destructive actions, an unaffordable shortfall and the Harde afwijzing. Never for emphasis, never decoratively.
+**The Vermilion Means Risk Rule.** Vermilion appears only for risk flags, errors, destructive actions, an unaffordable shortfall, Direct nodig onderhoud and the Harde afwijzing. Never for emphasis, never decoratively. The energy-label badge is the exception: it uses the register's own green-to-red A to G scale.
 
 **The Ochre Means Caution Rule.** Ochre marks what deserves a second look but is not a risk: the Overwegen tier, minpunten, a seller's claim, thin grounding, an asking price above WOZ or comparables.
 
@@ -276,14 +278,14 @@ A committed cobalt region over a cobalt-tinted white sheet, with a three-step se
 A single 1320px raster, centred, with 32px side padding (16px below 720px); `main` has 96px bottom padding. The sticky top bar is 60px (56px narrow), solid hero cobalt with a white 22% hairline.
 
 - **Hero band:** the first block of every screen is a `.hero` that bleeds to the viewport edges (a `::before` spanning `calc(50% - 50vw)` either side) and continues the top bar without a seam: 40px top, 36px bottom padding, 36px below it (24px all round below 720px). Screens without a hero start 40px below the bar.
-- **Woningen:** hero with page head and the capture panel; then a wrapping filter toolbar (tier toggles, price fields, checkboxes, result count pushed right) and the comparison table with the tier pill in the first column. Below 1024px detail columns hide; below 720px each row becomes a three-column grid with `data-label` captions above numbers.
-- **Woning header:** inside the hero: back link and stepper, the 48px address with city and meta, actions right, and the Dossier/Oordeel tabs sitting on the hero's bottom edge (no bottom padding).
+- **Woningen:** hero with page head and the capture panel; then a wrapping filter toolbar (tier toggles, price fields, checkboxes, sort select, a Kaarten/Lijst switch, result count pushed right). Kaarten (the default, remembered per browser) is an auto-fill grid of 280px-minimum photo cards, one column below 720px. Lijst is the comparison table: tier glyph, address, Vraagprijs and Signalen per row, the other figures in a fold-out band below it.
+- **Woning header:** inside the hero: back link and stepper, the 48px address with city, meta and actions below it, the photos right (first photo 3:2, four thumbnails beneath, the last showing +N), and the Dossier/Oordeel tabs sitting on the hero's bottom edge (no bottom padding). Below 720px the photos stack above the address.
 - **Dossier:** a two-column grid, 272px sticky rail (Op deze pagina, source statuses, herkomst legend) beside the content, 56px gap. Below 1180px the rail folds above the content as an auto-fit row.
 - **Fact rows:** fixed tracks `28px | 2fr | 3fr | 2.2fr` (vak number, label, value, stamp) so stamps align down the page; three tracks below 1024px, two below 720px.
 - **Koperprofiel:** hero with the title and lede, then three columns `200px | 1fr | 300px` with 48px gaps: section index, form, sticky live Gevolgen. Below 1024px it collapses to one column with a section select; the save footer is sticky at the bottom.
 - **Rhythm:** sections are separated by a 1px line with 28px above and 32px below the content. Inside groups, 8, 12, 16 and 24px steps; between page regions 32 to 40px.
 
-**The Rule Not Box Rule.** Sections divide with a hairline on top, not a container. A tinted band is the only grouping device below the hero, and figure bands divide internally with vertical hairlines, not boxes.
+**The Rule Not Box Rule.** Sections divide with a hairline on top, not a container. A tinted band is the only grouping device below the hero, and figure bands divide internally with vertical hairlines, not boxes. The Woning card is the one card.
 
 ## Elevation & Depth
 
@@ -292,14 +294,15 @@ Flat. Depth is tonal: the cobalt hero over white, a raised lighter cobalt panel 
 ### Shadow Vocabulary
 - **Menu** (`box-shadow: 0 1px 2px rgb(18 20 23 / 0.08), 0 12px 32px -8px rgb(18 20 23 / 0.22)`): row action menus.
 - **Dialog** (`box-shadow: 0 24px 64px -12px rgb(18 20 23 / 0.35)`): modal dialogs and the photo viewer, over a `rgb(18 20 23 / 0.36)` backdrop.
+- **Card lift** (`box-shadow: 0 0 0 1px Line Strong, 0 14px 32px -14px rgb(15 24 48 / 0.3)` and a 2px rise): a Woning card on hover only. At rest a card has a 1px Line ring and no shadow.
 - **Inset rules** (`box-shadow: inset 0 0 0 1px` / `inset 0 -3px 0` / `inset 0 -4px 0` / `inset 0 3px 0`): hairline outlines, the nav and halves underlines, and the cobalt top rule on figure bands; not elevation.
 
 ### Named Rules
-**The Only Floating Things Cast Shadows Rule.** Menus and dialogs have shadows; nothing resting on the page does.
+**The Only Floating Things Cast Shadows Rule.** Menus and dialogs have shadows; nothing resting on the page does. A hovered Woning card lifts, because it is about to be opened.
 
 ## Shapes
 
-Small, near-square corners. Controls, stamps and inputs use 6px; bands (capture panel, key figures, bid figures, Gevolgen, tier band, empty states) use 4px; dialogs 8px; tier pills, chips and signaal chips are full pills. The hero band itself is square and full-bleed. Borders are 1px, except where the style itself is the message: the 3px double rule (Register stamp, Harde afwijzing), 2px dotted (Verkoper stamp), dashed (Foto's stamp, file input, add button, Nog geen oordeel). The wordmark is a 22px rounded square split white over ink, sitting on cobalt.
+Small, near-square corners. Controls, stamps and inputs use 6px; bands (capture panel, key figures, bid figures, Gevolgen, tier band, empty states) use 4px; dialogs and Woning cards 8px; tier pills, chips and signaal chips are full pills. The hero band itself is square and full-bleed. Borders are 1px, except where the style itself is the message: the 3px double rule (Register stamp, Harde afwijzing), 2px dotted (Verkoper stamp), dashed (Foto's stamp, file input, add button, Nog geen oordeel). The wordmark is a 22px rounded square split white over ink, sitting on cobalt.
 
 ## Components
 
@@ -320,7 +323,16 @@ Quiet and firm; one shape everywhere.
 - **Signaal chip:** a 34px pill button with a flag glyph, linking a verdict to its supporting flag.
 
 ### Cards / Containers
-There are no cards. Grouping uses bands: Band ground, 4px corners, 20 to 28px padding, no border, no shadow. The key-figures and Biedadvies bands carry a 3px cobalt top rule (inset shadow) and split with vertical Line Strong hairlines.
+Grouping uses bands: Band ground, 4px corners, 20 to 28px padding, no border, no shadow. The key-figures and Biedadvies bands carry a 3px cobalt top rule (inset shadow) and split with vertical Line Strong hairlines.
+
+**Woning card**, the only card: white, 8px corners, a 1px Line ring. The first photo fills the top at 3:2 (a hatch with a house glyph when there is none; greyscale when Verkocht, faded when archived), with the tier pill top-left, a white round actions button top-right, the photo count bottom-right and a Verouderd chip bottom-left. Below: the Vraagprijs at 24px/750 condensed with the signed Ruimte, the address (its link covers the card), city and status, then m² wonen and perceel with lucide glyphs and the energy badge, or the deal-breaker for a Harde afwijzing. A hairline footer carries the Signaal counts and the signed WOZ figure.
+
+### Figure graphics
+Drawn in HTML and CSS, never images, each repeating its figures in a visually hidden caption.
+- **Price scale:** a 6px Band Strong track with the Vraagprijs as an 18px ink dot labelled above, references as Ink 3 ticks labelled below (staggered into rows when close), and a hatched span between two figures: green for room up to Jouw maximum, vermilion for a shortfall, cobalt for the Biedruimte from Openingsbod to Maximumbod. Under the Dossier key figures and above the Biedadvies.
+- **Stacked bar:** what comes on top of the Vraagprijs (overdrachtsbelasting, vaste kosten, Direct nodig) as a 14px bar in cobalt shades plus vermilion, with a swatch legend. In Betaalruimte.
+- **Range bars:** Verbouwingskosten per urgency on a shared scale from zero, the low part faint and the low-to-high range solid: vermilion Direct nodig, ochre Binnen 5 jaar, Ink 3 Optioneel.
+- **Budget fit:** in Gevolgen, each Woning's Vraagprijs as a green (fits) or vermilion (over) bar against an ink budget line that moves as the Koperprofiel is typed.
 
 ### Inputs / Fields
 - **Style:** white, 1px Line Strong, 6px corners, 40px tall (46px in the capture field, 44px on narrow forms). Numeric inputs right-align.
@@ -337,7 +349,7 @@ There are no cards. Grouping uses bands: Band ground, 4px corners, 20 to 28px pa
 Asking price vs WOZ and vs comparables, and Ruimte boven vraag, take `.tone-favorable` (green), `.tone-concern` (ochre) or `.tone-shortfall` (vermilion) in the comparison table (at weight 600) and in the Dossier key figures. Values are always signed.
 
 ### Tier Mark (signature)
-Five tiers, each a lucide shape plus its Dutch label: Zeker kopen (tick, green), Overwegen (ring, ochre), Nog geen oordeel (dashed ring, dashed outline), Overslaan (dash, hatch), Harde afwijzing (ban, vermilion). Inline it is a 28px pill; as a filter toggle it is a white pill that gains a 2px ink ring when checked; on the Oordeel it becomes the whole band (green, ochre fill, hatch, or vermilion tint with a double rule), with the 56px display label and a 48px glyph disc, revealed by a left-to-right clip wipe (420ms).
+Five tiers, each a lucide shape plus its Dutch label: Zeker kopen (tick, green), Overwegen (ring, ochre), Nog geen oordeel (dashed ring, dashed outline), Overslaan (dash, hatch), Harde afwijzing (ban, vermilion). Inline it is a 28px pill; in a list row it is a 32px glyph-only disc in the tier colours, its label in a tooltip and for screen readers; as a filter toggle it is the same tinted pill with its label, gaining a 2px ring in its own colour when checked while the unchecked ones fade to half; on the Oordeel it becomes the whole band (green, ochre fill, hatch, or vermilion tint with a double rule), with the 56px display label and a 48px glyph disc, revealed by a left-to-right clip wipe (420ms).
 
 ### Herkomst Stamp (signature)
 A small 12.5px tag with a lucide icon and a word, its border telling trust: Register is a 3px cobalt double rule, Derde partij solid, Verkoper 2px dotted ochre with ochre text, Foto's dashed violet with violet text, Berekend a filled Band with no border, Advertentie solid. A legend in the dossier rail repeats all of them.
@@ -353,7 +365,9 @@ One easing, `cubic-bezier(0.22, 1, 0.36, 1)`. Hovers at 120 to 150ms, disclosure
 ### Do:
 - **Do** open every screen with the cobalt hero band (#1a44c2) continuing the top bar, holding only the title, lede and the screen's first task.
 - **Do** use white and #c9d7fc for text on cobalt, and a white focus outline there.
-- **Do** group below the hero with a tinted band (#eef2fb, 4px corners) or a top hairline, never a bordered card.
+- **Do** group below the hero with a tinted band (#eef2fb, 4px corners) or a top hairline; the Woning card is the only card.
+- **Do** lead a Woning with its first photo, in the list and in the header.
+- **Do** draw figures that are read against each other on one shared scale.
 - **Do** set titles and money in condensed heavy Archivo (wdth 78 to 85, weight 650 to 750).
 - **Do** pair every coloured state with a lucide glyph, drawn mark or sign and a Dutch word from the GLOSSARY.
 - **Do** colour directional figures green, ochre or vermilion and always print the +/− sign.
@@ -366,8 +380,8 @@ One easing, `cubic-bezier(0.22, 1, 0.36, 1)`. Hovers at 120 to 150ms, disclosure
 - **Don't** use vermilion for anything but risk, errors, destructive actions, a shortfall and the Harde afwijzing.
 - **Don't** use ochre for anything but caution.
 - **Don't** use cobalt fills for primary buttons.
-- **Don't** wrap sections, figures or table rows in bordered, shadowed cards.
+- **Don't** wrap sections, figures or table rows in bordered, shadowed cards; only a Woning is a card.
 - **Don't** put a border on something unless the border's style is the information.
-- **Don't** add shadows to resting surfaces; only menus and dialogs float.
+- **Don't** add shadows to resting surfaces; only menus, dialogs and a hovered Woning card float.
 - **Don't** set labels in uppercase, tracked small caps, or as kickers above headings.
 - **Don't** use emoji or text characters as icons; glyphs are lucide or drawn CSS marks.

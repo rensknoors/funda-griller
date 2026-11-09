@@ -1,6 +1,7 @@
 import { CircleCheck, CircleMinus, CircleX, Clock, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { PriceScale, StackedBar, type ScaleMarker } from "./charts";
 import {
   type Affordability,
   type Case,
@@ -365,32 +366,74 @@ function KeyFigures({
   metrics: Metrics;
 }) {
   return (
-    <dl className="figures key-figures" aria-label="Kerncijfers">
-      <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
-      <Figure
-        label="t.o.v. WOZ"
-        tone={priceTone(metrics.asking_vs_woz?.percent)}
-        value={metrics.asking_vs_woz ? signedPercent(metrics.asking_vs_woz.percent) : "–"}
-      >
-        {metrics.asking_vs_woz && "~ WOZ onofficieel"}
-      </Figure>
-      <Figure
-        label="t.o.v. vergelijkbaar"
-        tone={priceTone(metrics.asking_vs_comparables.percent)}
-        value={comparablesFigure(metrics.asking_vs_comparables)}
-      >
-        {coverageNote(metrics.asking_vs_comparables)}
-      </Figure>
-      <Figure
-        label="Ruimte boven vraag"
-        tone={headroomTone(affordability?.headroom)}
-        value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
+    <>
+      <dl className="figures key-figures" aria-label="Kerncijfers">
+        <Figure label="Vraagprijs" value={askingPrice !== null ? euro.format(askingPrice) : "–"} />
+        <Figure
+          label="t.o.v. WOZ"
+          tone={priceTone(metrics.asking_vs_woz?.percent)}
+          value={metrics.asking_vs_woz ? signedPercent(metrics.asking_vs_woz.percent) : "–"}
+        >
+          {metrics.asking_vs_woz && "~ WOZ onofficieel"}
+        </Figure>
+        <Figure
+          label="t.o.v. vergelijkbaar"
+          tone={priceTone(metrics.asking_vs_comparables.percent)}
+          value={comparablesFigure(metrics.asking_vs_comparables)}
+        >
+          {coverageNote(metrics.asking_vs_comparables)}
+        </Figure>
+        <Figure
+          label="Ruimte boven vraag"
+          tone={headroomTone(affordability?.headroom)}
+          value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
+        />
+        <Figure
+          label="Maandlasten bij vraagprijs"
+          value={affordability?.monthly_cost != null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
+        />
+      </dl>
+      {askingPrice !== null && <PriceContext askingPrice={askingPrice} affordability={affordability} metrics={metrics} />}
+    </>
+  );
+}
+
+/** The asking price on one line with what it is read against: the WOZ-waarde, what comparable
+ * woningen sold for, and the most the household can pay. */
+function PriceContext(props: { askingPrice: number; affordability: Affordability | null; metrics: Metrics }) {
+  const { askingPrice, affordability, metrics } = props;
+  const markers: ScaleMarker[] = [{ label: "Vraagprijs", value: askingPrice, primary: true }];
+  if (metrics.asking_vs_woz) markers.push({ label: "WOZ-waarde", value: metrics.asking_vs_woz.woz_value });
+  const comparables = metrics.asking_vs_comparables;
+  if (comparables.comparables_value !== null && comparables.coverage !== "not_fetched" && comparables.coverage !== "none") {
+    markers.push({ label: comparables.coverage === "thin" ? "Vergelijkbaar (dun)" : "Vergelijkbaar", value: comparables.comparables_value });
+  }
+  if (affordability) {
+    markers.push({
+      label: "Jouw maximum",
+      value: affordability.affordable_maximum,
+      tone: affordability.affordable_maximum >= askingPrice ? "favorable" : "shortfall",
+    });
+  }
+  if (markers.length < 2) return null;
+  const room = affordability ? affordability.affordable_maximum - askingPrice : null;
+  return (
+    <div className="price-context">
+      <PriceScale
+        label="Vraagprijs in context"
+        markers={markers}
+        span={
+          room === null
+            ? undefined
+            : {
+                from: askingPrice,
+                to: affordability!.affordable_maximum,
+                label: room >= 0 ? `${signedEuro(room)} ruimte` : `${signedEuro(room)} tekort`,
+                tone: room >= 0 ? "favorable" : "shortfall",
+              }
+        }
       />
-      <Figure
-        label="Maandlasten bij vraagprijs"
-        value={affordability?.monthly_cost != null ? `${euro.format(affordability.monthly_cost)} p/m` : "–"}
-      />
-    </dl>
+    </div>
   );
 }
 
@@ -440,6 +483,17 @@ function Betaalruimte({
               `na aftrek van ${euro.format(affordability.renovation_direct)} Direct nodig onderhoud`}
           </Figure>
         </dl>
+      )}
+      {affordability?.kosten_koper && (
+        <StackedBar
+          label="Bovenop de vraagprijs"
+          total={euro.format(affordability.kosten_koper.total + affordability.renovation_direct)}
+          segments={[
+            { label: "Overdrachtsbelasting", value: affordability.kosten_koper.transfer_tax, kind: "tax" },
+            { label: "Vaste kosten koper", value: affordability.kosten_koper.fixed_costs, kind: "fees" },
+            { label: "Direct nodig onderhoud", value: affordability.renovation_direct, kind: "renovation" },
+          ]}
+        />
       )}
       <p className="muted rules-year">
         Regels {rules.year}

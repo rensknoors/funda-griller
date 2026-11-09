@@ -39,6 +39,9 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
 
   await page.getByRole("link", { name: "Dossier", exact: true }).click();
   await page.getByRole("link", { name: "Terug naar woningen" }).click();
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
   const row = page.getByRole("table", { name: "Woningen" }).getByRole("row", { name: /Dorpsstraat 40/ });
-  await expect(row.getByText(/^\D?6,8%$/)).toBeVisible();
+  await row.getByRole("button", { name: "Details tonen" }).click();
+  const details = page.locator("#details-80907650");
+  await expect(details.getByText(/^\D?6,8%$/)).toBeVisible();
 });

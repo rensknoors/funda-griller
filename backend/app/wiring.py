@@ -2,12 +2,13 @@
 (capture a Listing, build its current Case, add its comparison row, discard a Document)."""
 
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 from app import documents, store
 from app.assembly import assemble_case
 from app.buyer_profile import BuyerProfile
+from app.capture_progress import CaptureProgress
 from app.case import VersionedProfile
 from app.commute import CommuteSource
 from app.findings import BROCHURE_KIND
@@ -37,6 +38,7 @@ class Wiring:
     settings: Settings
     ports: Ports
     clock: Callable[[], datetime]
+    captures: CaptureProgress = field(default_factory=CaptureProgress)
 
     def listing(self, funda_id: str) -> dict:
         listing = store.get_listing(self.settings.database_path, funda_id)
@@ -77,11 +79,18 @@ class Wiring:
         return self.ports.geocoder is not None and self.ports.router is not None
 
     def capture(self, funda_id: str, url: str, provider: ListingProvider | None = None, entry: str = "fetched") -> dict:
+        with self.captures.track(funda_id, url) as step:
+            return self._capture(funda_id, url, provider, entry, step)
+
+    def _capture(
+        self, funda_id: str, url: str, provider: ListingProvider | None, entry: str, step: Callable[[str], None]
+    ) -> dict:
         settings, ports = self.settings, self.ports
         listing = replace((provider or ports.listing_provider).fetch(url), funda_id=funda_id, url=url)
         status = settings.listing_status_map.get(listing.raw_status.casefold(), "unknown")
         fetched_at = self.clock().isoformat()
         existing = store.get_listing(settings.database_path, funda_id)
+        step("photos")
         photos = keep_photos(
             settings.media_dir,
             ports.photo_downloader,
@@ -90,9 +99,12 @@ class Wiring:
             existing["snapshots"][0].get("photos", []) if existing else [],
         )
         store.add_snapshot(settings.database_path, listing, fetched_at, status, entry, photos)
+        step("sources")
         automatic = {n: c for n, c in self.source_clients().items() if n not in ON_REQUEST_SOURCES}
         run_sources(settings.database_path, automatic, listing, fetched_at)
+        step("observations")
         self.observe(funda_id, photos, fetched_at)
+        step("brochure")
         self._attach_brochure(funda_id, listing.brochure_url, fetched_at)
         return self.with_comparison(store.get_listing(settings.database_path, funda_id))
 

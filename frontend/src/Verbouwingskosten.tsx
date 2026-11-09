@@ -1,6 +1,7 @@
 /** Verbouwingskosten: the Verbouwingsraming in three urgency classes, each item a geschatte
  * euro range citing the facts that triggered it, as in Signalen. */
 
+import { RangeBars } from "./charts";
 import type { CaseFact, RenovationEstimate, RenovationInput, RenovationItem, Urgency } from "./api";
 import { euro, euroRange } from "./format";
 import { plural } from "./plural";
@@ -36,6 +37,16 @@ export function Verbouwingskosten({ estimate, facts }: { estimate: RenovationEst
           Niet meegenomen: {estimate.missing_inputs.map((input) => MISSING_LABELS[input]).join(", ")}. Posten die
           daaruit zouden volgen, ontbreken.
         </p>
+      )}
+      {estimate.items.length > 0 && (
+        <RangeBars
+          label="Verbouwingskosten per urgentie"
+          rows={[
+            { label: URGENCY_LABELS.direct, ...estimate.classes.direct, tone: "vermilion" },
+            { label: URGENCY_LABELS.within_5_years, ...estimate.classes.within_5_years, tone: "ochre" },
+            { label: URGENCY_LABELS.optional, ...estimate.classes.optional, tone: "ink" },
+          ]}
+        />
       )}
       {estimate.items.length === 0 ? (
         <p className="empty">Geen verbouwingsposten gevonden in de feiten van deze woning.</p>

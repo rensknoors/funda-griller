@@ -16,6 +16,7 @@ import {
 import { TIER_LABEL } from "./comparison";
 import { euro, signedEuro } from "./format";
 import { statusLabel } from "./ListingsTable";
+import { PriceScale, type ScaleMarker } from "./charts";
 import { TierMark } from "./TierMark";
 import { coverageNote } from "./Vergelijkbaar";
 import { FlagGlyph } from "./FlagGlyph";
@@ -247,13 +248,40 @@ function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (fl
   );
 }
 
+/** Openingsbod to Maximumbod as one stretch, with the asking price and the comparables' value on
+ * the same line: where the bid starts, where it must stop, and what it is read against. */
+function BidScale({ advice }: { advice: BidAdvice }) {
+  const markers: ScaleMarker[] = [
+    { label: "Openingsbod", value: advice.opening_bid },
+    { label: "Maximumbod", value: advice.walk_away_maximum },
+  ];
+  if (advice.asking_price !== null) markers.push({ label: "Vraagprijs", value: advice.asking_price, primary: true });
+  const comparables = advice.comparables?.comparables_value;
+  if (comparables != null) markers.push({ label: "Vergelijkbaar", value: comparables });
+  return (
+    <div className="bid-scale">
+      <PriceScale
+        label="Biedruimte"
+        markers={markers}
+        span={{
+          from: advice.opening_bid,
+          to: advice.walk_away_maximum,
+          label: `biedruimte ${euro.format(advice.walk_away_maximum - advice.opening_bid)}`,
+          tone: "neutral",
+        }}
+      />
+    </div>
+  );
+}
+
 function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: number }) {
   const renovationDirect = advice.derivation?.renovation_direct ?? 0;
   const headroom = advice.asking_price !== null ? advice.affordable_maximum - advice.asking_price : null;
   return (
     <section aria-labelledby="biedadvies-title">
       <h2 id="biedadvies-title">Biedadvies</h2>
-      <div className="bid-vakken">
+      <BidScale advice={advice} />
+      <div className="bid-vakken" role="group" aria-label="Bedragen">
         <div className="figure">
           <p className="vak-label">Openingsbod</p>
           <p className="bid-amount num">{euro.format(advice.opening_bid)}</p>

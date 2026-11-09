@@ -29,10 +29,13 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   const tier = page.getByRole("region", { name: "Oordeel", exact: true });
   await expect(tier.getByText("Overwegen", { exact: true })).toBeVisible();
   const advies = page.getByRole("region", { name: "Biedadvies" });
-  await expect(advies.getByText("Openingsbod")).toBeVisible();
-  await expect(advies.getByText("€ 580.000")).toBeVisible();
+  const bedragen = advies.getByRole("group", { name: "Bedragen" });
+  await expect(bedragen.getByText("Openingsbod")).toBeVisible();
+  await expect(bedragen.getByText("€ 580.000")).toBeVisible();
   // No vergelijkbare woningen fetched: the Maximumbod is the vraagprijs plus 5%, and says it is weak.
-  await expect(advies.getByText("€ 624.750", { exact: true })).toBeVisible();
+  await expect(bedragen.getByText("€ 624.750", { exact: true })).toBeVisible();
+  // The scale above draws the same bid as one stretch.
+  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 580.000, Maximumbod € 624.750", { exact: false })).toBeAttached();
   await expect(advies.getByText(/Zwak onderbouwd: te weinig vergelijkbare woningen/)).toBeVisible();
   await expect(advies.getByText("Bouwkundige keuring")).toBeVisible();
   await advies.getByText("Hoe berekend").click();
@@ -57,6 +60,7 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
 
   // The list shows the Oordeel tier; saving the koperprofiel says how many Oordelen it changes.
   await page.getByRole("link", { name: "Terug naar woningen" }).click();
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
   const row = page.getByRole("table", { name: "Woningen" }).getByRole("row", { name: /Buchterweg 15/ });
   await expect(row.getByText("Overwegen")).toBeVisible();
   await page.getByRole("navigation", { name: "Hoofdmenu" }).getByRole("link", { name: "Koperprofiel" }).click();

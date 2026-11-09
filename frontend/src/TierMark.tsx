@@ -11,9 +11,20 @@ const TIER_ICON: Record<TierKey, typeof Check> = {
   hard_no: Ban,
 };
 
-/** A Verdict tier as glyph and label: inline in lists, compact in filters, large on the Oordeel. */
-export function TierMark({ tier, size = "inline" }: { tier: TierKey; size?: "inline" | "compact" | "large" }) {
+/** A Verdict tier as glyph and label: inline on the Dossier, compact in the list's filters, glyph
+ * only in the list's rows (the filters above are its legend), large on the Oordeel. */
+export function TierMark({ tier, size = "inline" }: { tier: TierKey; size?: "inline" | "compact" | "icon" | "large" }) {
   const Icon = TIER_ICON[tier];
+  if (size === "icon") {
+    return (
+      <span className={`tier tier-${tier} icon`} title={TIER_LABEL[tier]}>
+        <span aria-hidden="true" className="tier-glyph">
+          <Icon size={13} strokeWidth={2.5} />
+        </span>
+        <span className="visually-hidden">{TIER_LABEL[tier]}</span>
+      </span>
+    );
+  }
   if (size === "large") {
     return (
       <span className={`tier-mark tier-${tier}`}>

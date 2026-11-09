@@ -182,6 +182,12 @@ _listing_provider.listings[RENOVATION_URL] = live_listing(
     funda_id="80907652", provider_id="17270382", url=RENOVATION_URL, address="Dorpsstraat 42"
 )
 
+# Its own woning for the capture progress spec, captured fresh by that spec.
+PROGRESS_URL = "https://www.funda.nl/detail/koop/holtum/huis-dorpsstraat-43/80907653/"
+_listing_provider.listings[PROGRESS_URL] = live_listing(
+    funda_id="80907653", provider_id="17270383", url=PROGRESS_URL, address="Dorpsstraat 43"
+)
+
 app = create_app(
     Settings(
         _env_file=None,

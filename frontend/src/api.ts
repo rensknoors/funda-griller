@@ -10,6 +10,8 @@ export type Snapshot = {
   plot_area: number | null;
   energy_label: string | null;
   photo_urls: string[];
+  /** The photos the app keeps, in listing order; absent on snapshots stored before photos were kept. */
+  photos?: CasePhoto[];
   /** How the snapshot came in; absent on snapshots stored before manual entry existed. */
   entry?: "fetched" | "manual";
   price_history: { date: string | null; price: number | null }[];
@@ -122,6 +124,18 @@ async function post(path: string, body?: unknown): Promise<Listing | CaptureErro
 }
 
 export const captureListing = (url: string) => post("/api/listings", { url });
+
+/** The steps of a capture or refetch, in the order the backend runs them. */
+export const CAPTURE_STEPS = ["listing", "photos", "sources", "observations", "brochure"] as const;
+export type CaptureStep = (typeof CAPTURE_STEPS)[number];
+export type RunningCapture = { funda_id: string; url: string; step: CaptureStep };
+
+/** Captures and refetches the backend is still running, each at its current step. */
+export async function fetchRunningCaptures(): Promise<RunningCapture[]> {
+  const response = await apiFetch("/api/listings/captures");
+  if (!response.ok) throw new Error("captures unavailable");
+  return response.json();
+}
 export const refetchListing = (fundaId: string) => post(`/api/listings/${fundaId}/refetch`);
 
 export type ManualEntryError =
