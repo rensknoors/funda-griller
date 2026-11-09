@@ -4,7 +4,7 @@
 
 **Blocked by:** 25 (Dialogs above the topbar), since both change the hero
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ### Design: a gallery band
 
@@ -35,20 +35,22 @@ feiten en bronnen  uitkomst en biedadvies
 
 ### Acceptance criteria
 
-- [ ] At 1280×800 with photos, the hero from the woning nav to the bottom of the tabs is at most ~480px tall, and no cobalt area larger than the gutters is empty beside or above the address
-- [ ] The text column's top lines up with the photo block's top, and the action row's bottom lines up with the photo block's bottom
-- [ ] The photo mosaic: the first photo large, four thumbnails 2×2, +N on the last, each opening the photo viewer at that photo
-- [ ] The fact line shows wonen, perceel and energy label when present, and leaves out each one that's missing
-- [ ] Export is one menu button with the Koperprofiel meesturen toggle inside; the download still carries `with_profile` as before
-- [ ] Without photos and below 720px it lays out as described above
-- [ ] `DESIGN.md`'s Woning header paragraph describes the gallery band
+- [x] At 1280×800 with photos, the hero from the woning nav to the bottom of the tabs is at most ~480px tall, and no cobalt area larger than the gutters is empty beside or above the address
+- [x] The text column's top lines up with the photo block's top, and the action row's bottom lines up with the photo block's bottom
+- [x] The photo mosaic: the first photo large, four thumbnails 2×2, +N on the last, each opening the photo viewer at that photo
+- [x] The fact line shows wonen, perceel and energy label when present, and leaves out each one that's missing
+- [x] Export is one menu button with the Koperprofiel meesturen toggle inside; the download still carries `with_profile` as before
+- [x] Without photos and below 720px it lays out as described above
+- [x] `DESIGN.md`'s Woning header paragraph describes the gallery band
 
 ### Tests
 
-- [ ] e2e: the header photo opens the viewer and a thumbnail opens it at its own photo (update the ticket 24 test for the mosaic)
-- [ ] e2e: export with Koperprofiel meesturen turned off downloads without the profile (update `export.spec.ts` for the menu)
-- [ ] e2e: the fact line shows the snapshot's living area, plot area and energy label
+- [x] e2e: the header photo opens the viewer and a thumbnail opens it at its own photo (update the ticket 24 test for the mosaic)
+- [x] e2e: export with Koperprofiel meesturen turned off downloads without the profile (update `export.spec.ts` for the menu)
+- [x] e2e: the fact line shows the snapshot's living area, plot area and energy label
 
 ## Comments
 
 Reported from a screenshot of the Dossier for Céline Klinkenberghstraat 16, Sittard: the address sits low at the left with an empty cobalt block above it, and the photos sit far to the right.
+
+Implemented as a gallery band. At 1280×800 the hero from the woning nav to the bottom of the tabs measures 477px. The e2e fixture has only two photos, so the 3- and 4-thumbnail mosaics and the no-photo layout are covered by CSS but not seen in a screenshot. The export menu keeps the uncommitted "Koperprofiel meesturen" label (without "(geanonimiseerd)"). The energy label in the fact line is the advertentie's, as the ticket asked; the register's may differ (the Dossier shows both).

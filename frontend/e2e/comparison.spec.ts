@@ -134,8 +134,18 @@ test("woningen show as photo cards by default, with the oordeel, price and key f
 
   await buchterweg.getByRole("link", { name: "Buchterweg 15" }).click();
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
+  const facts = page.locator(".woning-head .woning-facts");
+  await expect(facts.getByText("152 m² wonen")).toBeVisible();
+  await expect(facts.getByText("410 m² perceel")).toBeVisible();
+  await expect(facts.getByText("Energielabel B")).toBeVisible();
+
   await page.getByRole("button", { name: "Foto 1 openen" }).click();
   const viewer = page.getByRole("dialog", { name: "Foto 1" });
   await viewer.getByRole("button", { name: "Volgende foto" }).click();
+  await expect(page.getByRole("dialog", { name: "Foto 2" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Foto 2" }).getByRole("button", { name: "Sluiten" }).click();
+
+  // A thumbnail in the mosaic opens the viewer at its own photo.
+  await page.getByRole("button", { name: "Foto 2 openen" }).click();
   await expect(page.getByRole("dialog", { name: "Foto 2" })).toBeVisible();
 });

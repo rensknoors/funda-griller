@@ -308,8 +308,7 @@ button.row-menu:hover:not(:disabled), button.row-menu[data-popup-open] { backgro
 .woning-title-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 360px; }
 .woning-title-text .woning-actions { margin-top: auto; padding-top: 20px; }
 .woning-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 14px 0 0; color: var(--on-hero); font-size: 15px; font-weight: 550; font-variant-numeric: tabular-nums; }
-.woning-facts > span:not(.energy-badge) + span::before { content: "·"; margin-right: 14px; color: var(--on-hero-2); }
-.woning-facts > span:not(.energy-badge) + span { display: inline-flex; }
+.woning-facts > span:not(.energy-badge) + span:not(.energy-badge)::before { content: "·"; margin-right: 14px; color: var(--on-hero-2); }
 .woning-actions .export-trigger { gap: 6px; }
 .woning-actions .export-trigger[data-popup-open] { background: var(--band); border-color: var(--ink-3); }
 /* The Woning's photos in the hero: the first large, up to four beside it 2×2, the count on the block.
@@ -341,8 +340,6 @@ button.photo-step:hover:not(:disabled) { background: #fff; }
 .photo-position { margin-right: auto; }
 a.button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; font-weight: 550; color: var(--ink); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--radius-s); text-decoration: none; transition: background 150ms, border-color 150ms; }
 a.button:hover { background: var(--band); border-color: var(--ink-3); }
-.export-markdown { display: grid; gap: 6px; justify-items: start; }
-.export-profile { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--on-hero-2); cursor: pointer; }
 .halves { display: flex; gap: 0; margin: 24px 0 0; border-bottom: 0; }
 .halves a { display: flex; flex-direction: column; padding: 12px 24px 14px 0; margin-right: 24px; color: var(--on-hero-2); text-decoration: none; font-size: 17px; font-weight: 650; box-shadow: inset 0 -4px 0 transparent; transition: box-shadow 180ms var(--ease), color 150ms; }
 .halves a:hover { color: var(--on-hero); }
