@@ -1,3 +1,4 @@
+from app import store
 from tests.flag_rules import COST_TABLE_VERSION, FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import high_equity_profile, low_income_profile, typical_profile
@@ -76,6 +77,10 @@ def test_typical_household_affordability(client, listing_provider):
         "affordable_maximum": 650_351,
         "renovation_direct": 0,
         "energy_label": "B",
+        "rates": {
+            "nhg": {"rate": 0.044, "source": "market", "as_of": "2026-11-02"},
+            "no_nhg": {"rate": 0.0478, "source": "market", "as_of": "2026-11-02"},
+        },
     }
     assert case["rules"]["year"] == 2027
 
@@ -285,6 +290,43 @@ def test_a_mortgage_under_the_nhg_limit_carries_the_fee_and_the_nhg_rate(client,
     assert affordability["mortgage_rate"] == 0.044
     assert affordability["monthly_cost"] == 1_473
     assert affordability["monthly_cost_net"] == 1_095
+
+
+def test_monthly_cost_is_at_the_own_rate_of_the_route_taken(client, listing_provider):
+    """The same €294.222 with NHG at an own 4%: €294.222 / 209,46 annuity factor is €1.405 gross;
+    net less 38,16% of (4% interest − €1.050 eigenwoningforfait) / 12 is €1.064."""
+    capture(client, listing_provider, asking_price=300_000)
+    client.put("/api/buyer-profile", json={**low_income_profile(), "offered_rate_nhg": 0.04})
+
+    case = client.get("/api/listings/80907644/case").json()
+
+    affordability = case["affordability"]
+    assert affordability["nhg"] is True
+    assert affordability["mortgage_rate"] == 0.04
+    assert (affordability["monthly_cost"], affordability["monthly_cost_net"]) == (1_405, 1_064)
+    assert affordability["rates"]["nhg"] == {"rate": 0.04, "source": "own", "as_of": None}
+    assert case["rules"]["rates"]["nhg"]["source"] == "own"
+
+
+def test_a_profile_saved_before_own_rates_rests_on_the_market_rates(client, listing_provider, settings):
+    capture(client, listing_provider)
+    store.save_buyer_profile(settings.database_path, typical_profile())
+
+    case = client.get("/api/listings/80907644/case").json()
+
+    assert case["affordability"]["max_mortgage"] == 443_174
+    assert {route["source"] for route in case["affordability"]["rates"].values()} == {"market"}
+
+
+def test_an_own_rate_without_nhg_leaves_the_cost_of_an_nhg_loan_alone(client, listing_provider):
+    capture(client, listing_provider, asking_price=300_000)
+    client.put("/api/buyer-profile", json={**low_income_profile(), "offered_rate_no_nhg": 0.04})
+
+    affordability = client.get("/api/listings/80907644/case").json()["affordability"]
+
+    assert affordability["mortgage_rate"] == 0.044
+    assert affordability["monthly_cost"] == 1_473
+    assert affordability["rates"]["nhg"]["source"] == "market"
 
 
 def test_the_mortgage_needed_stops_at_the_price_and_the_rest_is_a_shortfall(client, listing_provider):

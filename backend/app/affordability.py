@@ -67,6 +67,8 @@ class Affordability:
     nhg_energy_measures: int = 0
     # Per debt in the Buyer Profile, its toetslast and the leenruimte it costs.
     debts: list["DebtCost"] = field(default_factory=list)
+    # The rate per loan route ("nhg", "no_nhg") and where it came from: see `route_rates`.
+    rates: dict[str, dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -160,15 +162,34 @@ class Rules:
         )
 
 
-def rules_summary(rules: Rules, levering: date) -> dict:
+Finances = BuyerProfile | FinanceDraft
+
+
+def route_rates(profile: Finances | None, market: MarketRate) -> dict[str, dict]:
+    """The offered rate per loan route: the household's own (from their offerte) when set, else the
+    market snapshot. `source` is "own" or "market"; only a market rate has an `as_of` date."""
+
+    def rate(own: float | None, snapshot: float) -> dict:
+        if own is not None:
+            return {"rate": own, "source": "own", "as_of": None}
+        return {"rate": snapshot, "source": "market", "as_of": market.as_of.isoformat()}
+
+    return {
+        "nhg": rate(profile.offered_rate_nhg if profile else None, market.nhg),
+        "no_nhg": rate(profile.offered_rate_no_nhg if profile else None, market.no_nhg),
+    }
+
+
+def rules_summary(rules: Rules, levering: date, profile: Finances | None = None) -> dict:
     """Which year's rules a figure rests on; `is_current_year` is false when no table exists yet
-    for the year of the expected levering."""
+    for the year of the expected levering. `rates` says which rate each loan route rests on."""
     return {
         "version": rules.version,
         "year": rules.year,
         "is_current_year": rules.year == levering.year,
         "levering_on": levering.isoformat(),
         "market_rate_as_of": rules.market_rate.as_of.isoformat(),
+        "rates": route_rates(profile, rules.market_rate),
     }
 
 
@@ -190,9 +211,6 @@ class Consequences:
     equity: int
     budget: int  # highest purchase price payable, after kosten koper
     debts: list[DebtCost] = field(default_factory=list)
-
-
-Finances = BuyerProfile | FinanceDraft
 
 
 def _annuity_factor(annual_rate: float, months: int) -> float:
@@ -284,8 +302,9 @@ def _capacity(
     profile: Finances, energy_label: str | None, rules: Rules, debts: list[Debt] | None = None
 ) -> _Capacity:
     """`debts` defaults to the profile's own."""
-    nhg, label_bonus, single = _norm(profile, energy_label, rules, rules.market_rate.nhg, debts)
-    plain, _, _ = _norm(profile, energy_label, rules, rules.market_rate.no_nhg, debts)
+    rates = route_rates(profile, rules.market_rate)
+    nhg, label_bonus, single = _norm(profile, energy_label, rules, rates["nhg"]["rate"], debts)
+    plain, _, _ = _norm(profile, energy_label, rules, rates["no_nhg"]["rate"], debts)
     return _Capacity(min(nhg, rules.nhg_limit), plain, label_bonus, single)
 
 
@@ -447,13 +466,15 @@ def compute(
             renovation_direct=renovation_direct,
             single_bonus=capacity.single_bonus,
             debts=_debt_costs(profile, energy_label, rules, capacity),
+            rates=route_rates(profile, rules.market_rate),
         )
     share = _taxed_share(profile, asking_price, rules, levering)
     # The route a lender would take; when none works, the cheapest one shows how far off it is.
     purchase = _financed(profile, asking_price, rules, renovation_direct, share, capacity) or _routes(
         profile, asking_price, rules, renovation_direct, share, capacity
     )[0][0]
-    rate = rules.market_rate.nhg if purchase.nhg else rules.market_rate.no_nhg
+    rates = route_rates(profile, rules.market_rate)
+    rate = rates["nhg" if purchase.nhg else "no_nhg"]["rate"]
     gross, net = _monthly_costs(purchase.mortgage, rate, asking_price, rules)
     return Affordability(
         max_mortgage=capacity.maximum,
@@ -472,6 +493,7 @@ def compute(
         single_bonus=capacity.single_bonus,
         nhg_energy_measures=_nhg_energy_measures(energy_label, purchase, rules),
         debts=_debt_costs(profile, energy_label, rules, capacity),
+        rates=rates,
     )
 
 

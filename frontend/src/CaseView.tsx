@@ -17,7 +17,18 @@ import {
 import { Documenten, VerkoperInformatie } from "./Documenten";
 import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
-import { type Tone, decimal, euro, headroomTone, longDate, monthOf, percentChange, priceTone, signedEuro, signedPercent } from "./format";
+import {
+  type Tone,
+  euro,
+  headroomTone,
+  monthOf,
+  percentChange,
+  priceTone,
+  rateText,
+  routeRatesText,
+  signedEuro,
+  signedPercent,
+} from "./format";
 import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
@@ -504,8 +515,8 @@ function Betaalruimte({
         />
       )}
       <p className="muted rules-year">
-        Leennormen {rules.year}, levering rond {monthOf(rules.levering_on)}; hypotheekrente van{" "}
-        {longDate(rules.market_rate_as_of)}
+        Leennormen {rules.year}, levering rond {monthOf(rules.levering_on)}; hypotheekrente{" "}
+        {routeRatesText(rules.rates)}
         {!rules.is_current_year && (
           <>
             {" "}
@@ -543,7 +554,8 @@ function bonusNote(affordability: Affordability): string | null {
 function monthlyNote(affordability: Affordability): string | null {
   if (affordability.monthly_cost === null || affordability.mortgage_needed === null) return null;
   if (affordability.mortgage_needed === 0) return "geen hypotheek nodig";
-  const rate = affordability.mortgage_rate !== null ? ` tegen ${decimal.format(affordability.mortgage_rate * 100)}%` : "";
+  const route = affordability.nhg ? affordability.rates.nhg : affordability.rates.no_nhg;
+  const rate = ` tegen ${rateText(route)}`;
   const gross = `bruto ${euro.format(affordability.monthly_cost)} p/m${rate}${affordability.nhg ? " met NHG" : ""}`;
   if (affordability.own_funds_shortfall)
     return `${gross}. Let op: ${euro.format(affordability.own_funds_shortfall)} eigen geld tekort voor kosten koper; de hypotheek stopt bij de koopsom`;

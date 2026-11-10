@@ -154,3 +154,13 @@ def test_each_kind_of_debt_is_saved_and_read_back(client):
 
     stored = client.get("/api/buyer-profile").json()["profile"]["debts"]
     assert stored == [{**STUDY_LOAN_SF35, "monthly_override": 120}, *debts[1:]]
+
+
+def test_debts_weigh_at_the_households_own_offered_rate(client):
+    """Ticket 31: an own rate of 4,25% on both routes gives the same figures as the market at 4,25%."""
+    own = couple(70_000, fixed_rate_years=10, offered_rate_nhg=0.0425, offered_rate_no_nhg=0.0425, debts=[STUDY_LOAN_SF35])
+
+    consequences = client.post(CONSEQUENCES, json=own).json()
+
+    assert consequences["max_mortgage"] == 266_822
+    assert consequences["debts"] == [{"kind": "study_loan", "toetslast": 107.25, "costs": 294_074 - 266_822}]

@@ -22,7 +22,7 @@ import {
   vakOrder,
 } from "./profile";
 import { apiFetch, fetchOutOfDateVerdicts, type Listing } from "./api";
-import { euro, monthOf } from "./format";
+import { euro, longDate, monthOf, routeRatesText } from "./format";
 import { href } from "./route";
 import { ErrorText, Vak, type VakInputProps } from "./Vak";
 
@@ -216,6 +216,11 @@ function ProfileForm({
   ) =>
     (props: VakInputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
 
+  const rateInput = (key: "offered_rate_nhg" | "offered_rate_no_nhg") =>
+    (props: VakInputProps) => <input {...props} inputMode="decimal" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
+  const marketDate = gevolgen?.kind === "figures" ? longDate(gevolgen.data.rules.market_rate_as_of) : null;
+  const offeredRateHint = `Uit je offerte, voor de rentevaste periode hierboven. Leeg: marktrente${marketDate ? ` van ${marketDate}` : ""}.`;
+
   const sectionBody: Record<SectionId, ReactNode> = {
     huishouden: (
       <>
@@ -266,6 +271,12 @@ function ProfileForm({
           hint="Korter dan 10 jaar: de bank toetst met de (hogere) toetsrente van de AFM."
         >
           {amountInput("fixed_rate_years")}
+        </ProfileVak>
+        <ProfileVak {...vak("offered_rate_nhg", "Aangeboden rente met NHG (%)")} hint={offeredRateHint}>
+          {rateInput("offered_rate_nhg")}
+        </ProfileVak>
+        <ProfileVak {...vak("offered_rate_no_nhg", "Aangeboden rente zonder NHG (%)")} hint={offeredRateHint}>
+          {rateInput("offered_rate_no_nhg")}
         </ProfileVak>
         <DebtList rows={form.debts} vak={vak} onChange={(rows) => set("debts", rows)} />
       </>
@@ -560,6 +571,7 @@ function Gevolgen({ state, listings }: { state: GevolgenState | null; listings: 
                 </>
               )}
             </p>
+            <p className="muted rules-year">Rente {routeRatesText(state.data.rules.rates)}</p>
           </>
         )}
       </details>

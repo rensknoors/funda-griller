@@ -27,6 +27,8 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
   await expect(page.getByText("+€ 72.928", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("€ 1.461 p/m", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/^Leennormen 2027, levering rond/)).toBeVisible();
+  await expect(page.getByText(/hypotheekrente met NHG marktrente 4,4% \(2 november 2026\); zonder NHG marktrente 4,78%/)).toBeVisible();
+  await expect(page.getByText(/tegen marktrente 4,4% \(2 november 2026\) met NHG/)).toBeVisible();
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();
 });

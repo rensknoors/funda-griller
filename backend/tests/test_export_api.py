@@ -607,3 +607,14 @@ def test_without_the_profile_no_debts_are_exported(client, listing_provider):
 
     assert "Studieschuld" not in markdown
     assert "Doorlopend krediet" not in markdown
+@pytest.mark.parametrize("query", ["", "?profile=false"])
+def test_the_rate_per_route_is_named_with_its_source_and_an_own_rate_rounded(client, listing_provider, query):
+    """An own rate is household data: 4,23% is exported as 4,2%. The market rate is not, so exact."""
+    capture(client, listing_provider, typical_profile() | {"offered_rate_nhg": 0.0423})
+
+    markdown = client.get(f"{EXPORT}{query}").text
+
+    herkomst = markdown.split("## Herkomst van dit dossier")[1].split("\n## ")[0]
+    assert "- Hypotheekrente met NHG: eigen rente ≈ 4,2%" in herkomst
+    assert "- Hypotheekrente zonder NHG: marktrente 4,78% (2026-11-02)" in herkomst
+    assert "4,23" not in markdown and "0.0423" not in markdown

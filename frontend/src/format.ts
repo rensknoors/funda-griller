@@ -1,5 +1,7 @@
 /** Dutch number formats shared by every screen, so one amount reads the same everywhere. */
 
+import type { RouteRate, RouteRates } from "./api";
+
 export const euro = new Intl.NumberFormat("nl-NL", {
   style: "currency",
   currency: "EUR",
@@ -41,6 +43,17 @@ export function priceTone(percent: number | null | undefined): Tone | undefined 
 export function headroomTone(amount: number | null | undefined): Tone | undefined {
   if (amount == null) return undefined;
   return amount >= 0 ? "favorable" : "shortfall";
+}
+
+/** An offered rate with where it came from: "eigen rente 4,23%" or "marktrente 4,4% (2 november 2026)". */
+export function rateText(rate: RouteRate): string {
+  const percent = `${decimal.format(rate.rate * 100)}%`;
+  return rate.source === "own" || rate.as_of === null ? `eigen rente ${percent}` : `marktrente ${percent} (${longDate(rate.as_of)})`;
+}
+
+/** Both loan routes: "met NHG eigen rente 4%; zonder NHG marktrente 4,78% (2 november 2026)". */
+export function routeRatesText(rates: RouteRates): string {
+  return `met NHG ${rateText(rates.nhg)}; zonder NHG ${rateText(rates.no_nhg)}`;
 }
 
 const monthYear = new Intl.DateTimeFormat("nl-NL", { month: "long", year: "numeric" });

@@ -4,7 +4,7 @@
 
 **Blocked by:** none
 
-**Status:** needs-triage
+**Status:** wontfix
 
 ### Current state
 
@@ -32,3 +32,5 @@
 ## Comments
 
 Split from ticket 29 on 2026-11-09 at the user's request ("geen van beide" in this ticket).
+
+Triaged (user, 2026-11-09): wontfix, VvE bijdrage and erfpachtcanon not wanted.

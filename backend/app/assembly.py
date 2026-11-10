@@ -5,7 +5,7 @@ Maximum's monthly cost on the same energielabel as the Case."""
 from collections.abc import Sequence
 from datetime import datetime
 
-from app.affordability import Affordability, compute
+from app.affordability import Affordability, compute, route_rates
 from app.buyer_profile import reduce_profile
 from app.case import SourceInputs, VersionedProfile, build_case
 from app.gemini_client import VERDICT_PROMPT_VERSION
@@ -65,7 +65,7 @@ def make_verdict(
     renovation_direct = affordability.get("renovation_direct", 0)
     verdict = judge(
         case,
-        reduce_profile(profile.version, profile.profile),
+        reduce_profile(profile.version, profile.profile, route_rates(profile.profile, rules.market_rate)),
         llm_client,
         settings.verdict_model,
         WalkAwayMargins(settings.walk_away_comparables_premium),

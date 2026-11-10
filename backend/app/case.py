@@ -173,7 +173,7 @@ def build_case(
         "renovation_estimate": renovation,
         "flags": flags,
         "hard_no": hard_no(flag_rules, profile.deal_breakers, flags) if profile else None,
-        "rules": rules_summary(rules, levering),
+        "rules": rules_summary(rules, levering, profile),
     }
 
 
