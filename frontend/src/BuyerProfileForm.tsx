@@ -4,7 +4,9 @@ import { flushSync } from "react-dom";
 
 import {
   type Consequences,
+  DEBT_FIELDS,
   DEBT_KINDS,
+  type DebtField,
   type DebtKind,
   type DebtRow,
   debtLabel,
@@ -555,7 +557,7 @@ function Gevolgen({ state, listings }: { state: GevolgenState | null; listings: 
               <ul className="gevolgen-debts" aria-label="Wat schulden kosten">
                 {state.data.debts.map((debt, index) => (
                   <li key={index}>
-                    {debtLabel(debt.kind)} kost <span className="num">{euro.format(debt.costs)}</span> leenruimte
+                    {debtLabel(debt.kind)} kost <span className="num">{euro.format(debt.leenruimte_cost)}</span> leenruimte
                     <span className="muted note"> (toetslast {euro.format(debt.toetslast)} p/m)</span>
                   </li>
                 ))}
@@ -626,11 +628,38 @@ function DebtList(props: {
 }) {
   const { rows, vak, onChange } = props;
   const update = (index: number, patch: Partial<DebtRow>) => onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
-  const amount = (index: number, key: "debt" | "monthly_override" | "limit" | "monthly_term" | "monthly", label: string, hint?: string) => (
-    <ProfileVak {...vak(`debts.${index}.${key}`, label)} hint={hint}>
-      {(props) => <input {...props} inputMode="numeric" value={rows[index][key]} onChange={(event) => update(index, { [key]: event.target.value })} />}
+  const input = (index: number, key: Exclude<DebtField, "stelsel">, label: string, hint?: string) => (
+    <ProfileVak key={key} {...vak(`debts.${index}.${key}`, label)} hint={hint}>
+      {(props) => (
+        <input
+          {...props}
+          inputMode={key === "interest_rate" ? "decimal" : "numeric"}
+          value={rows[index][key]}
+          onChange={(event) => update(index, { [key]: event.target.value })}
+        />
+      )}
     </ProfileVak>
   );
+  /** How each debt vak renders; which ones a row shows comes from DEBT_FIELDS. */
+  const vakken: Record<DebtField, (index: number, n: number) => ReactNode> = {
+    debt: (index, n) => input(index, "debt", `Studieschuld ${n} (€)`),
+    interest_rate: (index, n) => input(index, "interest_rate", `Rente studieschuld ${n} (%)`),
+    stelsel: (index, n) => (
+      <ProfileVak key="stelsel" {...vak(`debts.${index}.stelsel`, `Terugbetaalregels studieschuld ${n}`)}>
+        {(props) => (
+          <select {...props} value={rows[index].stelsel} onChange={(event) => update(index, { stelsel: event.target.value as DebtRow["stelsel"] })}>
+            <option value="SF35">SF35 (35 jaar)</option>
+            <option value="SF15">SF15 (15 jaar)</option>
+          </select>
+        )}
+      </ProfileVak>
+    ),
+    monthly_override: (index, n) =>
+      input(index, "monthly_override", `Wettelijk maandbedrag van Mijn DUO, schuld ${n} (€ per maand)`, "Leeg: berekend uit schuld, rente en terugbetaalregels."),
+    limit: (index, n) => input(index, "limit", `Kredietlimiet schuld ${n} (€)`),
+    monthly_term: (index, n) => input(index, "monthly_term", `Maandbedrag schuld ${n} (€ per maand)`),
+    monthly: (index, n) => input(index, "monthly", `Maandbedrag schuld ${n} (€ per maand)`),
+  };
 
   return (
     <fieldset className="debts">
@@ -657,27 +686,7 @@ function DebtList(props: {
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
-            {row.kind === "study_loan" && (
-              <>
-                {amount(index, "debt", `Studieschuld ${n} (€)`)}
-                <ProfileVak {...vak(`debts.${index}.interest_rate`, `Rente studieschuld ${n} (%)`)}>
-                  {(props) => <input {...props} inputMode="decimal" value={row.interest_rate} onChange={(event) => update(index, { interest_rate: event.target.value })} />}
-                </ProfileVak>
-                <ProfileVak {...vak(`debts.${index}.stelsel`, `Terugbetaalregels studieschuld ${n}`)}>
-                  {(props) => (
-                    <select {...props} value={row.stelsel} onChange={(event) => update(index, { stelsel: event.target.value as DebtRow["stelsel"] })}>
-                      <option value="SF35">SF35 (35 jaar)</option>
-                      <option value="SF15">SF15 (15 jaar)</option>
-                    </select>
-                  )}
-                </ProfileVak>
-                {amount(index, "monthly_override", `Wettelijk maandbedrag van Mijn DUO, schuld ${n} (€ per maand)`, "Leeg: berekend uit schuld, rente en terugbetaalregels.")}
-              </>
-            )}
-            {row.kind === "revolving_credit" && amount(index, "limit", `Kredietlimiet schuld ${n} (€)`)}
-            {(row.kind === "instalment_loan" || row.kind === "private_lease") &&
-              amount(index, "monthly_term", `Maandbedrag schuld ${n} (€ per maand)`)}
-            {row.kind === "other" && amount(index, "monthly", `Maandbedrag schuld ${n} (€ per maand)`)}
+            {DEBT_FIELDS[row.kind].map((field) => vakken[field](index, n))}
           </div>
         );
       })}

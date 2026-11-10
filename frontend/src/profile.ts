@@ -47,8 +47,11 @@ export const emptyDebt = (kind: DebtKind): DebtRow => ({
   monthly: "",
 });
 
+/** A debt's own vakken: every field of a row but its kind. */
+export type DebtField = Exclude<keyof DebtRow, "kind">;
+
 /** The vakken a kind of debt asks for, in form order. */
-export const DEBT_FIELDS: Record<DebtKind, (keyof DebtRow)[]> = {
+export const DEBT_FIELDS: Record<DebtKind, DebtField[]> = {
   study_loan: ["debt", "interest_rate", "stelsel", "monthly_override"],
   revolving_credit: ["limit"],
   instalment_loan: ["monthly_term"],
@@ -259,7 +262,7 @@ export function toFinanceDraft(form: FormState) {
 }
 
 /** One debt's toetslast (per month, before the gross-up) and the leenruimte it costs. */
-export type DebtCost = { kind: DebtKind; toetslast: number; costs: number };
+export type DebtCost = { kind: DebtKind; toetslast: number; leenruimte_cost: number };
 
 export type Consequences = {
   max_mortgage: number;

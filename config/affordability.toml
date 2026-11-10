@@ -28,6 +28,9 @@
 #                     or a lowered draagkracht amount is owed, the annuity on the actual debt, rate and
 #                     remaining term. DUO, "Berekening maandbedrag": the wettelijk maandbedrag repays the
 #                     debt within 35 years (SF35) or 15 years (SF15). A Mijn DUO amount may override it.
+#                     UNVERIFIED: the annuity convention. DUO does not publish its formula; the code
+#                     uses the standard monthly annuity with monthly rate = yearly rate / 12 (research
+#                     notes §2). The Mijn DUO override is the way round a difference.
 #                     revolving_credit, instalment_loan: NVB/Verbond Gedragscode Hypothecaire
 #                     Financieringen (in force 2020-08-01, no later version found) §4 lid 5: at least 2%
 #                     of the kredietlimiet a month for a doorlopend krediet, drawn or not; at least the
@@ -165,7 +168,7 @@ factors = [1.05, 1.05, 1.10, 1.15, 1.20, 1.20, 1.25, 1.30, 1.30, 1.35, 1.40, 1.4
 # Debts by kind: the monthly toetslast of each, as a share of the figure the household enters
 # (study loan: the derived wettelijk maandbedrag), and whether the debt_gross_up applies.
 [years.2026.debts.study_loan]
-term_months = { SF35 = 420, SF15 = 180 }
+term_months = { SF35 = 420, SF15 = 180 }  # annuity at yearly rate / 12: UNVERIFIED, see the header
 gross_up = true
 
 [years.2026.debts.revolving_credit]
@@ -315,7 +318,7 @@ factors = [1.05, 1.05, 1.10, 1.15, 1.20, 1.20, 1.25, 1.30, 1.30, 1.35, 1.40, 1.4
 # Debts by kind: the monthly toetslast of each, as a share of the figure the household enters
 # (study loan: the derived wettelijk maandbedrag), and whether the debt_gross_up applies.
 [years.2027.debts.study_loan]
-term_months = { SF35 = 420, SF15 = 180 }
+term_months = { SF35 = 420, SF15 = 180 }  # annuity at yearly rate / 12: UNVERIFIED, see the header
 gross_up = true
 
 [years.2027.debts.revolving_credit]

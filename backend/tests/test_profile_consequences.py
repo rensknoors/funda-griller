@@ -2,6 +2,21 @@
 
 from tests.profile_fixtures import low_income_profile, typical_profile
 
+COMPUTED_AT = "2026-10-24T12:00:00+00:00"
+# The market snapshot comes from the rule table; an own rate is a Buyer Profile value.
+MARKET_NHG = {"rate": 0.044, "source": "market", "as_of": "2026-11-02", "provenance": "rule", "computed_at": COMPUTED_AT}
+MARKET_NO_NHG = {
+    "rate": 0.0478,
+    "source": "market",
+    "as_of": "2026-11-02",
+    "provenance": "rule",
+    "computed_at": COMPUTED_AT,
+}
+
+
+def own(rate: float) -> dict:
+    return {"rate": rate, "source": "own", "as_of": None, "provenance": "buyer_profile", "computed_at": COMPUTED_AT}
+
 
 def draft(profile: dict) -> dict:
     """The finance vakken of a profile, as the form sends them while editing."""
@@ -29,10 +44,7 @@ def test_typical_household_sees_maximum_mortgage_equity_and_budget(client):
             "is_current_year": True,
             "levering_on": "2027-01-24",
             "market_rate_as_of": "2026-11-02",
-            "rates": {
-                "nhg": {"rate": 0.044, "source": "market", "as_of": "2026-11-02"},
-                "no_nhg": {"rate": 0.0478, "source": "market", "as_of": "2026-11-02"},
-            },
+            "rates": {"nhg": MARKET_NHG, "no_nhg": MARKET_NO_NHG},
         },
     }
 
@@ -184,8 +196,6 @@ def test_without_nhg_a_lender_finances_what_the_nhg_fee_would_tip_over(client):
     assert consequences["budget"] == 247_525
 
 
-MARKET_NHG = {"rate": 0.044, "source": "market", "as_of": "2026-11-02"}
-MARKET_NO_NHG = {"rate": 0.0478, "source": "market", "as_of": "2026-11-02"}
 
 
 def test_own_nhg_rate_changes_only_the_nhg_route(client):
@@ -197,7 +207,7 @@ def test_own_nhg_rate_changes_only_the_nhg_route(client):
 
     assert consequences["max_mortgage"] == 429_516
     assert consequences["rules"]["rates"] == {
-        "nhg": {"rate": 0.05, "source": "own", "as_of": None},
+        "nhg": own(0.05),
         "no_nhg": MARKET_NO_NHG,
     }
 
@@ -211,7 +221,7 @@ def test_own_rate_without_nhg_changes_only_that_route(client):
     assert consequences["max_mortgage"] == 433_174
     assert consequences["rules"]["rates"] == {
         "nhg": MARKET_NHG,
-        "no_nhg": {"rate": 0.05, "source": "own", "as_of": None},
+        "no_nhg": own(0.05),
     }
 
 

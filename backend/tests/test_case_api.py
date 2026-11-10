@@ -77,10 +77,6 @@ def test_typical_household_affordability(client, listing_provider):
         "affordable_maximum": 650_351,
         "renovation_direct": 0,
         "energy_label": "B",
-        "rates": {
-            "nhg": {"rate": 0.044, "source": "market", "as_of": "2026-11-02"},
-            "no_nhg": {"rate": 0.0478, "source": "market", "as_of": "2026-11-02"},
-        },
     }
     assert case["rules"]["year"] == 2027
 
@@ -304,8 +300,21 @@ def test_monthly_cost_is_at_the_own_rate_of_the_route_taken(client, listing_prov
     assert affordability["nhg"] is True
     assert affordability["mortgage_rate"] == 0.04
     assert (affordability["monthly_cost"], affordability["monthly_cost_net"]) == (1_405, 1_064)
-    assert affordability["rates"]["nhg"] == {"rate": 0.04, "source": "own", "as_of": None}
-    assert case["rules"]["rates"]["nhg"]["source"] == "own"
+    # A Buyer Profile value in the Case: its derived class and the moment the Case took it.
+    assert case["rules"]["rates"]["nhg"] == {
+        "rate": 0.04,
+        "source": "own",
+        "as_of": None,
+        "provenance": "buyer_profile",
+        "computed_at": "2026-10-24T12:00:00+00:00",
+    }
+    assert case["rules"]["rates"]["no_nhg"] == {
+        "rate": 0.0478,
+        "source": "market",
+        "as_of": "2026-11-02",
+        "provenance": "rule",
+        "computed_at": "2026-10-24T12:00:00+00:00",
+    }
 
 
 def test_a_profile_saved_before_own_rates_rests_on_the_market_rates(client, listing_provider, settings):
@@ -315,7 +324,7 @@ def test_a_profile_saved_before_own_rates_rests_on_the_market_rates(client, list
     case = client.get("/api/listings/80907644/case").json()
 
     assert case["affordability"]["max_mortgage"] == 443_174
-    assert {route["source"] for route in case["affordability"]["rates"].values()} == {"market"}
+    assert {route["source"] for route in case["rules"]["rates"].values()} == {"market"}
 
 
 def test_an_own_rate_without_nhg_leaves_the_cost_of_an_nhg_loan_alone(client, listing_provider):
@@ -326,7 +335,6 @@ def test_an_own_rate_without_nhg_leaves_the_cost_of_an_nhg_loan_alone(client, li
 
     assert affordability["mortgage_rate"] == 0.044
     assert affordability["monthly_cost"] == 1_473
-    assert affordability["rates"]["nhg"]["source"] == "market"
 
 
 def test_the_mortgage_needed_stops_at_the_price_and_the_rest_is_a_shortfall(client, listing_provider):

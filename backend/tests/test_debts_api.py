@@ -97,8 +97,8 @@ def test_gevolgen_show_per_debt_its_toetslast_and_the_leenruimte_it_costs(client
     # without the credit €266.822.
     assert consequences["max_mortgage"] == 241_412
     assert consequences["debts"] == [
-        {"kind": "study_loan", "toetslast": 107.25, "costs": 268_664 - 241_412},
-        {"kind": "revolving_credit", "toetslast": 100.0, "costs": 266_822 - 241_412},
+        {"kind": "study_loan", "toetslast": 107.25, "leenruimte_cost": 268_664 - 241_412},
+        {"kind": "revolving_credit", "toetslast": 100.0, "leenruimte_cost": 266_822 - 241_412},
     ]
 
 
@@ -111,14 +111,18 @@ def test_a_profile_stored_with_one_monthly_debt_reads_back_as_one_other_debt(cli
 
     assert "other_monthly_debt" not in profile
     assert profile["debts"] == [{"kind": "other", "monthly": 70}]
+    [version] = client.get("/api/buyer-profile/versions").json()
+    assert version["profile"]["debts"] == [{"kind": "other", "monthly": 70}]
 
 
-def test_a_draft_with_one_monthly_debt_keeps_its_figures(client, at_425):
-    """Nibud advies 2027 §5.1: at 4,25% €70 a month costs ≈ €17.787 of mortgage (gross-up 1,25)."""
-    consequences = client.post(CONSEQUENCES, json=couple(70_000, fixed_rate_years=10, other_monthly_debt=70)).json()
+def test_an_other_debt_weighs_its_monthly_amount_as_before(client, at_425):
+    """Nibud advies 2027 §5.1: at 4,25% €70 a month costs ≈ €17.787 of mortgage (gross-up 1,25),
+    as the one monthly debt did before debts by kind."""
+    other = [{"kind": "other", "monthly": 70}]
+    consequences = client.post(CONSEQUENCES, json=couple(70_000, fixed_rate_years=10, debts=other)).json()
 
     assert consequences["max_mortgage"] == 294_074 - 17_787
-    assert consequences["debts"] == [{"kind": "other", "toetslast": 70.0, "costs": 17_787}]
+    assert consequences["debts"] == [{"kind": "other", "toetslast": 70.0, "leenruimte_cost": 17_787}]
 
 
 @pytest.mark.parametrize(
@@ -163,4 +167,4 @@ def test_debts_weigh_at_the_households_own_offered_rate(client):
     consequences = client.post(CONSEQUENCES, json=own).json()
 
     assert consequences["max_mortgage"] == 266_822
-    assert consequences["debts"] == [{"kind": "study_loan", "toetslast": 107.25, "costs": 294_074 - 266_822}]
+    assert consequences["debts"] == [{"kind": "study_loan", "toetslast": 107.25, "leenruimte_cost": 294_074 - 266_822}]

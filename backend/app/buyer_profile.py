@@ -3,7 +3,7 @@
 import hashlib
 import re
 from datetime import date
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from pydantic import (
     AfterValidator,
@@ -12,8 +12,11 @@ from pydantic import (
     StringConstraints,
     ValidationInfo,
     field_validator,
-    model_validator,
 )
+
+if TYPE_CHECKING:
+    # Only for the annotation: affordability builds on this module.
+    from app.affordability import RouteRates
 
 MAX_AMOUNT = 100_000_000
 MAX_INCOME = 5_000_000
@@ -164,26 +167,7 @@ Debt = Annotated[
 DEBT_KINDS = ("study_loan", "revolving_credit", "instalment_loan", "private_lease", "other")
 
 
-def migrate_finances(data: object) -> object:
-    """A profile stored before debts by kind had one `other_monthly_debt`: it becomes one `other`
-    debt with that amount, so the figures do not move until the household splits it."""
-    if not isinstance(data, dict) or "other_monthly_debt" not in data:
-        return data
-    migrated = {key: value for key, value in data.items() if key != "other_monthly_debt"}
-    amount = data["other_monthly_debt"]
-    if "debts" not in migrated:
-        migrated["debts"] = [{"kind": "other", "monthly": amount}] if amount else []
-    return migrated
-
-
-class _Finances(BaseModel):
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate(cls, data: object) -> object:
-        return migrate_finances(data)
-
-
-class BuyerProfile(_Finances):
+class BuyerProfile(BaseModel):
     household: list[HouseholdMember]
     gross_annual_income: Income
     fixed_rate_years: FixedRateYears = 10
@@ -218,7 +202,7 @@ class DraftAssets(BaseModel):
     investments: Amount = 0
 
 
-class FinanceDraft(_Finances):
+class FinanceDraft(BaseModel):
     """The finance vakken of a Buyer Profile being edited: enough for the Gevolgen panel.
 
     Blank balances count as zero and members without a birth date are left out by the form,
@@ -240,11 +224,11 @@ def home_equity(profile: BuyerProfile | FinanceDraft) -> int:
     return home.value - home.outstanding_mortgage - home.selling_costs if home else 0
 
 
-def reduce_profile(version: int, profile: BuyerProfile, mortgage_rates: dict[str, dict]) -> dict:
+def reduce_profile(version: int, profile: BuyerProfile, rates: "RouteRates") -> dict:
     """The only form of the Buyer Profile allowed to reach the LLM: derived figures and preferences.
 
-    `mortgage_rates` is the rate each loan route rests on and its source, own or market (see
-    `affordability.route_rates`); an own offered rate may reach the LLM.
+    `rates` is the rate each loan route rests on, own or market; an own offered rate passes as
+    sanctioned in ADR-0003.
 
     Exception: Must-have, Nice-to-have and Deal-breaker texts and commute labels pass verbatim,
     because the LLM must read the preference as the user wrote it. They are typed free text, so
@@ -267,7 +251,10 @@ def reduce_profile(version: int, profile: BuyerProfile, mortgage_rates: dict[str
             {"label": destination.label, "max_minutes": destination.max_minutes}
             for destination in profile.commute_destinations
         ],
-        "mortgage_rates": mortgage_rates,
+        "mortgage_rates": {
+            route: {"rate": rate.rate, "source": rate.source, "as_of": rate.as_of}
+            for route, rate in (("nhg", rates.nhg), ("no_nhg", rates.no_nhg))
+        },
     }
 
 

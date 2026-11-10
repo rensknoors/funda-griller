@@ -13,7 +13,7 @@ Read during review. Judgement calls only; anything mechanical belongs in a check
 ## Boundaries
 
 - Outside-world access (funda, registers, Gemini) goes through a port. A new outside dependency is a new port or Source client with a fixture-backed fake.
-- Only derived Buyer Profile figures and preferences reach the LLM. Photos and Documents go out for extraction only and are shown only in the app's own UI.
+- Only derived Buyer Profile figures and preferences reach the LLM. Sanctioned exception: the own offered mortgage rate (ADR-0003, ticket 31). Photos and Documents go out for extraction only and are shown only in the app's own UI.
 - Nothing crawls, searches or bulk-fetches funda.
 
 ## Language

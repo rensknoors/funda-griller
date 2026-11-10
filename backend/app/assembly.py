@@ -5,7 +5,7 @@ Maximum's monthly cost on the same energielabel as the Case."""
 from collections.abc import Sequence
 from datetime import datetime
 
-from app.affordability import Affordability, compute, route_rates
+from app.affordability import Affordability, RouteRates, compute
 from app.buyer_profile import reduce_profile
 from app.case import SourceInputs, VersionedProfile, build_case
 from app.gemini_client import VERDICT_PROMPT_VERSION
@@ -63,13 +63,17 @@ def make_verdict(
     affordability = case["affordability"] or {}
     energy_label = affordability.get("energy_label")
     renovation_direct = affordability.get("renovation_direct", 0)
+    # The rates the Case was built on, so the Verdict and its monthly costs rest on the same ones.
+    rates = RouteRates.from_summary(case["rules"]["rates"])
     verdict = judge(
         case,
-        reduce_profile(profile.version, profile.profile, route_rates(profile.profile, rules.market_rate)),
+        reduce_profile(profile.version, profile.profile, rates),
         llm_client,
         settings.verdict_model,
         WalkAwayMargins(settings.walk_away_comparables_premium),
-        lambda price: _monthly_costs_at(compute(profile.profile, price, energy_label, rules, levering, renovation_direct)),
+        lambda price: _monthly_costs_at(
+            compute(profile.profile, price, energy_label, rules, levering, rates, renovation_direct)
+        ),
     )
     return {**verdict, "prompt_version": None if verdict["deterministic"] else VERDICT_PROMPT_VERSION}
 

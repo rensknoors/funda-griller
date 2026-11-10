@@ -7,7 +7,7 @@ from datetime import datetime
 
 from app import documents, store
 from app.assembly import assemble_case
-from app.buyer_profile import BuyerProfile, migrate_finances
+from app.buyer_profile import BuyerProfile
 from app.capture_progress import CaptureProgress
 from app.case import VersionedProfile
 from app.commute import CommuteSource
@@ -50,7 +50,7 @@ class Wiring:
         latest = store.latest_buyer_profile(self.settings.database_path)
         if latest is None:
             raise NotFound("no_buyer_profile")
-        return {**latest, "profile": migrate_finances(latest["profile"])}
+        return latest
 
     def document(self, funda_id: str, document_id: int) -> dict:
         document = store.get_document(self.settings.database_path, funda_id, document_id)

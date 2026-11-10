@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from app import store
 from app.affordability import consequences, route_rates, rules_summary
-from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, migrate_finances, reduce_profile
+from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, reduce_profile
 from app.rules_loader import expected_levering, load_rules
 from app.wiring import Wiring
 
@@ -26,7 +26,7 @@ def routes(w: Wiring) -> APIRouter:
 
     @router.get("/versions")
     def list_buyer_profile_versions() -> list[dict]:
-        return [{**v, "profile": migrate_finances(v["profile"])} for v in store.buyer_profile_versions(settings.database_path)]
+        return store.buyer_profile_versions(settings.database_path)
 
     @router.post("/validation")
     def check_buyer_profile(draft: dict = Body()) -> dict:
@@ -40,7 +40,11 @@ def routes(w: Wiring) -> APIRouter:
     def work_out_consequences(draft: FinanceDraft) -> dict:
         levering = expected_levering(w.clock().date(), settings.expected_levering_months)
         rules = load_rules(settings.affordability_rules_path, levering.year)
-        return {**asdict(consequences(draft, rules, levering)), "rules": rules_summary(rules, levering, draft)}
+        rates = route_rates(draft, rules.market_rate)
+        return {
+            **asdict(consequences(draft, rules, levering, rates)),
+            "rules": rules_summary(rules, levering, rates, w.clock().isoformat()),
+        }
 
     @router.get("/reduced")
     def read_reduced_buyer_profile() -> dict:

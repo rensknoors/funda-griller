@@ -18,6 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from app.affordability import RouteRates
 from app.buyer_profile import reduce_profile
 from app.case import VersionedProfile
 from app.house_type import LABELS
@@ -595,7 +596,7 @@ def _affordability_lines(affordability: dict) -> list[str]:
     if affordability.get("debts"):
         lines.append("  - Schulden (toetslast, en wat ze aan leenruimte kosten):")
         lines += [
-            f"    - {DEBT_LABELS[debt['kind']]}: {rounded_monthly(debt['toetslast'])}, kost {rounded_euro(debt['costs'])} leenruimte"
+            f"    - {DEBT_LABELS[debt['kind']]}: {rounded_monthly(debt['toetslast'])}, kost {rounded_euro(debt['leenruimte_cost'])} leenruimte"
             for debt in affordability["debts"]
         ]
     return lines
@@ -840,7 +841,9 @@ def _net_and_gross(net: int | None, gross: int) -> str:
 def buyer_profile(export: ExportInput) -> list[str]:
     if not export.with_profile or export.profile is None:
         return ["## Koperprofiel", "", "Niet meegestuurd."]
-    reduced = reduce_profile(export.profile.version, export.profile.profile, export.case["rules"]["rates"])
+    reduced = reduce_profile(
+        export.profile.version, export.profile.profile, RouteRates.from_summary(export.case["rules"]["rates"])
+    )
     anonymiser = export.anonymiser
 
     def listed(items: list[str]) -> list[str]:

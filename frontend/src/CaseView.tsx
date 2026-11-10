@@ -8,6 +8,7 @@ import {
   type Listing,
   type ListingFact,
   type Metrics,
+  type RouteRates,
   type SourceFact,
   type SourceStatus,
   type FindingFact,
@@ -491,7 +492,7 @@ function Betaalruimte({
             label="Netto maandlasten bij vraagprijs"
             value={affordability.monthly_cost_net !== null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
           >
-            {monthlyNote(affordability)}
+            {monthlyNote(affordability, rules.rates)}
           </Figure>
           <Figure
             label="Ruimte boven vraag"
@@ -545,16 +546,16 @@ function bonusNote(affordability: Affordability): string | null {
       ? `Met NHG kan bij label E, F of G standaard ${euro.format(affordability.nhg_energy_measures)} extra mee voor energiebesparende maatregelen (niet meegerekend)`
       : null;
   const debts = affordability.debts.length
-    ? affordability.debts.map((debt) => `${debtLabel(debt.kind)} kost ${euro.format(debt.costs)} leenruimte`).join(", ")
+    ? affordability.debts.map((debt) => `${debtLabel(debt.kind)} kost ${euro.format(debt.leenruimte_cost)} leenruimte`).join(", ")
     : null;
   return [included, debts, nhg].filter(Boolean).join(". ") || null;
 }
 
 /** Gross beside net with the rate and NHG, then a warning when a lender would not lend this. */
-function monthlyNote(affordability: Affordability): string | null {
+function monthlyNote(affordability: Affordability, rates: RouteRates): string | null {
   if (affordability.monthly_cost === null || affordability.mortgage_needed === null) return null;
   if (affordability.mortgage_needed === 0) return "geen hypotheek nodig";
-  const route = affordability.nhg ? affordability.rates.nhg : affordability.rates.no_nhg;
+  const route = affordability.nhg ? rates.nhg : rates.no_nhg;
   const rate = ` tegen ${rateText(route)}`;
   const gross = `bruto ${euro.format(affordability.monthly_cost)} p/m${rate}${affordability.nhg ? " met NHG" : ""}`;
   if (affordability.own_funds_shortfall)

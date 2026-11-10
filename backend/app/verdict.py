@@ -90,13 +90,22 @@ def judge(
         raise LlmError("no LLM client configured")
     derivation = derive_walk_away_maximum(case, margins)
     response = llm_client.rate(
-        {**case, "provenance_legend": PROVENANCE_LEGEND, "walk_away": derivation}, reduced_profile
+        {**_for_llm(case), "provenance_legend": PROVENANCE_LEGEND, "walk_away": derivation}, reduced_profile
     )
     return {
         **_validated(response, case, derivation, monthly_cost_at),
         "deterministic": False,
         "built_from": built_from,
     }
+
+
+def _for_llm(case: dict) -> dict:
+    """The Case as the LLM may see it: without the household's debts, which only the app's own UI
+    shows (ticket 30)."""
+    affordability = case["affordability"]
+    if not affordability:
+        return case
+    return {**case, "affordability": {key: value for key, value in affordability.items() if key != "debts"}}
 
 
 def derive_walk_away_maximum(case: dict, margins: WalkAwayMargins) -> WalkAwayDerivation:

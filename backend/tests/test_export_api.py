@@ -590,14 +590,14 @@ def test_the_dossier_and_export_list_debts_by_kind_with_their_toetslast_rounded(
     debts = client.get("/api/listings/80907644/case").json()["affordability"]["debts"]
     # €107,25 (DUO, 35 years at 2,5%) and 2% of €5.000.
     assert [(d["kind"], d["toetslast"]) for d in debts] == [("study_loan", 107.25), ("revolving_credit", 100.0)]
-    assert all(d["costs"] > 0 for d in debts)
+    assert all(d["leenruimte_cost"] > 0 for d in debts)
 
     markdown = client.get(EXPORT).text
 
-    study, credit = (round(d["costs"] / 5000) * 5000 for d in debts)
+    study, credit = (round(d["leenruimte_cost"] / 5000) * 5000 for d in debts)
     assert f"    - Studieschuld: ≈ € 100 per maand, kost ≈ € {dotted(study)} leenruimte" in markdown
     assert f"    - Doorlopend krediet: ≈ € 100 per maand, kost ≈ € {dotted(credit)} leenruimte" in markdown
-    assert not mentions(markdown, debts[0]["costs"])
+    assert not mentions(markdown, debts[0]["leenruimte_cost"])
 
 
 def test_without_the_profile_no_debts_are_exported(client, listing_provider):

@@ -11,8 +11,9 @@ Ages and the year's rules are taken at the expected levering, not today: that is
 startersvrijstelling and the lender's norms follow.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import date
+from typing import Literal
 
 from app.buyer_profile import (
     BuyerProfile,
@@ -65,10 +66,9 @@ class Affordability:
     # What an NHG loan may include as standard for energy-saving measures on a label E, F or G
     # house. Named, never counted in the figures above: it is earmarked for the measures.
     nhg_energy_measures: int = 0
-    # Per debt in the Buyer Profile, its toetslast and the leenruimte it costs.
+    # Per debt in the Buyer Profile, its toetslast and the leenruimte it costs. Shown in the app,
+    # never sent to the LLM.
     debts: list["DebtCost"] = field(default_factory=list)
-    # The rate per loan route ("nhg", "no_nhg") and where it came from: see `route_rates`.
-    rates: dict[str, dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -81,19 +81,63 @@ class MarketRate:
 
 
 @dataclass(frozen=True)
-class DebtRule:
-    """How one kind of debt becomes a monthly toetslast: a share of the limit or monthly term the
-    household enters (a study loan: its wettelijk maandbedrag over `term_months` by stelsel), and
-    whether the debt_gross_up applies."""
+class RouteRate:
+    """The offered rate one loan route rests on: the household's own (from their offerte) or the
+    market snapshot. Only a market rate has an `as_of` date."""
 
-    share: float = 1.0
+    rate: float
+    source: Literal["own", "market"]
+    as_of: str | None = None
+
+    @property
+    def provenance(self) -> str:
+        """An own rate is a Buyer Profile value; the market snapshot comes from the rule table."""
+        return "buyer_profile" if self.source == "own" else "rule"
+
+
+@dataclass(frozen=True)
+class RouteRates:
+    nhg: RouteRate
+    no_nhg: RouteRate
+
+    def of(self, nhg: bool) -> RouteRate:
+        return self.nhg if nhg else self.no_nhg
+
+    def summary(self, computed_at: str) -> dict:
+        """Per route as it enters a Case: with its derived class and the moment it was taken."""
+        return {
+            route: {**asdict(rate), "provenance": rate.provenance, "computed_at": computed_at}
+            for route, rate in (("nhg", self.nhg), ("no_nhg", self.no_nhg))
+        }
+
+    @classmethod
+    def from_summary(cls, summary: dict) -> "RouteRates":
+        def rate(route: dict) -> RouteRate:
+            return RouteRate(route["rate"], route["source"], route.get("as_of"))
+
+        return cls(rate(summary["nhg"]), rate(summary["no_nhg"]))
+
+
+@dataclass(frozen=True)
+class DebtRule:
+    """How one kind of debt becomes a monthly toetslast, and whether the debt_gross_up applies.
+    A revolving credit counts `share_of_limit` of its limit; an instalment loan, private lease or
+    other debt `share_of_term` of its monthly amount; a study loan its wettelijk maandbedrag over
+    `term_months` by stelsel. A kind's table sets only the field that fits it."""
+
     gross_up: bool = True
+    share_of_limit: float | None = None
+    share_of_term: float | None = None
     term_months: dict[str, int] | None = None
 
     @classmethod
     def from_table(cls, table: dict) -> "DebtRule":
-        share = table.get("share_of_limit", table.get("share_of_term", 1.0))
-        return cls(share, table["gross_up"], table.get("term_months"))
+        return cls(
+            gross_up=table["gross_up"],
+            share_of_limit=table.get("share_of_limit"),
+            share_of_term=table.get("share_of_term"),
+            term_months=table.get("term_months"),
+        )
 
 
 @dataclass(frozen=True)
@@ -165,22 +209,21 @@ class Rules:
 Finances = BuyerProfile | FinanceDraft
 
 
-def route_rates(profile: Finances | None, market: MarketRate) -> dict[str, dict]:
-    """The offered rate per loan route: the household's own (from their offerte) when set, else the
-    market snapshot. `source` is "own" or "market"; only a market rate has an `as_of` date."""
+def route_rates(profile: Finances | None, market: MarketRate) -> RouteRates:
+    """The offered rate per loan route: the household's own when set, else the market snapshot."""
 
-    def rate(own: float | None, snapshot: float) -> dict:
+    def rate(own: float | None, snapshot: float) -> RouteRate:
         if own is not None:
-            return {"rate": own, "source": "own", "as_of": None}
-        return {"rate": snapshot, "source": "market", "as_of": market.as_of.isoformat()}
+            return RouteRate(own, "own")
+        return RouteRate(snapshot, "market", market.as_of.isoformat())
 
-    return {
-        "nhg": rate(profile.offered_rate_nhg if profile else None, market.nhg),
-        "no_nhg": rate(profile.offered_rate_no_nhg if profile else None, market.no_nhg),
-    }
+    return RouteRates(
+        rate(profile.offered_rate_nhg if profile else None, market.nhg),
+        rate(profile.offered_rate_no_nhg if profile else None, market.no_nhg),
+    )
 
 
-def rules_summary(rules: Rules, levering: date, profile: Finances | None = None) -> dict:
+def rules_summary(rules: Rules, levering: date, rates: RouteRates, computed_at: str) -> dict:
     """Which year's rules a figure rests on; `is_current_year` is false when no table exists yet
     for the year of the expected levering. `rates` says which rate each loan route rests on."""
     return {
@@ -189,7 +232,7 @@ def rules_summary(rules: Rules, levering: date, profile: Finances | None = None)
         "is_current_year": rules.year == levering.year,
         "levering_on": levering.isoformat(),
         "market_rate_as_of": rules.market_rate.as_of.isoformat(),
-        "rates": route_rates(profile, rules.market_rate),
+        "rates": rates.summary(computed_at),
     }
 
 
@@ -200,7 +243,7 @@ class DebtCost:
 
     kind: str
     toetslast: float
-    costs: int
+    leenruimte_cost: int
 
 
 @dataclass(frozen=True)
@@ -254,11 +297,14 @@ def toetslast(debt: Debt, rules: Rules) -> float:
             assert rule.term_months is not None
             return wettelijk_maandbedrag(debt.debt, debt.interest_rate, rule.term_months[debt.stelsel])
         case RevolvingCredit():
-            return debt.limit * rule.share
+            assert rule.share_of_limit is not None
+            return debt.limit * rule.share_of_limit
         case InstalmentLoan() | PrivateLease():
-            return debt.monthly_term * rule.share
+            assert rule.share_of_term is not None
+            return debt.monthly_term * rule.share_of_term
         case OtherDebt():
-            return debt.monthly * rule.share
+            assert rule.share_of_term is not None
+            return debt.monthly * rule.share_of_term
 
 
 def _debt_charge(debts: list[Debt], rules: Rules, column: int) -> float:
@@ -299,22 +345,23 @@ class _Capacity:
 
 
 def _capacity(
-    profile: Finances, energy_label: str | None, rules: Rules, debts: list[Debt] | None = None
+    profile: Finances, energy_label: str | None, rules: Rules, rates: RouteRates, debts: list[Debt] | None = None
 ) -> _Capacity:
     """`debts` defaults to the profile's own."""
-    rates = route_rates(profile, rules.market_rate)
-    nhg, label_bonus, single = _norm(profile, energy_label, rules, rates["nhg"]["rate"], debts)
-    plain, _, _ = _norm(profile, energy_label, rules, rates["no_nhg"]["rate"], debts)
+    nhg, label_bonus, single = _norm(profile, energy_label, rules, rates.nhg.rate, debts)
+    plain, _, _ = _norm(profile, energy_label, rules, rates.no_nhg.rate, debts)
     return _Capacity(min(nhg, rules.nhg_limit), plain, label_bonus, single)
 
 
-def _debt_costs(profile: Finances, energy_label: str | None, rules: Rules, capacity: _Capacity) -> list[DebtCost]:
+def _debt_costs(
+    profile: Finances, energy_label: str | None, rules: Rules, rates: RouteRates, capacity: _Capacity
+) -> list[DebtCost]:
     """Per debt, the maximum mortgage without it less the maximum with every debt."""
     return [
         DebtCost(
             debt.kind,
             toetslast(debt, rules),
-            _capacity(profile, energy_label, rules, profile.debts[:i] + profile.debts[i + 1 :]).maximum
+            _capacity(profile, energy_label, rules, rates, profile.debts[:i] + profile.debts[i + 1 :]).maximum
             - capacity.maximum,
         )
         for i, debt in enumerate(profile.debts)
@@ -428,13 +475,14 @@ def _monthly_costs(loan: int, rate: float, price: int, rules: Rules) -> tuple[in
     return round(gross), round(gross - deductible * rules.interest_deduction_rate)
 
 
-def consequences(draft: FinanceDraft, rules: Rules, levering: date) -> Consequences:
-    capacity = _capacity(draft, None, rules)
+def consequences(draft: FinanceDraft, rules: Rules, levering: date, rates: RouteRates) -> Consequences:
+    """`rates` is `route_rates` for the draft."""
+    capacity = _capacity(draft, None, rules, rates)
     return Consequences(
         capacity.maximum,
         home_equity(draft),
         _highest_price(draft, rules, levering, 0, capacity),
-        _debt_costs(draft, None, rules, capacity),
+        _debt_costs(draft, None, rules, rates, capacity),
     )
 
 
@@ -444,11 +492,13 @@ def compute(
     energy_label: str | None,
     rules: Rules,
     levering: date,
+    rates: RouteRates,
     renovation_direct: int = 0,
 ) -> Affordability:
-    """`renovation_direct` (the Direct nodig midpoint of the house's Renovation Estimate) is set
-    aside from the available funds before the affordable maximum is worked out."""
-    capacity = _capacity(profile, energy_label, rules)
+    """`rates` is `route_rates` for the profile, worked out once per Case. `renovation_direct` (the
+    Direct nodig midpoint of the house's Renovation Estimate) is set aside from the available funds
+    before the affordable maximum is worked out."""
+    capacity = _capacity(profile, energy_label, rules, rates)
     equity = home_equity(profile)
     affordable_maximum = _highest_price(profile, rules, levering, renovation_direct, capacity)
     if asking_price is None:
@@ -465,16 +515,14 @@ def compute(
             affordable_maximum=affordable_maximum,
             renovation_direct=renovation_direct,
             single_bonus=capacity.single_bonus,
-            debts=_debt_costs(profile, energy_label, rules, capacity),
-            rates=route_rates(profile, rules.market_rate),
+            debts=_debt_costs(profile, energy_label, rules, rates, capacity),
         )
     share = _taxed_share(profile, asking_price, rules, levering)
     # The route a lender would take; when none works, the cheapest one shows how far off it is.
     purchase = _financed(profile, asking_price, rules, renovation_direct, share, capacity) or _routes(
         profile, asking_price, rules, renovation_direct, share, capacity
     )[0][0]
-    rates = route_rates(profile, rules.market_rate)
-    rate = rates["nhg" if purchase.nhg else "no_nhg"]["rate"]
+    rate = rates.of(purchase.nhg).rate
     gross, net = _monthly_costs(purchase.mortgage, rate, asking_price, rules)
     return Affordability(
         max_mortgage=capacity.maximum,
@@ -492,8 +540,7 @@ def compute(
         mortgage_rate=rate,
         single_bonus=capacity.single_bonus,
         nhg_energy_measures=_nhg_energy_measures(energy_label, purchase, rules),
-        debts=_debt_costs(profile, energy_label, rules, capacity),
-        rates=rates,
+        debts=_debt_costs(profile, energy_label, rules, rates, capacity),
     )
 
 

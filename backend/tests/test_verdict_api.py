@@ -291,8 +291,25 @@ def test_the_model_sees_the_rate_per_route_and_where_it_came_from(client, listin
     }
     [(_, buyer_profile)] = llm_client.rate_calls
     assert buyer_profile["mortgage_rates"] == rates
-    # Recorded with the Verdict, so its Hoe berekend names the rates it rests on.
-    assert verdict["built_from"]["mortgage_rates"] == rates
+    # Recorded with the Verdict as the Case carries them, so its Hoe berekend names the rates it rests on.
+    recorded = verdict["built_from"]["mortgage_rates"]
+    assert {route: {key: rate[key] for key in ("rate", "source", "as_of")} for route, rate in recorded.items()} == rates
+    assert recorded == client.get("/api/listings/80907644/case").json()["rules"]["rates"]
+
+
+def test_the_model_never_sees_the_household_debts(client, listing_provider, llm_client):
+    debts = [{"kind": "study_loan", "debt": 30_000, "interest_rate": 0.0257, "stelsel": "SF35"}]
+    prepare(client, listing_provider, typical_profile() | {"debts": debts})
+    llm_client.verdict = model_says()
+
+    client.post(VERDICT)
+
+    [(case, buyer_profile)] = llm_client.rate_calls
+    assert "debts" not in case["affordability"]
+    assert "debts" not in buyer_profile
+    assert "study_loan" not in repr((case, buyer_profile))
+    # The Dossier still shows them.
+    assert client.get("/api/listings/80907644/case").json()["affordability"]["debts"][0]["kind"] == "study_loan"
 
 
 def test_refetching_a_source_marks_the_verdict_out_of_date(

@@ -372,9 +372,8 @@ export type Affordability = {
   own_funds_shortfall: number | null;
   /** Whether the mortgage needed fits under the NHG limit, and the rate its cost is worked out at. */
   nhg: boolean | null;
+  /** Where that rate came from: the Case's `rules.rates`. */
   mortgage_rate: number | null;
-  /** Where each route's rate came from. */
-  rates: RouteRates;
   /** Gross annuity of the mortgage needed at the asking price. */
   monthly_cost: number | null;
   /** The same, net of hypotheekrenteaftrek and eigenwoningforfait in the first year. */
@@ -458,7 +457,15 @@ export type Rules = {
 
 /** The rate a loan route rests on: the household's own offered rate, or the market snapshot of
  * `as_of`. */
-export type RouteRate = { rate: number; source: "own" | "market"; as_of: string | null };
+export type RouteRate = {
+  rate: number;
+  source: "own" | "market";
+  as_of: string | null;
+  /** An own rate is a Buyer Profile value, the market snapshot a rule; absent on rates recorded with
+   * a Verdict before provenance was added. */
+  provenance?: "buyer_profile" | "rule";
+  computed_at?: string;
+};
 
 /** Per loan route: with NHG and without. */
 export type RouteRates = { nhg: RouteRate; no_nhg: RouteRate };
