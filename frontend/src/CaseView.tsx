@@ -22,6 +22,7 @@ import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
 import { plural } from "./plural";
+import { debtLabel } from "./profile";
 import { tierOf } from "./comparison";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 import { STAMP_LEGEND, Stamp } from "./Stamp";
@@ -532,7 +533,10 @@ function bonusNote(affordability: Affordability): string | null {
     affordability.nhg_energy_measures > 0
       ? `Met NHG kan bij label E, F of G standaard ${euro.format(affordability.nhg_energy_measures)} extra mee voor energiebesparende maatregelen (niet meegerekend)`
       : null;
-  return [included, nhg].filter(Boolean).join(". ") || null;
+  const debts = affordability.debts.length
+    ? affordability.debts.map((debt) => `${debtLabel(debt.kind)} kost ${euro.format(debt.costs)} leenruimte`).join(", ")
+    : null;
+  return [included, debts, nhg].filter(Boolean).join(". ") || null;
 }
 
 /** Gross beside net with the rate and NHG, then a warning when a lender would not lend this. */

@@ -4,6 +4,11 @@ import { flushSync } from "react-dom";
 
 import {
   type Consequences,
+  DEBT_KINDS,
+  type DebtKind,
+  type DebtRow,
+  debtLabel,
+  emptyDebt,
   type FieldErrors,
   type FormState,
   type SectionId,
@@ -207,7 +212,7 @@ function ProfileForm({
 
   const vak = (field: string, label: string) => ({ field, label, error: errorOf(field) });
   const amountInput = (
-    key: "gross_annual_income" | "fixed_rate_years" | "other_monthly_debt" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs",
+    key: "gross_annual_income" | "fixed_rate_years" | "savings" | "investments" | "home_value" | "outstanding_mortgage" | "selling_costs",
   ) =>
     (props: VakInputProps) => <input {...props} inputMode="numeric" value={form[key]} onChange={(event) => set(key, event.target.value)} />;
 
@@ -262,12 +267,7 @@ function ProfileForm({
         >
           {amountInput("fixed_rate_years")}
         </ProfileVak>
-        <ProfileVak
-          {...vak("other_monthly_debt", "Maandlasten andere leningen (€ per maand)")}
-          hint="Studieschuld (DUO-maandbedrag), autolening, private lease. Leeg is geen."
-        >
-          {amountInput("other_monthly_debt")}
-        </ProfileVak>
+        <DebtList rows={form.debts} vak={vak} onChange={(rows) => set("debts", rows)} />
       </>
     ),
     vermogen: (
@@ -540,6 +540,16 @@ function Gevolgen({ state, listings }: { state: GevolgenState | null; listings: 
                 <dd className="muted note">hoogste koopsom na kosten koper</dd>
               </div>
             </dl>
+            {state.data.debts.length > 0 && (
+              <ul className="gevolgen-debts" aria-label="Wat schulden kosten">
+                {state.data.debts.map((debt, index) => (
+                  <li key={index}>
+                    {debtLabel(debt.kind)} kost <span className="num">{euro.format(debt.costs)}</span> leenruimte
+                    <span className="muted note"> (toetslast {euro.format(debt.toetslast)} p/m)</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             <BudgetFit budget={state.data.budget} listings={listings} />
             <p className="muted rules-year">
               Leennormen {state.data.rules.year}, levering rond {monthOf(state.data.rules.levering_on)}
@@ -593,6 +603,77 @@ function BudgetFit({ budget, listings }: { budget: number; listings: Listing[] }
         })}
       </ul>
     </figure>
+  );
+}
+
+/** The Schulden vak: one row per debt, kind first, then the vakken that kind needs. */
+function DebtList(props: {
+  rows: DebtRow[];
+  vak: (field: string, label: string) => { field: string; label: string; error?: string };
+  onChange: (rows: DebtRow[]) => void;
+}) {
+  const { rows, vak, onChange } = props;
+  const update = (index: number, patch: Partial<DebtRow>) => onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const amount = (index: number, key: "debt" | "monthly_override" | "limit" | "monthly_term" | "monthly", label: string, hint?: string) => (
+    <ProfileVak {...vak(`debts.${index}.${key}`, label)} hint={hint}>
+      {(props) => <input {...props} inputMode="numeric" value={rows[index][key]} onChange={(event) => update(index, { [key]: event.target.value })} />}
+    </ProfileVak>
+  );
+
+  return (
+    <fieldset className="debts">
+      <legend>Schulden</legend>
+      {rows.length === 0 && <p className="muted">Geen schulden.</p>}
+      {rows.map((row, index) => {
+        const n = index + 1;
+        const kind = DEBT_KINDS.find((entry) => entry.kind === row.kind)!;
+        return (
+          <div className="debt" key={index} role="group" aria-label={`Schuld ${n}`}>
+            <div className="row">
+              <ProfileVak {...vak(`debts.${index}.kind`, `Soort schuld ${n}`)} hint={kind.hint}>
+                {(props) => (
+                  <select {...props} value={row.kind} onChange={(event) => onChange(rows.map((r, i) => (i === index ? { ...emptyDebt(event.target.value as DebtKind) } : r)))}>
+                    {DEBT_KINDS.map((entry) => (
+                      <option key={entry.kind} value={entry.kind}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </ProfileVak>
+              <button type="button" className="icon-button" aria-label={`Verwijder schuld ${n}`} title="Verwijderen" onClick={() => onChange(rows.filter((_, i) => i !== index))}>
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
+            </div>
+            {row.kind === "study_loan" && (
+              <>
+                {amount(index, "debt", `Studieschuld ${n} (€)`)}
+                <ProfileVak {...vak(`debts.${index}.interest_rate`, `Rente studieschuld ${n} (%)`)}>
+                  {(props) => <input {...props} inputMode="decimal" value={row.interest_rate} onChange={(event) => update(index, { interest_rate: event.target.value })} />}
+                </ProfileVak>
+                <ProfileVak {...vak(`debts.${index}.stelsel`, `Terugbetaalregels studieschuld ${n}`)}>
+                  {(props) => (
+                    <select {...props} value={row.stelsel} onChange={(event) => update(index, { stelsel: event.target.value as DebtRow["stelsel"] })}>
+                      <option value="SF35">SF35 (35 jaar)</option>
+                      <option value="SF15">SF15 (15 jaar)</option>
+                    </select>
+                  )}
+                </ProfileVak>
+                {amount(index, "monthly_override", `Wettelijk maandbedrag van Mijn DUO, schuld ${n} (€ per maand)`, "Leeg: berekend uit schuld, rente en terugbetaalregels.")}
+              </>
+            )}
+            {row.kind === "revolving_credit" && amount(index, "limit", `Kredietlimiet schuld ${n} (€)`)}
+            {(row.kind === "instalment_loan" || row.kind === "private_lease") &&
+              amount(index, "monthly_term", `Maandbedrag schuld ${n} (€ per maand)`)}
+            {row.kind === "other" && amount(index, "monthly", `Maandbedrag schuld ${n} (€ per maand)`)}
+          </div>
+        );
+      })}
+      <button type="button" className="add-button" onClick={() => onChange([...rows, emptyDebt("study_loan")])}>
+        <Plus size={16} aria-hidden="true" />
+        Schuld toevoegen
+      </button>
+    </fieldset>
   );
 }
 

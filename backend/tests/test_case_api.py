@@ -63,6 +63,7 @@ def test_typical_household_affordability(client, listing_provider):
         "energy_label_bonus": 10_000,
         "single_bonus": 0,
         "nhg_energy_measures": 0,
+        "debts": [],
         "kosten_koper": {"transfer_tax": 11_900, "fixed_costs": 5_050, "nhg_fee": 1_540, "total": 18_490},
         "equity": 172_000,
         "mortgage_needed": 386_490,

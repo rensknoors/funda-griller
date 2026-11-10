@@ -1,3 +1,5 @@
+import type { DebtCost } from "./profile";
+
 export type Snapshot = {
   id: number;
   fetched_at: string;
@@ -354,6 +356,8 @@ export type AskingVsComparables = {
 
 export type Affordability = {
   max_mortgage: number;
+  /** Per debt in the Koperprofiel: its toetslast per month and the leenruimte it costs. */
+  debts: DebtCost[];
   energy_label_bonus: number;
   equity: number;
   /** Extra borrowing capacity for a single adult (alleenstaandenbonus). */

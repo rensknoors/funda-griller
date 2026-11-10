@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from app import store
 from app.affordability import consequences, rules_summary
-from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, reduce_profile
+from app.buyer_profile import BuyerProfile, FinanceDraft, describe_errors, migrate_finances, reduce_profile
 from app.rules_loader import expected_levering, load_rules
 from app.wiring import Wiring
 
@@ -26,7 +26,7 @@ def routes(w: Wiring) -> APIRouter:
 
     @router.get("/versions")
     def list_buyer_profile_versions() -> list[dict]:
-        return store.buyer_profile_versions(settings.database_path)
+        return [{**v, "profile": migrate_finances(v["profile"])} for v in store.buyer_profile_versions(settings.database_path)]
 
     @router.post("/validation")
     def check_buyer_profile(draft: dict = Body()) -> dict:

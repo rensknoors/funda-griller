@@ -19,7 +19,7 @@ test("first run opens Huishouden only, with one-line hints and the Gevolgen hint
 
   await expect(page.getByLabel("Geboortedatum lid 1")).toBeVisible();
   await expect(page.getByLabel("Bruto jaarinkomen huishouden (€)")).toBeHidden();
-  await expect(page.getByText("Bruto jaarinkomen, rentevaste periode en maandlasten van andere leningen.")).toBeVisible();
+  await expect(page.getByText("Bruto jaarinkomen, rentevaste periode en schulden.")).toBeVisible();
   await expect(page.getByText("Vul inkomen in om je budget te zien")).toBeVisible();
 
   await openSection(page, "Inkomen");
@@ -50,6 +50,28 @@ test("Gevolgen panel follows the vakken live, with the rules year", async ({ pag
 
   await expect(gevolgen.getByText("€ 172.000")).toBeVisible();
   await expect(gevolgen.getByText("€ 625.880")).toBeVisible();
+});
+
+test("a debt is entered by kind and Gevolgen show the leenruimte it costs", async ({ page }) => {
+  await firstRun(page);
+  await page.goto("/#/koperprofiel");
+  await openSection(page, "Inkomen");
+  await page.getByLabel("Bruto jaarinkomen huishouden (€)").fill("95000");
+  await expect(page.getByText("Geen schulden.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Schuld toevoegen" }).click();
+  await expect(page.getByLabel("Soort schuld 1")).toHaveValue("study_loan");
+  await page.getByLabel("Studieschuld 1 (€)").fill("30000");
+  await page.getByLabel("Rente studieschuld 1 (%)").fill("2,5");
+
+  const gevolgen = page.getByRole("complementary", { name: "Gevolgen" });
+  // €30.000 at 2,5% over 35 years: €107,25 a month, × 1,25 gross-up at 4,40%, ≈ €26.772 of mortgage.
+  const debts = gevolgen.getByRole("list", { name: "Wat schulden kosten" });
+  await expect(debts).toContainText(/Studieschuld kost €\s26\.77\d leenruimte \(toetslast €\s107 p\/m\)/);
+
+  await page.getByLabel("Soort schuld 1").selectOption("revolving_credit");
+  await page.getByLabel("Kredietlimiet schuld 1 (€)").fill("5000");
+  await expect(debts).toContainText(/Doorlopend krediet kost €\s[\d.]+ leenruimte \(toetslast €\s100 p\/m\)/);
 });
 
 test("a vak is checked on blur; save stays disabled until it is fixed", async ({ page }) => {

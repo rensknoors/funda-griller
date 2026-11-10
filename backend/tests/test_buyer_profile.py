@@ -10,7 +10,7 @@ VALID_PROFILE = {
     ],
     "gross_annual_income": 95_000,
     "fixed_rate_years": 20,
-    "other_monthly_debt": 120,
+    "debts": [{"kind": "other", "monthly": 120}],
     "assets": {"savings": 40_000, "investments": 15_000},
     "current_home": {
         "value": 400_000,
@@ -120,7 +120,7 @@ INVALID_INPUT = [
     ("tolerance missing", _remove("renovation_tolerance"), "renovation_tolerance", "Verplicht veld"),
     ("no fixed rate period", _set("fixed_rate_years", 0), "fixed_rate_years", "Kies 1 tot en met 30 jaar"),
     ("fixed rate period beyond the term", _set("fixed_rate_years", 31), "fixed_rate_years", "Kies 1 tot en met 30 jaar"),
-    ("negative monthly debt", _set("other_monthly_debt", -1), "other_monthly_debt", "Bedrag buiten bereik"),
+    ("negative monthly debt", _set("debts.0.monthly", -1), "debts.0.monthly", "Bedrag buiten bereik"),
     ("postcode in a must-have", _set("must_haves.0", "dichtbij 3511 AB"), "must_haves.0", NO_ADDRESS),
     ("postcode in a nice-to-have", _set("nice_to_haves.0", "rond 1012ab"), "nice_to_haves.0", NO_ADDRESS),
     ("street address in a deal-breaker", _set("deal_breakers.0", "verder dan Dorpsstraat 12"), "deal_breakers.0", NO_ADDRESS),

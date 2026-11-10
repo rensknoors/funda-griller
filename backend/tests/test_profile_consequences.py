@@ -22,8 +22,9 @@ def test_typical_household_sees_maximum_mortgage_equity_and_budget(client):
         "max_mortgage": 433_174,
         "equity": 172_000,
         "budget": 640_586,
+        "debts": [],
         "rules": {
-            "version": 2,
+            "version": 3,
             "year": 2027,
             "is_current_year": True,
             "levering_on": "2027-01-24",
@@ -146,18 +147,6 @@ def test_a_single_adult_may_borrow_the_alleenstaandenbonus_more(client):
     consequences = client.post("/api/buyer-profile/consequences", json=single).json()
 
     assert consequences["max_mortgage"] == 279_267 + 18_000
-
-
-def test_other_monthly_debt_lowers_the_maximum_mortgage(client, settings, tmp_path):
-    """Nibud advies 2027 §5.1: at 4,25% a study loan of €69,69 a month costs €17.708 of mortgage
-    (gross-up 1,25), so €70 a month costs €17.708 × 70 / 69,69 ≈ €17.787."""
-    offered_rate(settings, tmp_path, "0.0425")
-
-    consequences = client.post(
-        "/api/buyer-profile/consequences", json=couple(70_000, fixed_rate_years=10, other_monthly_debt=70)
-    ).json()
-
-    assert consequences["max_mortgage"] == 294_074 - 17_787
 
 
 def test_kosten_koper_cannot_be_borrowed(client):

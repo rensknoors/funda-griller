@@ -85,6 +85,11 @@ _Dutch UI_: **levering** (as in "levering rond februari 2027")
 _Avoid_: Closing date, transfer date
 
 **Buyer Profile**:
-The household's finances (income, household composition, assets, current home equity, rentevaste periode, monthly cost of other loans, whether each adult has used the startersvrijstelling) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally.
-_Dutch UI_: **Koperprofiel**; the preference lists keep their English labels **Must-have**, **Nice-to-have** and **Deal-breaker**, which are common usage in Dutch
+The household's finances (income, household composition, assets, current home equity, rentevaste periode, debts by kind, whether each adult has used the startersvrijstelling) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally. Each debt has a kind and the figures that kind needs: a study loan its debt, rate and terugbetaalregels (SF35 or SF15, optionally the Mijn DUO amount), a revolving credit its limit, an instalment loan or private lease its monthly term, any other loan its monthly amount. The debts never reach the LLM.
+_Dutch UI_: **Koperprofiel**; the preference lists keep their English labels **Must-have**, **Nice-to-have** and **Deal-breaker**, which are common usage in Dutch. Debts are **Schulden**, the kinds **Studieschuld**, **Doorlopend krediet**, **Aflopend krediet**, **Private lease** and **Andere lening**
 _Avoid_: User profile, account, settings
+
+**Toetslast**:
+What one debt counts for a month in the maximum mortgage, before the Trhk gross-up: a study loan's wettelijk maandbedrag, 2% of a revolving credit's limit, an instalment loan's or private lease's monthly term. Each kind's rule is a versioned rule in `config/affordability.toml`. What a debt costs in **leenruimte** is how much higher the maximum mortgage would be without it.
+_Dutch UI_: **toetslast**; the cost is "kost € … leenruimte"
+_Avoid_: Debt payment, monthly debt (for the weighed figure)

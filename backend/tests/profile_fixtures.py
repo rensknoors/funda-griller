@@ -6,7 +6,7 @@ _BASE = {
     "household": [{"role": "adult", "birth_date": "1988-04-12", "starter_exemption_used": False}],
     "gross_annual_income": 95_000,
     "fixed_rate_years": 10,
-    "other_monthly_debt": 0,
+    "debts": [],
     "assets": {"savings": 40_000, "investments": 15_000},
     "must_haves": [],
     "nice_to_haves": [],

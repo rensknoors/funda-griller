@@ -22,6 +22,15 @@ from app.buyer_profile import reduce_profile
 from app.case import VersionedProfile
 from app.house_type import LABELS
 
+# Dutch names of the kinds of debt in the Buyer Profile.
+DEBT_LABELS = {
+    "study_loan": "Studieschuld",
+    "revolving_credit": "Doorlopend krediet",
+    "instalment_loan": "Aflopend krediet",
+    "private_lease": "Private lease",
+    "other": "Andere lening",
+}
+
 # Rounding of euro amounts derived from the household's finances.
 AMOUNT_STEP = 5_000
 MONTHLY_STEP = 50
@@ -564,6 +573,12 @@ def _affordability_lines(affordability: dict) -> list[str]:
         )
     if affordability["kosten_koper"]:
         lines.append(f"  - Kosten koper bij de vraagprijs: {rounded_euro(affordability['kosten_koper']['total'])}")
+    if affordability.get("debts"):
+        lines.append("  - Schulden (toetslast, en wat ze aan leenruimte kosten):")
+        lines += [
+            f"    - {DEBT_LABELS[debt['kind']]}: {rounded_monthly(debt['toetslast'])}, kost {rounded_euro(debt['costs'])} leenruimte"
+            for debt in affordability["debts"]
+        ]
     return lines
 
 

@@ -5,7 +5,15 @@ import re
 from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, Field, StringConstraints, ValidationInfo, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    StringConstraints,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 MAX_AMOUNT = 100_000_000
 MAX_INCOME = 5_000_000
@@ -88,15 +96,85 @@ def _fixed_rate_years(value: int) -> int:
 
 # Rentevaste periode: under ten years the lender tests at the AFM toetsrente.
 FixedRateYears = Annotated[int, AfterValidator(_fixed_rate_years)]
-# Monthly cost of other loans: the DUO wettelijk maandbedrag of a study loan, car finance, etc.
 MonthlyDebt = Annotated[int, Field(ge=0, le=100_000)]
 
 
-class BuyerProfile(BaseModel):
+def _debt_rate(value: float) -> float:
+    if not 0 <= value <= 0.15:
+        raise ValueError("Kies een rente van 0 tot 15%")
+    return value
+
+
+# A study loan's yearly rate as a fraction (DUO: 2,57% is 0.0257).
+DebtRate = Annotated[float, AfterValidator(_debt_rate)]
+
+
+class StudyLoan(BaseModel):
+    """A DUO study loan. The norm counts its wettelijk maandbedrag, derived from the debt, rate and
+    stelsel; `monthly_override` is the amount on Mijn DUO, when the household prefers it."""
+
+    kind: Literal["study_loan"]
+    # The debt when repayment starts (aanvangsschuld), or the debt now while still studying.
+    debt: Amount
+    interest_rate: DebtRate
+    stelsel: Literal["SF35", "SF15"]
+    monthly_override: MonthlyDebt | None = None
+
+
+class RevolvingCredit(BaseModel):
+    """Doorlopend krediet or credit card: weighed by its limit, drawn or not."""
+
+    kind: Literal["revolving_credit"]
+    limit: Amount
+
+
+class InstalmentLoan(BaseModel):
+    """Aflopend krediet (car loan, personal loan): weighed by its contractual monthly term."""
+
+    kind: Literal["instalment_loan"]
+    monthly_term: MonthlyDebt
+
+
+class PrivateLease(BaseModel):
+    kind: Literal["private_lease"]
+    monthly_term: MonthlyDebt
+
+
+class OtherDebt(BaseModel):
+    kind: Literal["other"]
+    monthly: MonthlyDebt
+
+
+Debt = Annotated[
+    StudyLoan | RevolvingCredit | InstalmentLoan | PrivateLease | OtherDebt, Field(discriminator="kind")
+]
+DEBT_KINDS = ("study_loan", "revolving_credit", "instalment_loan", "private_lease", "other")
+
+
+def migrate_finances(data: object) -> object:
+    """A profile stored before debts by kind had one `other_monthly_debt`: it becomes one `other`
+    debt with that amount, so the figures do not move until the household splits it."""
+    if not isinstance(data, dict) or "other_monthly_debt" not in data:
+        return data
+    migrated = {key: value for key, value in data.items() if key != "other_monthly_debt"}
+    amount = data["other_monthly_debt"]
+    if "debts" not in migrated:
+        migrated["debts"] = [{"kind": "other", "monthly": amount}] if amount else []
+    return migrated
+
+
+class _Finances(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate(cls, data: object) -> object:
+        return migrate_finances(data)
+
+
+class BuyerProfile(_Finances):
     household: list[HouseholdMember]
     gross_annual_income: Income
     fixed_rate_years: FixedRateYears = 10
-    other_monthly_debt: MonthlyDebt = 0
+    debts: list[Debt] = []
     assets: Assets
     current_home: CurrentHome | None = None
     must_haves: list[PreferenceText] = []
@@ -125,7 +203,7 @@ class DraftAssets(BaseModel):
     investments: Amount = 0
 
 
-class FinanceDraft(BaseModel):
+class FinanceDraft(_Finances):
     """The finance vakken of a Buyer Profile being edited: enough for the Gevolgen panel.
 
     Blank balances count as zero and members without a birth date are left out by the form,
@@ -135,7 +213,7 @@ class FinanceDraft(BaseModel):
     household: list[HouseholdMember] = []
     gross_annual_income: Income
     fixed_rate_years: FixedRateYears = 10
-    other_monthly_debt: MonthlyDebt = 0
+    debts: list[Debt] = []
     assets: DraftAssets = DraftAssets()
     current_home: CurrentHome | None = None
 
@@ -180,12 +258,24 @@ _MESSAGES = {
 }
 
 
+# Messages for a choice outside its options, by the field's own name.
+_CHOICE_MESSAGES = {"stelsel": "Kies SF35 of SF15"}
+
+
 def describe_errors(errors: list[dict]) -> list[dict[str, str]]:
-    """Field-keyed Dutch messages for the form: `{"field": "assets.savings", "message": ...}`."""
+    """Field-keyed Dutch messages for the form: `{"field": "assets.savings", "message": ...}`.
+    A debt's fields are keyed without its kind: `debts.0.limit`."""
     described = []
     for error in errors:
-        field = ".".join(str(part) for part in error["loc"] if part != "body")
-        if error["type"] == "value_error":
+        loc = [str(part) for part in error["loc"] if part != "body"]
+        if len(loc) > 2 and loc[0] == "debts" and loc[2] in DEBT_KINDS:
+            del loc[2]
+        field = ".".join(loc)
+        if error["type"] in ("union_tag_invalid", "union_tag_not_found"):
+            field, message = f"{field}.kind", "Kies een soort schuld"
+        elif error["type"] == "literal_error" and loc[-1] in _CHOICE_MESSAGES:
+            message = _CHOICE_MESSAGES[loc[-1]]
+        elif error["type"] == "value_error":
             message = str(error["ctx"]["error"])
         elif error["type"].startswith("date"):
             message = "Ongeldige datum"

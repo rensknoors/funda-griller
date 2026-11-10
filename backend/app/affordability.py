@@ -11,10 +11,20 @@ Ages and the year's rules are taken at the expected levering, not today: that is
 startersvrijstelling and the lender's norms follow.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
-from app.buyer_profile import BuyerProfile, FinanceDraft, home_equity
+from app.buyer_profile import (
+    BuyerProfile,
+    Debt,
+    FinanceDraft,
+    InstalmentLoan,
+    OtherDebt,
+    PrivateLease,
+    RevolvingCredit,
+    StudyLoan,
+    home_equity,
+)
 
 # Below ten years fixed, the lender tests at the toetsrente.
 LONG_FIXED_RATE_YEARS = 10
@@ -55,6 +65,8 @@ class Affordability:
     # What an NHG loan may include as standard for energy-saving measures on a label E, F or G
     # house. Named, never counted in the figures above: it is earmarked for the measures.
     nhg_energy_measures: int = 0
+    # Per debt in the Buyer Profile, its toetslast and the leenruimte it costs.
+    debts: list["DebtCost"] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -64,6 +76,22 @@ class MarketRate:
     as_of: date
     nhg: float
     no_nhg: float
+
+
+@dataclass(frozen=True)
+class DebtRule:
+    """How one kind of debt becomes a monthly toetslast: a share of the limit or monthly term the
+    household enters (a study loan: its wettelijk maandbedrag over `term_months` by stelsel), and
+    whether the debt_gross_up applies."""
+
+    share: float = 1.0
+    gross_up: bool = True
+    term_months: dict[str, int] | None = None
+
+    @classmethod
+    def from_table(cls, table: dict) -> "DebtRule":
+        share = table.get("share_of_limit", table.get("share_of_term", 1.0))
+        return cls(share, table["gross_up"], table.get("term_months"))
 
 
 @dataclass(frozen=True)
@@ -78,6 +106,7 @@ class Rules:
     # (lowest toetsinkomen, financieringslastpercentage per column), ascending.
     ratio_rows: tuple[tuple[int, tuple[float, ...]], ...]
     debt_gross_up: tuple[float, ...]
+    debts: dict[str, DebtRule]
     single_bonus: int
     single_bonus_above_income: int
     energy_label_bonus: dict[str, int]
@@ -110,6 +139,7 @@ class Rules:
             rate_bands=tuple(ratio["rate_bands"]),
             ratio_rows=tuple((row["from"], tuple(p / 100 for p in row["percent"])) for row in ratio["rows"]),
             debt_gross_up=tuple(table["debt_gross_up"]["factors"]),
+            debts={kind: DebtRule.from_table(rule) for kind, rule in table["debts"].items()},
             single_bonus=table["single_bonus"]["amount"],
             single_bonus_above_income=table["single_bonus"]["above_income"],
             energy_label_bonus=table["energy_label_bonus"],
@@ -143,12 +173,23 @@ def rules_summary(rules: Rules, levering: date) -> dict:
 
 
 @dataclass(frozen=True)
+class DebtCost:
+    """One debt in the Buyer Profile: its monthly toetslast (before the gross-up) and the leenruimte
+    it costs, that is how much higher the maximum mortgage would be without it."""
+
+    kind: str
+    toetslast: float
+    costs: int
+
+
+@dataclass(frozen=True)
 class Consequences:
     """What a Buyer Profile can buy before any Listing is involved (the Gevolgen panel)."""
 
     max_mortgage: int
     equity: int
     budget: int  # highest purchase price payable, after kosten koper
+    debts: list[DebtCost] = field(default_factory=list)
 
 
 Finances = BuyerProfile | FinanceDraft
@@ -178,13 +219,49 @@ def _test_rate(profile: Finances, rules: Rules, offered: float) -> float:
     return offered
 
 
-def _norm(profile: Finances, energy_label: str | None, rules: Rules, offered: float) -> tuple[int, int, int]:
-    """Max mortgage by income at the offered rate, with its energy label bonus and single bonus."""
+def wettelijk_maandbedrag(debt: int, annual_rate: float, months: int) -> float:
+    """The DUO monthly amount that repays a study debt with interest within the term, to the cent."""
+    if annual_rate == 0:
+        return round(debt / months, 2)
+    return round(debt / _annuity_factor(annual_rate, months), 2)
+
+
+def toetslast(debt: Debt, rules: Rules) -> float:
+    """What a debt counts for a month in the norm, before the gross-up."""
+    rule = rules.debts[debt.kind]
+    match debt:
+        case StudyLoan():
+            if debt.monthly_override is not None:
+                return debt.monthly_override
+            assert rule.term_months is not None
+            return wettelijk_maandbedrag(debt.debt, debt.interest_rate, rule.term_months[debt.stelsel])
+        case RevolvingCredit():
+            return debt.limit * rule.share
+        case InstalmentLoan() | PrivateLease():
+            return debt.monthly_term * rule.share
+        case OtherDebt():
+            return debt.monthly * rule.share
+
+
+def _debt_charge(debts: list[Debt], rules: Rules, column: int) -> float:
+    """The monthly amount the debts take off the allowed financieringslast."""
+    return sum(
+        toetslast(debt, rules) * (rules.debt_gross_up[column] if rules.debts[debt.kind].gross_up else 1.0)
+        for debt in debts
+    )
+
+
+def _norm(
+    profile: Finances, energy_label: str | None, rules: Rules, offered: float, debts: list[Debt] | None = None
+) -> tuple[int, int, int]:
+    """Max mortgage by income at the offered rate, with its energy label bonus and single bonus.
+    `debts` defaults to the profile's own."""
     rate = _test_rate(profile, rules, offered)
     column = _column(rules, rate)
     income = profile.gross_annual_income
     ratios = next(ratios for start, ratios in reversed(rules.ratio_rows) if income >= start)
-    monthly = income * ratios[column] / 12 - profile.other_monthly_debt * rules.debt_gross_up[column]
+    owed = profile.debts if debts is None else debts
+    monthly = income * ratios[column] / 12 - _debt_charge(owed, rules, column)
     base = round(max(0.0, monthly) * _annuity_factor(rate, rules.term_months))
     label_bonus = rules.energy_label_bonus.get((energy_label or "").upper(), 0)
     single = rules.single_bonus if len(_adults(profile)) == 1 and income > rules.single_bonus_above_income else 0
@@ -203,10 +280,26 @@ class _Capacity:
         return max(self.with_nhg, self.without_nhg)
 
 
-def _capacity(profile: Finances, energy_label: str | None, rules: Rules) -> _Capacity:
-    nhg, label_bonus, single = _norm(profile, energy_label, rules, rules.market_rate.nhg)
-    plain, _, _ = _norm(profile, energy_label, rules, rules.market_rate.no_nhg)
+def _capacity(
+    profile: Finances, energy_label: str | None, rules: Rules, debts: list[Debt] | None = None
+) -> _Capacity:
+    """`debts` defaults to the profile's own."""
+    nhg, label_bonus, single = _norm(profile, energy_label, rules, rules.market_rate.nhg, debts)
+    plain, _, _ = _norm(profile, energy_label, rules, rules.market_rate.no_nhg, debts)
     return _Capacity(min(nhg, rules.nhg_limit), plain, label_bonus, single)
+
+
+def _debt_costs(profile: Finances, energy_label: str | None, rules: Rules, capacity: _Capacity) -> list[DebtCost]:
+    """Per debt, the maximum mortgage without it less the maximum with every debt."""
+    return [
+        DebtCost(
+            debt.kind,
+            toetslast(debt, rules),
+            _capacity(profile, energy_label, rules, profile.debts[:i] + profile.debts[i + 1 :]).maximum
+            - capacity.maximum,
+        )
+        for i, debt in enumerate(profile.debts)
+    ]
 
 
 def _taxed_share(profile: Finances, price: int, rules: Rules, levering: date) -> float:
@@ -319,7 +412,10 @@ def _monthly_costs(loan: int, rate: float, price: int, rules: Rules) -> tuple[in
 def consequences(draft: FinanceDraft, rules: Rules, levering: date) -> Consequences:
     capacity = _capacity(draft, None, rules)
     return Consequences(
-        capacity.maximum, home_equity(draft), _highest_price(draft, rules, levering, 0, capacity)
+        capacity.maximum,
+        home_equity(draft),
+        _highest_price(draft, rules, levering, 0, capacity),
+        _debt_costs(draft, None, rules, capacity),
     )
 
 
@@ -350,6 +446,7 @@ def compute(
             affordable_maximum=affordable_maximum,
             renovation_direct=renovation_direct,
             single_bonus=capacity.single_bonus,
+            debts=_debt_costs(profile, energy_label, rules, capacity),
         )
     share = _taxed_share(profile, asking_price, rules, levering)
     # The route a lender would take; when none works, the cheapest one shows how far off it is.
@@ -374,6 +471,7 @@ def compute(
         mortgage_rate=rate,
         single_bonus=capacity.single_bonus,
         nhg_energy_measures=_nhg_energy_measures(energy_label, purchase, rules),
+        debts=_debt_costs(profile, energy_label, rules, capacity),
     )
 
 
