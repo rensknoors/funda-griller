@@ -88,6 +88,17 @@ def _fixed_rate_years(value: int) -> int:
 
 # Rentevaste periode: under ten years the lender tests at the AFM toetsrente.
 FixedRateYears = Annotated[int, AfterValidator(_fixed_rate_years)]
+def _offered_rate(value: float | None) -> float | None:
+    if value is not None and not MIN_OFFERED_RATE <= value <= MAX_OFFERED_RATE:
+        raise ValueError("Kies een rente van 0,5% tot en met 15%")
+    return value
+
+
+MIN_OFFERED_RATE = 0.005
+MAX_OFFERED_RATE = 0.15
+# The rate from the household's own offerte, as a fraction (0.0425), for the rentevaste periode.
+# Blank: the market snapshot in the affordability rules applies.
+OfferedRate = Annotated[float | None, AfterValidator(_offered_rate)]
 # Monthly cost of other loans: the DUO wettelijk maandbedrag of a study loan, car finance, etc.
 MonthlyDebt = Annotated[int, Field(ge=0, le=100_000)]
 
@@ -96,6 +107,8 @@ class BuyerProfile(BaseModel):
     household: list[HouseholdMember]
     gross_annual_income: Income
     fixed_rate_years: FixedRateYears = 10
+    offered_rate_nhg: OfferedRate = None
+    offered_rate_no_nhg: OfferedRate = None
     other_monthly_debt: MonthlyDebt = 0
     assets: Assets
     current_home: CurrentHome | None = None
@@ -135,6 +148,8 @@ class FinanceDraft(BaseModel):
     household: list[HouseholdMember] = []
     gross_annual_income: Income
     fixed_rate_years: FixedRateYears = 10
+    offered_rate_nhg: OfferedRate = None
+    offered_rate_no_nhg: OfferedRate = None
     other_monthly_debt: MonthlyDebt = 0
     assets: DraftAssets = DraftAssets()
     current_home: CurrentHome | None = None
@@ -145,8 +160,11 @@ def home_equity(profile: BuyerProfile | FinanceDraft) -> int:
     return home.value - home.outstanding_mortgage - home.selling_costs if home else 0
 
 
-def reduce_profile(version: int, profile: BuyerProfile) -> dict:
+def reduce_profile(version: int, profile: BuyerProfile, mortgage_rates: dict[str, dict]) -> dict:
     """The only form of the Buyer Profile allowed to reach the LLM: derived figures and preferences.
+
+    `mortgage_rates` is the rate each loan route rests on and its source, own or market (see
+    `affordability.route_rates`); an own offered rate may reach the LLM.
 
     Exception: Must-have, Nice-to-have and Deal-breaker texts and commute labels pass verbatim,
     because the LLM must read the preference as the user wrote it. They are typed free text, so
@@ -169,6 +187,7 @@ def reduce_profile(version: int, profile: BuyerProfile) -> dict:
             {"label": destination.label, "max_minutes": destination.max_minutes}
             for destination in profile.commute_destinations
         ],
+        "mortgage_rates": mortgage_rates,
     }
 
 

@@ -10,6 +10,8 @@ VALID_PROFILE = {
     ],
     "gross_annual_income": 95_000,
     "fixed_rate_years": 20,
+    "offered_rate_nhg": 0.0425,
+    "offered_rate_no_nhg": None,
     "other_monthly_debt": 120,
     "assets": {"savings": 40_000, "investments": 15_000},
     "current_home": {
@@ -193,6 +195,11 @@ def test_reduced_profile_has_derived_figures_and_preferences_only(client, profil
         "nice_to_haves": ["garage"],
         "deal_breakers": ["erfpacht"],
         "commute_destinations": [{"label": "Kantoor", "max_minutes": 45}],
+        # The own rate with NHG from the profile; without NHG the market snapshot.
+        "mortgage_rates": {
+            "nhg": {"rate": 0.0425, "source": "own", "as_of": None},
+            "no_nhg": {"rate": 0.0478, "source": "market", "as_of": "2026-11-02"},
+        },
     }
 
 

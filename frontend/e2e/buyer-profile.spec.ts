@@ -52,6 +52,24 @@ test("Gevolgen panel follows the vakken live, with the rules year", async ({ pag
   await expect(gevolgen.getByText("€ 625.880")).toBeVisible();
 });
 
+test("own offered rates replace the market rate in the Gevolgen", async ({ page }) => {
+  await firstRun(page);
+  await page.goto("/#/koperprofiel");
+  await openSection(page, "Inkomen");
+  await page.getByLabel("Bruto jaarinkomen huishouden (€)").fill("95000");
+
+  const gevolgen = page.getByRole("complementary", { name: "Gevolgen" });
+  await expect(gevolgen.getByText("met NHG marktrente 4,4% (2 november 2026)")).toBeVisible();
+
+  await page.getByLabel("Aangeboden rente met NHG (%)").fill("4");
+  await page.getByLabel("Aangeboden rente zonder NHG (%)").fill("4,5");
+
+  // With NHG at an own 4%: 26,4% of €95.000 over 30 years at 4%.
+  await expect(gevolgen.getByText("€ 437.774")).toBeVisible();
+  await expect(gevolgen.getByText("met NHG eigen rente 4%")).toBeVisible();
+  await expect(gevolgen.getByText("zonder NHG eigen rente 4,5%")).toBeVisible();
+});
+
 test("a vak is checked on blur; save stays disabled until it is fixed", async ({ page }) => {
   await firstRun(page);
   await page.goto("/#/koperprofiel");

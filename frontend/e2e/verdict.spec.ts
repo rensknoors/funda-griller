@@ -41,6 +41,7 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   await expect(advies.getByText("Bouwkundige keuring")).toBeVisible();
   await advies.getByText("Hoe berekend").click();
   await expect(advies.getByText("Betaalruimte: tot € 667.928")).toBeVisible();
+  await expect(advies.getByText("Hypotheekrente: met NHG marktrente 4,4% (2 november 2026); zonder NHG marktrente 4,78% (2 november 2026)")).toBeVisible();
   await expect(advies.getByText("Vraagprijs € 595.000 + 4,6%: € 622.370")).toBeVisible();
   await expect(advies.getByText(/^Marge 4,6%: gemiddeld overbod voor alle woningen \(NVM/)).toBeVisible();
   const redenering = page.getByRole("region", { name: "Redenering" });

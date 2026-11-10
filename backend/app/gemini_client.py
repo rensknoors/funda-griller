@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 6
+VERDICT_PROMPT_VERSION = 7
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -69,7 +69,9 @@ and the Direct nodig renovation come from own funds and equity. `monthly_cost` i
 of the mortgage needed at the asking price; `monthly_cost_net` is what the household pays after
 hypotheekrenteaftrek, the figure to weigh affordability by. `nhg` says whether that mortgage fits
 under the NHG limit. When `case.rules.is_current_year` is false the norms are from an earlier year;
-say so.
+say so. `buyer_profile.mortgage_rates` gives the rate per loan route (`nhg`, `no_nhg`) and its
+`source`: `own` is the rate from the household's own offerte, `market` a market snapshot as of
+`as_of`. `case.affordability.mortgage_rate` is the rate of the route taken; say which it rests on.
 
 Write summary, reasoning and conditions in Dutch.
 """

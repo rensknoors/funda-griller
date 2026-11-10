@@ -154,6 +154,9 @@ def inputs_of(case: dict, model: str | None) -> dict:
         **case["built_from"],
         "rules_year": case["rules"]["year"],
         "rules_version": case["rules"].get("version"),
+        # The rate per loan route the figures rest on; a change shows through the profile or
+        # rules version, so it is recorded, not compared.
+        "mortgage_rates": case["rules"].get("rates"),
         "source_fetches": source_fetches,
         "model": model,
     }

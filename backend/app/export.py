@@ -409,6 +409,7 @@ def provenance(export: ExportInput) -> list[str]:
         f"- Versie signaalregels: {built['flag_rules_version']}",
         f"- Versie kostentabel verbouwing: {built['cost_table_version']}",
         f"- Rekenregels betaalbaarheid: {export.case['rules']['year']}",
+        *_rate_lines(export.case["rules"].get("rates")),
         f"- Fotoanalyse: {built['observation_run'] if built['observation_run'] is not None else 'geen'}",
         f"- Documenten: {len(built['documents'])}",
     ]
@@ -420,6 +421,24 @@ def provenance(export: ExportInput) -> list[str]:
             f"- Promptversie Oordeel: {_prompt_version(verdict)}",
         ]
     lines.append(f"- Koperprofiel meegestuurd: {'ja (geanonimiseerd)' if export.with_profile else 'nee'}")
+    return lines
+
+
+_ROUTES = (("nhg", "met NHG"), ("no_nhg", "zonder NHG"))
+
+
+def _rate_lines(rates: dict | None) -> list[str]:
+    """The rate each loan route rests on. An own rate is household data, so it is rounded to 0,1
+    procentpunt; the market rate is a public snapshot and stays exact."""
+    if not rates:
+        return []
+    lines = []
+    for route, label in _ROUTES:
+        rate = rates[route]
+        if rate["source"] == "own":
+            lines.append(f"- Hypotheekrente {label}: eigen rente ≈ {_number(round(rate['rate'] * 100, 1))}%")
+        else:
+            lines.append(f"- Hypotheekrente {label}: marktrente {_number(round(rate['rate'] * 100, 4))}% ({rate['as_of']})")
     return lines
 
 
@@ -806,7 +825,7 @@ def _net_and_gross(net: int | None, gross: int) -> str:
 def buyer_profile(export: ExportInput) -> list[str]:
     if not export.with_profile or export.profile is None:
         return ["## Koperprofiel", "", "Niet meegestuurd."]
-    reduced = reduce_profile(export.profile.version, export.profile.profile)
+    reduced = reduce_profile(export.profile.version, export.profile.profile, export.case["rules"]["rates"])
     anonymiser = export.anonymiser
 
     def listed(items: list[str]) -> list[str]:

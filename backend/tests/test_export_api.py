@@ -569,3 +569,16 @@ def test_monthly_costs_are_exported_net_with_gross_beside_them(client, listing_p
     markdown = client.get(EXPORT).text
 
     assert "Maandlasten bij de vraagprijs: ≈ € 1.450 per maand netto (≈ € 1.950 per maand bruto)" in markdown
+
+
+@pytest.mark.parametrize("query", ["", "?profile=false"])
+def test_the_rate_per_route_is_named_with_its_source_and_an_own_rate_rounded(client, listing_provider, query):
+    """An own rate is household data: 4,23% is exported as 4,2%. The market rate is not, so exact."""
+    capture(client, listing_provider, typical_profile() | {"offered_rate_nhg": 0.0423})
+
+    markdown = client.get(f"{EXPORT}{query}").text
+
+    herkomst = markdown.split("## Herkomst van dit dossier")[1].split("\n## ")[0]
+    assert "- Hypotheekrente met NHG: eigen rente ≈ 4,2%" in herkomst
+    assert "- Hypotheekrente zonder NHG: marktrente 4,78% (2026-11-02)" in herkomst
+    assert "4,23" not in markdown and "0.0423" not in markdown

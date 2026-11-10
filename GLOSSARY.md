@@ -85,6 +85,6 @@ _Dutch UI_: **levering** (as in "levering rond februari 2027")
 _Avoid_: Closing date, transfer date
 
 **Buyer Profile**:
-The household's finances (income, household composition, assets, current home equity, rentevaste periode, monthly cost of other loans, whether each adult has used the startersvrijstelling) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally.
+The household's finances (income, household composition, assets, current home equity, rentevaste periode, the mortgage rate offered to them with and without NHG (optional; blank, the market snapshot in the affordability rules applies to that route), monthly cost of other loans, whether each adult has used the startersvrijstelling) and preferences (must-haves, nice-to-haves, deal-breakers, commute destinations). Entered manually and stored locally.
 _Dutch UI_: **Koperprofiel**; the preference lists keep their English labels **Must-have**, **Nice-to-have** and **Deal-breaker**, which are common usage in Dutch
 _Avoid_: User profile, account, settings

@@ -369,6 +369,8 @@ export type Affordability = {
   /** Whether the mortgage needed fits under the NHG limit, and the rate its cost is worked out at. */
   nhg: boolean | null;
   mortgage_rate: number | null;
+  /** Where each route's rate came from. */
+  rates: RouteRates;
   /** Gross annuity of the mortgage needed at the asking price. */
   monthly_cost: number | null;
   /** The same, net of hypotheekrenteaftrek and eigenwoningforfait in the first year. */
@@ -447,7 +449,15 @@ export type Rules = {
   is_current_year: boolean;
   levering_on: string;
   market_rate_as_of: string;
+  rates: RouteRates;
 };
+
+/** The rate a loan route rests on: the household's own offered rate, or the market snapshot of
+ * `as_of`. */
+export type RouteRate = { rate: number; source: "own" | "market"; as_of: string | null };
+
+/** Per loan route: with NHG and without. */
+export type RouteRates = { nhg: RouteRate; no_nhg: RouteRate };
 
 /** Direct nodig, Binnen 5 jaar, Optioneel. */
 export type Urgency = "direct" | "within_5_years" | "optional";
@@ -603,6 +613,8 @@ export type Verdict = {
     profile_version: number | null;
     flag_rules_version: number;
     rules_year: number;
+    /** The rate per loan route the Verdict rests on; Verdicts from before own rates lack it. */
+    mortgage_rates?: RouteRates | null;
     source_fetches: Record<string, string>;
     model: string | null;
   };
