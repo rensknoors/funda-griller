@@ -89,7 +89,7 @@ td.tone-favorable, td.tone-concern, td.tone-shortfall { font-weight: 600; }
 .topbar-inner { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: var(--topbar-h); display: flex; align-items: center; gap: 40px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--on-hero); text-decoration: none; font-weight: 750; font-size: 17px; letter-spacing: -0.02em; font-stretch: 88%; }
 .wordmark:hover { color: var(--on-hero); }
-.wordmark-mark { width: 22px; height: 22px; border-radius: 5px; background: linear-gradient(to bottom, #fff 0 50%, var(--ink) 50%); }
+.wordmark-mark { flex: none; width: 24px; height: 24px; color: var(--on-hero); }
 .main-nav { display: flex; gap: 4px; height: 100%; }
 .main-nav a { display: flex; align-items: center; padding: 0 12px; color: var(--on-hero-2); font-weight: 550; text-decoration: none; box-shadow: inset 0 -2px 0 transparent; transition: color 150ms, box-shadow 150ms; }
 .main-nav a:hover { color: var(--on-hero); }
@@ -671,7 +671,6 @@ fieldset.vak { border: 0; }
   :root { --topbar-h: 56px; --halves-gap: 24px; }
   .topbar-inner { padding: 0 16px; gap: 16px; }
   .wordmark { font-size: 0; gap: 0; }
-  .wordmark-mark { width: 24px; height: 24px; }
   .api-state { font-size: 0; gap: 0; }
   main { padding: 0 16px 72px; }
   main > :first-child:not(.hero, :has(> .hero:first-child)) { margin-top: 24px; }
