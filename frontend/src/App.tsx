@@ -14,6 +14,7 @@ import {
   fetchListings,
   isCaptureError,
   refetchListing,
+  refetchSource,
   restoreListing,
   isVerdictError,
   runVerdict,
@@ -157,6 +158,31 @@ export function App() {
     } catch {
       setArchiveFailed(true);
     }
+  }
+
+  /** Refetch just the Sources with Verouderde feiten, one after another, then reload the row. */
+  async function handleRefreshStale(fundaId: string, sources: string[]) {
+    setBusy(true);
+    setRowErrors(({ [fundaId]: _cleared, ...rest }) => rest);
+    let failed = false;
+    for (const source of sources) {
+      try {
+        await refetchSource(fundaId, source);
+      } catch {
+        failed = true;
+      }
+    }
+    try {
+      setListings(await fetchListings());
+      setFlashId(null);
+      requestAnimationFrame(() => setFlashId(fundaId));
+    } catch {
+      setListState("fout");
+    }
+    if (failed) {
+      setRowErrors((current) => ({ ...current, [fundaId]: "Niet alle verouderde feiten konden worden bijgewerkt." }));
+    }
+    setBusy(false);
   }
 
   async function handleRerunVerdict(fundaId: string) {
@@ -337,6 +363,7 @@ export function App() {
             onArchive={(fundaId) => handleArchive(fundaId, true)}
             onRestore={(fundaId) => handleArchive(fundaId, false)}
             onRerunVerdict={handleRerunVerdict}
+            onRefreshStale={handleRefreshStale}
           />
         )}
       </>

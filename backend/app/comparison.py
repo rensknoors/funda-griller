@@ -32,8 +32,24 @@ def summarise(snapshots: list[dict], case: dict, tier: str | None = None) -> dic
         "renovation_direct": case["renovation_estimate"]["classes"]["direct"],
         "flag_counts": counts,
         "stale_count": sum(1 for fact in case["facts"] if fact.get("stale")),
+        "stale_sources": _stale_sources(case["facts"]),
         "last_fetched_at": latest["fetched_at"],
     }
+
+
+def _stale_sources(facts: list[dict]) -> list[dict]:
+    """Per Source with Stale facts: how many, when they were fetched and how long they are valid,
+    so the list can say what is Verouderd and offer to refetch just that Source."""
+    by_source: dict[str, dict] = {}
+    for fact in facts:
+        if not fact.get("stale"):
+            continue
+        entry = by_source.setdefault(
+            fact["source"],
+            {"source": fact["source"], "facts": 0, "fetched_at": fact["fetched_at"], "ttl_days": fact["ttl_days"]},
+        )
+        entry["facts"] += 1
+    return sorted(by_source.values(), key=lambda s: s["fetched_at"])
 
 
 def _change(previous: dict | None, latest: dict, key: str) -> dict | None:

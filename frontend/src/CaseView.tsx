@@ -16,7 +16,7 @@ import {
   refetchSource,
 } from "./api";
 import { Documenten, VerkoperInformatie } from "./Documenten";
-import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
+import { FACT_LABELS, ENVIRONMENT_FACTS, comparableLabel, formatValue, isComparableFact, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
 import {
   type Tone,
@@ -34,6 +34,7 @@ import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
 import { plural } from "./plural";
+import { sourceLabel, staleLabel } from "./sources";
 import { debtLabel } from "./profile";
 import { tierOf } from "./comparison";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
@@ -47,15 +48,6 @@ const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "shor
 const shortDate = (iso: string) => dayMonth.format(new Date(iso));
 
 
-const SOURCE_LABELS: Record<string, string> = {
-  energielabel: "Energielabelregister",
-  woz: "WOZ (prijshistorie)",
-  flood_soil: "Overstroming en bodem",
-  noise: "Geluid",
-  comparables: "Vergelijkbare verkopen",
-  commute: "Reistijd",
-};
-const sourceLabel = (source: string) => SOURCE_LABELS[source] ?? source;
 
 const STATUS_COPY: Record<SourceStatus["status"], { icon: typeof CircleCheck; word: string }> = {
   succeeded: { icon: CircleCheck, word: "gelukt" },
@@ -78,6 +70,7 @@ const yearOf = (asOf: string | null | undefined) => asOf?.match(/\d{4}/)?.[0] ??
 function sourceFactLabel(fact: SourceFact): string {
   if (fact.key === "woz_value") return `WOZ-waarde ${yearOf(fact.as_of)}`.trim();
   if (fact.key === "energy_label") return "Energielabel (register)";
+  if (isComparableFact(fact)) return comparableLabel(fact.value);
   if (isCommuteFact(fact.value)) return `Reistijd naar ${fact.value.destination}`;
   if (ENVIRONMENT_FACTS[fact.key]) return ENVIRONMENT_FACTS[fact.key].label;
   return FACT_LABELS[fact.key] ?? fact.key;
@@ -164,9 +157,9 @@ export function CaseView(props: {
               )}
             </span>
             {staleCount > 0 && (
-              <span className="chip stale-chip">
-                <Clock size={13} aria-hidden="true" /> {staleCount} verouderd
-              </span>
+              <a className="chip stale-chip" href="#verouderd-title">
+                <Clock size={13} aria-hidden="true" /> {staleLabel(staleCount)}
+              </a>
             )}
           </>
         }
@@ -208,6 +201,7 @@ export function CaseView(props: {
             <OnThisPage commute={state.data.sources.some((s) => s.source === "commute")} />
             <Brondekking
               sources={state.data.sources}
+              staleSources={new Set(sourceFacts.filter((f) => f.stale).map((f) => f.source))}
               refetching={refetching}
               failed={refetchFailed}
               onRefetch={handleSourceRefetch}
@@ -215,6 +209,7 @@ export function CaseView(props: {
             <HerkomstLegend />
           </aside>
           <div className="dossier-main">
+            <VerouderdeFeiten facts={sourceFacts} refetching={refetching} onRefetch={handleSourceRefetch} />
           <Signalen
             flags={state.data.flags}
             facts={state.data.facts}
@@ -324,6 +319,8 @@ export function CaseView(props: {
 
 function Brondekking(props: {
   sources: SourceStatus[];
+  /** Sources whose facts are Verouderd: their refetch is the one to press. */
+  staleSources: Set<string>;
   refetching: string | null;
   failed: boolean;
   onRefetch: (source: string) => void;
@@ -354,6 +351,12 @@ function Brondekking(props: {
                   <span className="muted"> ({REASON_COPY[source.reason]})</span>
                 )}
                 {source.attempted_at && <span className="muted source-date"> · {shortDate(source.attempted_at)}</span>}
+                {props.staleSources.has(source.source) && (
+                  <span className="source-stale">
+                    {" "}
+                    · <Clock size={12} aria-hidden="true" className="inline-icon" /> verouderd
+                  </span>
+                )}
               </span>
               <button
                 type="button"
@@ -686,6 +689,81 @@ function SourceGroup(props: {
         {props.children}
       </ol>
     </details>
+  );
+}
+
+/** Where each Source's facts sit further down the Dossier. */
+const SOURCE_SECTION: Record<string, string> = {
+  woz: "prijs-en-waarde-title",
+  comparables: "vergelijkbaar-title",
+  energielabel: "energie-title",
+  flood_soil: "omgeving-title",
+  noise: "omgeving-title",
+  commute: "reistijd-title",
+};
+
+/** Every Verouderd fact in one place, per Source, with that Source's refetch. Absent when none is. */
+function VerouderdeFeiten(props: {
+  facts: SourceFact[];
+  refetching: string | null;
+  onRefetch: (source: string) => void;
+}) {
+  const stale = props.facts.filter((f) => f.stale);
+  if (stale.length === 0) return null;
+  const bySource = new Map<string, SourceFact[]>();
+  for (const fact of stale) bySource.set(fact.source, [...(bySource.get(fact.source) ?? []), fact]);
+  return (
+    <section aria-labelledby="verouderd-title" className="verouderd">
+      <h2 id="verouderd-title">
+        <Clock size={16} aria-hidden="true" /> {staleLabel(stale.length)}
+      </h2>
+      <p className="muted">
+        Ouder dan de geldigheidsduur van hun bron. Ze tellen nog mee; werk een bron bij om ze te vernieuwen.
+      </p>
+      {[...bySource].map(([source, facts]) => {
+        const first = facts[0];
+        const section = SOURCE_SECTION[source];
+        return (
+          <div key={source} className="verouderd-source">
+            <div className="verouderd-head">
+              <div>
+                <h3>
+                  {section ? <a href={`#${section}`}>{sourceLabel(source)}</a> : sourceLabel(source)}
+                </h3>
+                <span className="muted">
+                  opgehaald {shortDate(first.fetched_at)}
+                  {first.ttl_days !== null && <>, {first.ttl_days} dagen geldig</>}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={props.refetching !== null}
+                aria-label={`${sourceLabel(source)} bijwerken`}
+                onClick={() => props.onRefetch(source)}
+              >
+                <RefreshCw
+                  size={14}
+                  aria-hidden="true"
+                  className={props.refetching === source ? "spinning" : undefined}
+                />
+                Bijwerken
+              </button>
+            </div>
+            <ul>
+              {facts.map((fact, index) => (
+                <li key={`${fact.key}-${fact.as_of ?? index}`}>
+                  <span>{sourceFactLabel(fact)}</span>
+                  <span className="num">
+                    {fact.trust === "official" ? "" : "~ "}
+                    {formatValue(fact)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

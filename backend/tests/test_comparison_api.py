@@ -83,6 +83,32 @@ def test_stale_source_facts_are_counted_per_listing(client, listing_provider, so
     assert row["last_fetched_at"] == "2026-10-24T12:00:00+00:00"
 
 
+def test_stale_sources_say_which_source_to_refetch_and_clear_after_it(
+    client, listing_provider, source_clients, clock
+):
+    source_clients["energielabel"].facts = [SourceFact("energy_label", "A", "2021-06-14")]
+    source_clients["woz"].facts = [
+        SourceFact("woz_value", 371_000, "2024-01-01"),
+        SourceFact("woz_value", 392_000, "2025-01-01"),
+    ]
+    capture(client, listing_provider)
+    assert comparison(client)["stale_sources"] == []
+
+    clock.advance(400)
+
+    stale = {s["source"]: s for s in comparison(client)["stale_sources"]}
+    assert stale["woz"]["facts"] == 2
+    assert stale["energielabel"]["facts"] == 1
+    assert stale["woz"]["fetched_at"] == "2026-10-24T12:00:00+00:00"
+    assert stale["woz"]["ttl_days"] > 0
+
+    client.post("/api/listings/80907644/sources/woz/refetch")
+
+    row = comparison(client)
+    assert [s["source"] for s in row["stale_sources"]] == ["energielabel"]
+    assert row["stale_count"] == 1
+
+
 def test_a_status_change_after_refetch_is_reported(client, listing_provider, clock):
     capture(client, listing_provider)
     assert comparison(client)["status_change"] is None

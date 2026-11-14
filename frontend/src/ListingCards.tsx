@@ -2,7 +2,8 @@ import { Camera, Clock, House, Ruler, Trees, TrendingDown, TrendingUp } from "lu
 
 import type { Listing } from "./api";
 import { euro, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
-import { ListingActions, SignalCounts, addressOf, statusLabel } from "./ListingsTable";
+import { ListingActions, SignalCounts, addressOf, staleSourcesTitle, statusLabel } from "./ListingsTable";
+import { staleLabel } from "./sources";
 import { TierMark } from "./TierMark";
 import { tierOf } from "./comparison";
 import { href } from "./route";
@@ -18,6 +19,7 @@ export function ListingCards(props: {
   onArchive: (listing: Listing) => void;
   onRestore: (fundaId: string) => void;
   onRerunVerdict: (fundaId: string) => void;
+  onRefreshStale: (fundaId: string, sources: string[]) => void;
 }) {
   return (
     <ul className="listing-cards" aria-label="Woningen">
@@ -32,6 +34,7 @@ export function ListingCards(props: {
           onArchive={() => props.onArchive(listing)}
           onRestore={props.onRestore}
           onRerunVerdict={props.onRerunVerdict}
+          onRefreshStale={props.onRefreshStale}
         />
       ))}
     </ul>
@@ -47,6 +50,7 @@ function ListingCard(props: {
   onArchive: () => void;
   onRestore: (fundaId: string) => void;
   onRerunVerdict: (fundaId: string) => void;
+  onRefreshStale: (fundaId: string, sources: string[]) => void;
 }) {
   const { listing } = props;
   const row = listing.comparison;
@@ -85,6 +89,7 @@ function ListingCard(props: {
             onArchive={props.onArchive}
             onRestore={props.onRestore}
             onRerunVerdict={props.onRerunVerdict}
+            onRefreshStale={props.onRefreshStale}
           />
         </span>
         {photos.length > 1 && (
@@ -95,9 +100,9 @@ function ListingCard(props: {
           </span>
         )}
         {row.stale_count > 0 && (
-          <span className="chip stale-chip card-stale">
+          <span className="chip stale-chip card-stale" title={staleSourcesTitle(row.stale_sources)}>
             <Clock size={13} aria-hidden="true" />
-            {row.stale_count} verouderd
+            {staleLabel(row.stale_count)}
           </span>
         )}
       </div>

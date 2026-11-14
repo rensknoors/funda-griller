@@ -40,7 +40,17 @@ export type Comparison = {
   renovation_direct: RenovationTotal;
   flag_counts: { pro: number; con: number; risk: number };
   stale_count: number;
+  /** Per Source with Stale facts, oldest fetch first. */
+  stale_sources: StaleSource[];
   last_fetched_at: string;
+};
+
+/** A Source whose facts are Stale: refetching it clears them. */
+export type StaleSource = {
+  source: string;
+  facts: number;
+  fetched_at: string;
+  ttl_days: number;
 };
 
 export type Listing = {

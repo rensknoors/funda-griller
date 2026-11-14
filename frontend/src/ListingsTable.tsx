@@ -1,11 +1,12 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
-import { ArrowDown, ArrowUp, ChevronDown, Clock, Ellipsis, LayoutGrid, Landmark, List, Newspaper, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Clock, Ellipsis, RefreshCw, LayoutGrid, Landmark, List, Newspaper, TrendingDown, TrendingUp } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import type { Listing } from "./api";
+import type { Listing, StaleSource } from "./api";
 import { euro, euroRange, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
 import { plural } from "./plural";
+import { sourceLabel, staleLabel } from "./sources";
 import { ListingCards } from "./ListingCards";
 import { TierMark } from "./TierMark";
 import { href } from "./route";
@@ -75,6 +76,8 @@ export function ListingsTable(props: {
   onRestore: (fundaId: string) => void;
   /** Make a new Verdict version for this Woning; never happens by itself. */
   onRerunVerdict: (fundaId: string) => void;
+  /** Refetch these Sources of one Woning, so their Verouderde feiten are current again. */
+  onRefreshStale: (fundaId: string, sources: string[]) => void;
 }) {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
@@ -241,6 +244,7 @@ export function ListingsTable(props: {
           onArchive={setArchiveTarget}
           onRestore={props.onRestore}
           onRerunVerdict={props.onRerunVerdict}
+          onRefreshStale={props.onRefreshStale}
         />
       ) : (
         <table aria-label="Woningen" className="listings">
@@ -279,6 +283,7 @@ export function ListingsTable(props: {
                 onArchive={() => setArchiveTarget(listing)}
                 onRestore={props.onRestore}
                 onRerunVerdict={props.onRerunVerdict}
+                onRefreshStale={props.onRefreshStale}
               />
             ))}
           </tbody>
@@ -355,6 +360,8 @@ function ListingRow(props: {
   onArchive: () => void;
   onRestore: (fundaId: string) => void;
   onRerunVerdict: (fundaId: string) => void;
+  /** Refetch these Sources of one Woning, so their Verouderde feiten are current again. */
+  onRefreshStale: (fundaId: string, sources: string[]) => void;
 }) {
   const { listing, expanded } = props;
   const row = listing.comparison;
@@ -422,9 +429,9 @@ function ListingRow(props: {
             {latest.entry === "manual" && <span className="chip">Handmatig ingevoerd</span>}
             {listing.archived && <span className="chip">Gearchiveerd</span>}
             {row.stale_count > 0 && (
-              <span className="chip stale-chip">
+              <span className="chip stale-chip" title={staleSourcesTitle(row.stale_sources)}>
                 <Clock size={13} aria-hidden="true" />
-                {row.stale_count} verouderd
+                {staleLabel(row.stale_count)}
               </span>
             )}
           </span>
@@ -474,12 +481,18 @@ function ListingRow(props: {
             onArchive={props.onArchive}
             onRestore={props.onRestore}
             onRerunVerdict={props.onRerunVerdict}
+            onRefreshStale={props.onRefreshStale}
           />
         </td>
       </tr>
       <tr id={detailsId} className="row-details" hidden={!expanded}>
         <td colSpan={6}>
-          {expanded && <RowDetails listing={listing} />}
+          {expanded && (
+            <>
+              <RowDetails listing={listing} />
+              <StaleSources listing={listing} busy={props.busy} onRefreshStale={props.onRefreshStale} />
+            </>
+          )}
         </td>
       </tr>
     </>
@@ -539,6 +552,62 @@ function RowDetails({ listing }: { listing: Listing }) {
   );
 }
 
+const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+
+/** "WOZ (prijshistorie), Geluid": which Sources a Stale chip is about, for its tooltip. */
+export const staleSourcesTitle = (sources: StaleSource[]) =>
+  `Verouderd: ${sources.map((s) => sourceLabel(s.source)).join(", ")}`;
+
+/** What is Verouderd in this Woning, per Source, with a refetch for each or for all of them. */
+function StaleSources(props: {
+  listing: Listing;
+  busy: boolean;
+  onRefreshStale: (fundaId: string, sources: string[]) => void;
+}) {
+  const sources = props.listing.comparison.stale_sources;
+  if (sources.length === 0) return null;
+  const refresh = (names: string[]) => props.onRefreshStale(props.listing.funda_id, names);
+  const titleId = `stale-${props.listing.funda_id}`;
+  return (
+    <section className="row-stale" aria-labelledby={titleId}>
+      <div className="row-stale-head">
+        <h3 id={titleId}>
+          <Clock size={14} aria-hidden="true" /> {staleLabel(props.listing.comparison.stale_count)}
+        </h3>
+        {sources.length > 1 && (
+          <button type="button" disabled={props.busy} onClick={() => refresh(sources.map((s) => s.source))}>
+            <RefreshCw size={14} aria-hidden="true" />
+            Alles bijwerken
+          </button>
+        )}
+      </div>
+      <ul>
+        {sources.map((stale) => (
+          <li key={stale.source}>
+            <span>
+              <strong>{sourceLabel(stale.source)}</strong>
+              <span className="muted">
+                {" "}
+                · {plural(stale.facts, "feit", "feiten")} · opgehaald {dayMonth.format(new Date(stale.fetched_at))},{" "}
+                {stale.ttl_days} dagen geldig
+              </span>
+            </span>
+            <button
+              type="button"
+              className="link"
+              disabled={props.busy}
+              aria-label={`${sourceLabel(stale.source)} bijwerken`}
+              onClick={() => refresh([stale.source])}
+            >
+              Bijwerken
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function RowFact(props: { label: string; title?: string; tone?: string | null; children: ReactNode }) {
   return (
     <div className="row-fact">
@@ -575,6 +644,8 @@ export function ListingActions(props: {
   onArchive: () => void;
   onRestore: (fundaId: string) => void;
   onRerunVerdict: (fundaId: string) => void;
+  /** Refetch these Sources of one Woning, so their Verouderde feiten are current again. */
+  onRefreshStale: (fundaId: string, sources: string[]) => void;
 }) {
   const { listing } = props;
   return (
@@ -586,6 +657,18 @@ export function ListingActions(props: {
         <Menu.Positioner className="menu-positioner" align="end">
           <Menu.Popup className="menu">
             <Menu.Item onClick={() => props.onRefetch(listing.funda_id)}>Opnieuw ophalen</Menu.Item>
+            {listing.comparison.stale_sources.length > 0 && (
+              <Menu.Item
+                onClick={() =>
+                  props.onRefreshStale(
+                    listing.funda_id,
+                    listing.comparison.stale_sources.map((s) => s.source),
+                  )
+                }
+              >
+                Verouderde feiten bijwerken
+              </Menu.Item>
+            )}
             <Menu.Item onClick={() => props.onRerunVerdict(listing.funda_id)}>Oordeel opnieuw draaien</Menu.Item>
             {listing.archived ? (
               <Menu.Item onClick={() => props.onRestore(listing.funda_id)}>Terugzetten</Menu.Item>

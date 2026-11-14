@@ -74,3 +74,34 @@ test("dossier shows flood and soil risk under omgeving, its risico signaal, and 
   await page.getByRole("button", { name: "Overstroming en bodem opnieuw ophalen" }).click();
   await expect(omgeving.getByText("0,88 m")).toBeVisible();
 });
+
+test("dossier lists its verouderde feiten per bron and refetches that bron", async ({ page }) => {
+  await page.route("**/api/listings/80907644/case", async (route) => {
+    const caseData = await (await route.fetch()).json();
+    for (const fact of caseData.facts) {
+      if (fact.source === "woz") Object.assign(fact, { stale: true, ttl_days: 30 });
+    }
+    await route.fulfill({ json: caseData });
+  });
+  const refetched: string[] = [];
+  await page.route("**/api/listings/80907644/sources/*/refetch", async (route) => {
+    refetched.push(new URL(route.request().url()).pathname);
+    await route.fallback();
+  });
+  await page.goto("/");
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
+
+  const block = page.getByRole("region", { name: /feiten? verouderd/ });
+  await expect(block.getByRole("link", { name: "WOZ (prijshistorie)" })).toBeVisible();
+  await expect(block.getByText("WOZ-waarde 2025")).toBeVisible();
+  await expect(block.getByText(/30 dagen geldig/)).toBeVisible();
+  await expect(page.locator(".brondekking").getByText("verouderd")).toBeVisible();
+
+  await page.getByRole("link", { name: /feiten? verouderd/ }).click();
+  // In-page links scroll; the hash keeps the route.
+  await expect(page.locator("#verouderd-title")).toBeInViewport();
+
+  await block.getByRole("button", { name: "WOZ (prijshistorie) bijwerken" }).click();
+  await expect.poll(() => refetched).toEqual(["/api/listings/80907644/sources/woz/refetch"]);
+  await expect(block).toBeHidden();
+});
