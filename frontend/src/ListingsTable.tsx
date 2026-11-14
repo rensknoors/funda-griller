@@ -83,6 +83,12 @@ export function ListingsTable(props: {
   const [view, setView] = useView();
   const rows = visibleListings(props.listings, filters, sort);
   const archivedCount = props.listings.filter((l) => l.archived).length;
+  const filtersActive =
+    filters.tiers.length > 0 ||
+    filters.minPrice !== null ||
+    filters.maxPrice !== null ||
+    filters.staleOnly ||
+    filters.showArchived;
 
   function toggleTier(tier: TierKey, on: boolean) {
     setFilters((f) => ({ ...f, tiers: on ? [...f.tiers, tier] : f.tiers.filter((t) => t !== tier) }));
@@ -124,84 +130,106 @@ export function ListingsTable(props: {
   return (
     <>
       <div className="list-filters" role="group" aria-label="Filters">
-        <fieldset className="tier-filter">
-          <legend>Oordeel</legend>
-          {TIER_ORDER.map((tier) => (
-            <label key={tier} className="tier-toggle">
+        <div className="filter-row">
+          <fieldset className="filter-group tier-filter">
+            <legend>Oordeel</legend>
+            {TIER_ORDER.map((tier) => (
+              <label key={tier} className="tier-toggle">
+                <input
+                  type="checkbox"
+                  checked={filters.tiers.includes(tier)}
+                  onChange={(event) => toggleTier(tier, event.target.checked)}
+                />
+                <TierMark tier={tier} size="compact" />
+              </label>
+            ))}
+          </fieldset>
+          <fieldset className="filter-group price-range">
+            <legend>Vraagprijs</legend>
+            <PriceInput
+              label="Vraagprijs vanaf"
+              placeholder="Min"
+              value={filters.minPrice}
+              onChange={(minPrice) => setFilters((f) => ({ ...f, minPrice }))}
+            />
+            <span className="price-range-dash" aria-hidden="true">
+              –
+            </span>
+            <PriceInput
+              label="Vraagprijs tot"
+              placeholder="Max"
+              value={filters.maxPrice}
+              onChange={(maxPrice) => setFilters((f) => ({ ...f, maxPrice }))}
+            />
+          </fieldset>
+          <fieldset className="filter-group show-filter">
+            <legend>Feiten</legend>
+            <label>
               <input
                 type="checkbox"
-                checked={filters.tiers.includes(tier)}
-                onChange={(event) => toggleTier(tier, event.target.checked)}
+                checked={filters.staleOnly}
+                onChange={(event) => setFilters((f) => ({ ...f, staleOnly: event.target.checked }))}
               />
-              <TierMark tier={tier} size="compact" />
+              Met verouderde feiten
             </label>
-          ))}
-        </fieldset>
-        <label className="price-filter">
-          Prijs min (€)
-          <PriceInput value={filters.minPrice} onChange={(minPrice) => setFilters((f) => ({ ...f, minPrice }))} />
-        </label>
-        <label className="price-filter">
-          Prijs max (€)
-          <PriceInput value={filters.maxPrice} onChange={(maxPrice) => setFilters((f) => ({ ...f, maxPrice }))} />
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={filters.staleOnly}
-            onChange={(event) => setFilters((f) => ({ ...f, staleOnly: event.target.checked }))}
-          />{" "}
-          Alleen verouderd
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={filters.showArchived}
-            onChange={(event) => setFilters((f) => ({ ...f, showArchived: event.target.checked }))}
-          />{" "}
-          Toon gearchiveerd
-        </label>
-        <label className="sort-select">
-          Sorteren
-          <select
-            value={`${sort.key}:${sort.direction}`}
-            onChange={(event) => {
-              const [key, direction] = event.target.value.split(":");
-              setSort({ key: key as SortKey, direction: direction as Sort["direction"] });
-            }}
-          >
-            {SORT_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="view-switch" role="group" aria-label="Weergave">
-          <button type="button" aria-pressed={view === "kaarten"} onClick={() => setView("kaarten")}>
-            <LayoutGrid size={16} aria-hidden="true" />
-            Kaarten
-          </button>
-          <button type="button" aria-pressed={view === "lijst"} onClick={() => setView("lijst")}>
-            <List size={16} aria-hidden="true" />
-            Lijst
-          </button>
+          </fieldset>
         </div>
-        <p className="result-count" aria-live="polite">
-          {rows.length} {rows.length === 1 ? "woning" : "woningen"}
-          {archivedCount > 0 && !filters.showArchived && (
-            <>
-              {" · "}
-              <button
-                type="button"
-                className="link"
-                onClick={() => setFilters((f) => ({ ...f, showArchived: true }))}
+        <div className="list-toolbar">
+          <p className="result-count" aria-live="polite">
+            <strong>
+              {rows.length} {rows.length === 1 ? "woning" : "woningen"}
+            </strong>
+            {(archivedCount > 0 || filters.showArchived) && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  className="link"
+                  aria-pressed={filters.showArchived}
+                  onClick={() => setFilters((f) => ({ ...f, showArchived: !f.showArchived }))}
+                >
+                  {filters.showArchived ? "Verberg gearchiveerd" : `${archivedCount} gearchiveerd`}
+                </button>
+              </>
+            )}
+            {filtersActive && rows.length > 0 && (
+              <>
+                {" · "}
+                <button type="button" className="link" onClick={() => setFilters(NO_FILTERS)}>
+                  Filters wissen
+                </button>
+              </>
+            )}
+          </p>
+          <div className="toolbar-controls">
+            <label className="sort-select">
+              Sorteren
+              <select
+                value={`${sort.key}:${sort.direction}`}
+                onChange={(event) => {
+                  const [key, direction] = event.target.value.split(":");
+                  setSort({ key: key as SortKey, direction: direction as Sort["direction"] });
+                }}
               >
-                {archivedCount} gearchiveerd
+                {SORT_OPTIONS.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="view-switch" role="group" aria-label="Weergave">
+              <button type="button" aria-pressed={view === "kaarten"} onClick={() => setView("kaarten")}>
+                <LayoutGrid size={16} aria-hidden="true" />
+                Kaarten
               </button>
-            </>
-          )}
-        </p>
+              <button type="button" aria-pressed={view === "lijst"} onClick={() => setView("lijst")}>
+                <List size={16} aria-hidden="true" />
+                Lijst
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
       {view === "kaarten" ? (
         <ListingCards
@@ -271,7 +299,7 @@ export function ListingsTable(props: {
             <Dialog.Title>{archiveTarget && addressOf(archiveTarget)} archiveren?</Dialog.Title>
             <Dialog.Description>
               De woning verdwijnt uit de lijst; momentopnamen en dossier blijven bewaard. Terugzetten
-              kan via Toon gearchiveerd.
+              kan via gearchiveerd boven de lijst.
             </Dialog.Description>
             <div className="dialog-actions">
               <Dialog.Close>Annuleren</Dialog.Close>
@@ -293,16 +321,26 @@ export function ListingsTable(props: {
   );
 }
 
-function PriceInput({ value, onChange }: { value: number | null; onChange: (value: number | null) => void }) {
+function PriceInput(props: {
+  label: string;
+  placeholder: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+}) {
   return (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={0}
-      step={5000}
-      value={value ?? ""}
-      onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
-    />
+    <span className="price-input">
+      <span aria-hidden="true">€</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        step={5000}
+        aria-label={props.label}
+        placeholder={props.placeholder}
+        value={props.value ?? ""}
+        onChange={(event) => props.onChange(event.target.value === "" ? null : Number(event.target.value))}
+      />
+    </span>
   );
 }
 
