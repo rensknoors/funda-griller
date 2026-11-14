@@ -218,7 +218,7 @@ A committed cobalt region over a cobalt-tinted white sheet, with a three-step se
 - **Cobalt** (#1f4fd1): links, link-buttons, "Hoe berekend" disclosures, `accent-color` and caret, the focus outline on white, the Register stamp's double border, and a 3px top rule on the key-figures and Biedadvies bands. Hover darkens to **Cobalt Hover** (#173ea8).
 - **Cobalt Tint** (#e4ebfd): row flash after capture, the targeted-fact highlight, a focused flag.
 - **Cobalt Halo** (#cddafa): text selection on white and the 3px input focus ring.
-- **Ink** (#0f1830): all headings and values below the hero, primary buttons (including the Ophalen button on the capture panel), the checked tier-toggle ring, the Verkocht chip, the lower half of the wordmark. Ink buttons hover to **Ink Hover** (#253151).
+- **Ink** (#0f1830): all headings and values below the hero, primary buttons (including the Ophalen button on the capture panel), the checked tier-toggle ring, the Verkocht chip. Ink buttons hover to **Ink Hover** (#253151).
 
 ### Secondary
 - **Woud Green** (#0a6f45) and **Green Tint** (#e3f3ea): the Zeker kopen tier (pill, full band), pro flags, a successful source, and the favourable figure tone.
@@ -302,7 +302,7 @@ Flat. Depth is tonal: the cobalt hero over white, a raised lighter cobalt panel 
 
 ## Shapes
 
-Small, near-square corners. Controls, stamps and inputs use 6px; bands (capture panel, key figures, bid figures, Gevolgen, tier band, empty states) use 4px; dialogs and Woning cards 8px; tier pills, chips and signaal chips are full pills. The hero band itself is square and full-bleed. Borders are 1px, except where the style itself is the message: the 3px double rule (Register stamp, Harde afwijzing), 2px dotted (Verkoper stamp), dashed (Foto's stamp, file input, add button, Nog geen oordeel). The wordmark is a 22px rounded square split white over ink, sitting on cobalt.
+Small, near-square corners. Controls, stamps and inputs use 6px; bands (capture panel, key figures, bid figures, Gevolgen, tier band, empty states) use 4px; dialogs and Woning cards 8px; tier pills, chips and signaal chips are full pills. The hero band itself is square and full-bleed. Borders are 1px, except where the style itself is the message: the 3px double rule (Register stamp, Harde afwijzing), 2px dotted (Verkoper stamp), dashed (Foto's stamp, file input, add button, Nog geen oordeel). The wordmark is the G-gevel: a 24px geometric G drawn in a 3px mitred stroke whose top is a pitched roof, white on cobalt. The favicon is the same mark on a cobalt square.
 
 ## Components
 

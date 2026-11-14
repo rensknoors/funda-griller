@@ -7,6 +7,7 @@ import { CaseView } from "./CaseView";
 import { ListingsTable } from "./ListingsTable";
 import { ManualEntryForm } from "./ManualEntryForm";
 import { VerdictView } from "./VerdictView";
+import { GrillerMark } from "./Wordmark";
 import {
   apiFetch,
   archiveListing,
@@ -349,7 +350,7 @@ export function App() {
       <header className="topbar">
         <div className="topbar-inner">
           <a className="wordmark" href={href({ view: "woningen" })}>
-            <span className="wordmark-mark" aria-hidden="true" />
+            <GrillerMark className="wordmark-mark" />
             Funda Griller
           </a>
           <nav aria-label="Hoofdmenu" className="main-nav">
