@@ -61,10 +61,10 @@ test("list compares woningen by oordeel, price and key figures", async ({ page }
   await expect(priceHeader).toHaveAttribute("aria-sort", "descending");
   expect((await rowOrder(page)).filter((name) => name !== "ander")).toEqual(["Buchterweg", "Markt"]);
 
-  await page.getByLabel("Prijs max (€)").fill("500000");
+  await page.getByLabel("Vraagprijs tot").fill("500000");
   await expect(row(page, "Buchterweg 15")).toBeHidden();
   await expect(row(page, "Markt 3")).toBeVisible();
-  await page.getByLabel("Prijs max (€)").fill("");
+  await page.getByLabel("Vraagprijs tot").fill("");
 
   await page.getByRole("checkbox", { name: /Harde afwijzing/ }).check();
   await expect(row(page, "Markt 3")).toBeHidden();
@@ -83,7 +83,7 @@ test("woningen with verouderde gegevens stand out and can be filtered", async ({
   await page.getByRole("button", { name: "Lijst", exact: true }).click();
 
   await expect(row(page, "Buchterweg 15").getByText("3 verouderd")).toBeVisible();
-  await page.getByRole("checkbox", { name: "Alleen verouderd" }).check();
+  await page.getByRole("checkbox", { name: "Met verouderde feiten" }).check();
   await expect(row(page, "Markt 3")).toBeHidden();
   await expect(row(page, "Buchterweg 15")).toBeVisible();
 });
@@ -110,7 +110,7 @@ test("refetch shows a status change; archive and restore keep the woning", async
   await row(page, "Markt 3").getByRole("button", { name: "Acties", exact: true }).click();
   await page.getByRole("menuitem", { name: "Terugzetten" }).click();
   await expect(row(page, "Markt 3").getByText("Gearchiveerd")).toBeHidden();
-  await page.getByRole("checkbox", { name: "Toon gearchiveerd" }).uncheck();
+  await page.getByRole("button", { name: "Verberg gearchiveerd" }).click();
   await expect(row(page, "Markt 3")).toBeVisible();
   await expect(row(page, "Markt 3").getByText("Verkocht")).toBeVisible();
 });

@@ -186,11 +186,12 @@ input[type="file"] { border-style: dashed; padding: 7px; }
 .capture input { flex: 1; min-height: 46px; font-size: 16px; padding: 0 14px; }
 .capture button[type="submit"] { min-height: 46px; padding: 0 22px; font-size: 15px; }
 
-/* Woningen: filter toolbar and comparison table. */
-.list-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; margin: 0 0 12px; }
-.list-filters > label:not(.price-filter) { white-space: nowrap; }
-.tier-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; border: 0; }
-.tier-filter legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); float: left; width: 100%; }
+/* Woningen: filters as labelled groups, a toolbar for count, sort and view, then the comparison table. */
+.list-filters { margin: 0 0 20px; }
+.filter-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px 48px; }
+.filter-row > .tier-filter { flex-basis: 100%; }
+.filter-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 0; margin: 0; padding: 0; border: 0; }
+.filter-group legend { float: left; width: 100%; padding: 0; margin-bottom: 2px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .tier-toggle { position: relative; display: inline-flex; cursor: pointer; }
 .tier-toggle input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; cursor: pointer; }
 /* A filter chip is the row's tier chip with its word: selected chips get a ring, the rest fade. */
@@ -200,12 +201,20 @@ input[type="file"] { border-style: dashed; padding: 7px; }
 .tier-filter:has(input:checked) .tier-toggle input:not(:checked) + .tier { opacity: 0.5; }
 .tier-filter:has(input:checked) .tier-toggle:hover input:not(:checked) + .tier { opacity: 0.8; }
 .tier-toggle input:focus-visible + .tier { outline: 2px solid var(--cobalt); outline-offset: 2px; }
-.list-filters > label { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; color: var(--ink-2); }
-.list-filters .price-filter { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; font-weight: 600; min-height: 0; }
-.price-filter input { width: 9.5em; font-weight: 400; }
-.result-count { margin: 0 0 0 auto; align-self: center; color: var(--ink-2); }
-.list-filters .sort-select { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; font-weight: 600; min-height: 0; }
-.sort-select select { font-weight: 400; }
+.price-range { gap: 8px; }
+.price-range-dash { color: var(--ink-3); }
+.price-input { position: relative; display: inline-flex; align-items: center; }
+.price-input > span { position: absolute; left: 10px; color: var(--ink-3); pointer-events: none; }
+.price-input input { width: 8.5em; min-height: 32px; height: 32px; padding: 0 10px 0 24px; font-weight: 400; appearance: textfield; -moz-appearance: textfield; }
+.price-input input::-webkit-outer-spin-button, .price-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.show-filter { gap: 6px 20px; }
+.show-filter label { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; white-space: nowrap; color: var(--ink-2); cursor: pointer; }
+.list-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.result-count { margin: 0; color: var(--ink-2); }
+.result-count strong { color: var(--ink); font-weight: 600; }
+.toolbar-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.sort-select { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.sort-select select { min-height: 38px; font-size: 15px; font-weight: 400; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; font-weight: 400; }
@@ -679,9 +688,8 @@ fieldset.vak { border: 0; }
   .header-photos > .card-photo-count { top: 10px; bottom: auto; }
   .capture { padding: 16px; }
   .capture-row { flex-direction: column; }
-  .list-filters > label:not(.price-filter, .sort-select) { min-height: 32px; }
-  .price-filter input { width: 8em; }
-  .result-count { margin: 0; width: 100%; }
+  .filter-row { gap: 16px; }
+  .price-input input { width: 7.5em; }
   .listings thead { display: none; }
   .listings, .listings tbody, .listings tr { display: block; }
   .listings tr:not(.row-details) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: start; gap: 6px 10px; border-bottom: 1px solid var(--line); padding: 14px 0; }
@@ -747,7 +755,7 @@ button.capture-dismiss:hover:not(:disabled) { background: var(--band); border-co
 }
 
 /* Woningen as cards: photo first, like funda. The address link covers the whole card. */
-.view-switch { display: inline-flex; align-self: flex-end; padding: 3px; gap: 2px; border-radius: var(--radius-s); background: var(--band); }
+.view-switch { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-s); background: var(--band); }
 .view-switch button { min-height: 32px; padding: 0 12px; gap: 6px; border: 0; background: none; color: var(--ink-2); font-weight: 550; }
 .view-switch button:hover:not(:disabled) { background: rgb(255 255 255 / 0.6); color: var(--ink); }
 .view-switch button[aria-pressed="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px rgb(15 24 48 / 0.12); }
@@ -798,7 +806,6 @@ button.capture-dismiss:hover:not(:disabled) { background: var(--band); border-co
 .energy-g { background: #c2410c; color: #fff; }
 @media (max-width: 719px) {
   .listing-cards { grid-template-columns: 1fr; gap: 20px; }
-  .view-switch { align-self: flex-start; }
 }
 
 /* Figure graphics. The price scale continues the key-figures band. */
