@@ -75,17 +75,51 @@ test("woningen with verouderde gegevens stand out and can be filtered", async ({
   await page.route("**/api/listings?*", async (route) => {
     const listings = await (await route.fetch()).json();
     for (const listing of listings) {
-      if (listing.funda_id === "80907644") listing.comparison.stale_count = 3;
+      if (listing.funda_id === "80907644") {
+        listing.comparison.stale_count = 3;
+        listing.comparison.stale_sources = [
+          { source: "woz", facts: 2, fetched_at: "2025-09-01T12:00:00+00:00", ttl_days: 30 },
+          { source: "energielabel", facts: 1, fetched_at: "2025-09-01T12:00:00+00:00", ttl_days: 365 },
+        ];
+      }
     }
     await route.fulfill({ json: listings });
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Lijst", exact: true }).click();
 
-  await expect(row(page, "Buchterweg 15").getByText("3 verouderd")).toBeVisible();
+  await expect(row(page, "Buchterweg 15").getByText("3 feiten verouderd")).toBeVisible();
   await page.getByRole("checkbox", { name: "Met verouderde feiten" }).check();
   await expect(row(page, "Markt 3")).toBeHidden();
   await expect(row(page, "Buchterweg 15")).toBeVisible();
+});
+
+test("a folded-open woning says which sources are verouderd and refetches just those", async ({ page }) => {
+  await page.route("**/api/listings?*", async (route) => {
+    const listings = await (await route.fetch()).json();
+    for (const listing of listings) {
+      if (listing.funda_id === "80907644") {
+        listing.comparison.stale_count = 2;
+        listing.comparison.stale_sources = [
+          { source: "woz", facts: 2, fetched_at: "2025-09-01T12:00:00+00:00", ttl_days: 30 },
+        ];
+      }
+    }
+    await route.fulfill({ json: listings });
+  });
+  const refetched: string[] = [];
+  await page.route("**/api/listings/*/sources/*/refetch", async (route) => {
+    refetched.push(new URL(route.request().url()).pathname);
+    await route.fulfill({ json: {} });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Lijst", exact: true }).click();
+
+  const stale = (await details(page, "Buchterweg 15")).getByRole("region", { name: "2 feiten verouderd" });
+  await expect(stale.getByText("WOZ (prijshistorie)")).toBeVisible();
+  await expect(stale.getByText(/30 dagen geldig/)).toBeVisible();
+  await stale.getByRole("button", { name: "WOZ (prijshistorie) bijwerken" }).click();
+  await expect.poll(() => refetched).toEqual(["/api/listings/80907644/sources/woz/refetch"]);
 });
 
 test("refetch shows a status change; archive and restore keep the woning", async ({ page }) => {

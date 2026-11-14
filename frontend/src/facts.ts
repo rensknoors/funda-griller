@@ -1,7 +1,7 @@
 /** How Case facts are labelled and shown: the Dutch label per fact key, the herkomst word per
  * provenance class, and number formats per kind of fact. */
 
-import type { CaseFact, CommuteFact, CommuteMode, CommuteUnknown } from "./api";
+import type { CaseFact, Comparable, CommuteFact, CommuteMode, CommuteUnknown } from "./api";
 import { decimal, euro, percentChange } from "./format";
 import { statusLabel } from "./ListingsTable";
 
@@ -83,8 +83,25 @@ export function isCommuteFact(value: unknown): value is CommuteFact {
   return typeof value === "object" && value !== null && "destination" in value && "minutes" in value;
 }
 
+/** A comparable is one nearby Listing: its address is the label, price and size its value. */
+export function isComparableFact(fact: CaseFact): fact is CaseFact & { value: Comparable } {
+  return fact.key === "comparable" && typeof fact.value === "object" && fact.value !== null && "funda_id" in fact.value;
+}
+
+export const comparableLabel = (c: Comparable) =>
+  [c.address ?? c.funda_id, c.city].filter(Boolean).join(", ");
+
+function comparableText(c: Comparable): string {
+  const parts = [
+    c.asking_price != null ? euro.format(c.asking_price) : null,
+    c.living_area != null ? `${c.living_area} m²` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "–";
+}
+
 export function formatValue(fact: CaseFact): string {
   if (isCommuteFact(fact.value)) return commuteText(fact.value);
+  if (isComparableFact(fact)) return comparableText(fact.value);
   if (fact.key === "status" && typeof fact.value === "string") return statusLabel(fact.value, fact.value);
   return typeof fact.value === "number" ? formatNumber(fact.key, fact.value) : String(fact.value);
 }
