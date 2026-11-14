@@ -549,13 +549,13 @@ button.signaal-chip { min-height: 34px; padding: 0 12px 0 8px; border-radius: 99
 .section-select { display: none; }
 .form-section { border-top: 1px solid var(--line); scroll-margin-top: calc(var(--topbar-h) + 20px); }
 .form-section:first-of-type { border-top: 0; }
-.form-section summary { display: flex; align-items: baseline; gap: 16px; cursor: pointer; list-style: none; padding: 18px 0; }
+.form-section summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 24px; row-gap: 4px; align-items: center; cursor: pointer; list-style: none; padding: 18px 0; }
 .form-section summary::-webkit-details-marker { display: none; }
-.form-section summary::after { content: ""; width: 9px; height: 9px; margin-left: auto; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); rotate: 45deg; translate: 0 -3px; transition: rotate 180ms var(--ease); }
+.form-section summary::after { content: ""; grid-column: 2; grid-row: 1 / span 2; width: 9px; height: 9px; margin-right: 4px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); rotate: 45deg; translate: 0 -3px; transition: rotate 180ms var(--ease); }
 .form-section details:not([open]) summary::after { rotate: -45deg; translate: 0 0; }
-.form-section summary h2 { margin: 0; }
+.form-section summary h2 { margin: 0; grid-column: 1; }
 .form-section details[open] .section-hint { display: none; }
-.section-hint { color: var(--ink-2); }
+.section-hint { grid-column: 1; color: var(--ink-2); font-size: 15px; line-height: 1.45; max-width: 60ch; }
 .section-body { display: grid; gap: 16px; justify-items: start; padding-bottom: 28px; }
 .section-body > fieldset, .section-body > .vak { justify-self: stretch; }
 .hint { color: var(--ink-2); font-size: 13.5px; margin: 0; }
