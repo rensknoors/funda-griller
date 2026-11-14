@@ -21,6 +21,28 @@
 #                     factor, per toetsrente column, before it comes off the allowed monthly cost.
 #                     Nibud (advies 2027 §5.2) advises the same for other non-deductible loans.
 #                     Unchanged for 2027 (advies 2027 tabel 8).
+#   debts             How each kind of debt becomes a monthly toetslast; notes in
+#                     .scratch/funda-griller/research/debt-weights.md (checked 2026-11-09).
+#                     study_loan: Trhk art. 3a lid 1 and 3 (BWBR0032503, 2026-01-01): the termijnbedrag
+#                     for interest and repayment, and while nothing is owed yet (studying, aanloopfase)
+#                     or a lowered draagkracht amount is owed, the annuity on the actual debt, rate and
+#                     remaining term. DUO, "Berekening maandbedrag": the wettelijk maandbedrag repays the
+#                     debt within 35 years (SF35) or 15 years (SF15). A Mijn DUO amount may override it.
+#                     UNVERIFIED: the annuity convention. DUO does not publish its formula; the code
+#                     uses the standard monthly annuity with monthly rate = yearly rate / 12 (research
+#                     notes §2). The Mijn DUO override is the way round a difference.
+#                     revolving_credit, instalment_loan: NVB/Verbond Gedragscode Hypothecaire
+#                     Financieringen (in force 2020-08-01, no later version found) §4 lid 5: at least 2%
+#                     of the kredietlimiet a month for a doorlopend krediet, drawn or not; at least the
+#                     contractual interest and repayment for an aflopend krediet.
+#                     private_lease: UNVERIFIED. No primary source states the share; BKR registers new
+#                     contracts (from 2022-04-01) at 100% of the contract amount, and lenders are
+#                     reported (secondary) to count the full monthly term.
+#                     other: the monthly amount as entered.
+#                     gross_up: Trhk art. 3a lid 2 prescribes the debt_gross_up for study loans only;
+#                     Nibud (advies 2026 hst. 8, advies 2027 §5.2) advises it for every non-deductible
+#                     obligation, consumer credit and private lease included. Lenders vary; on for
+#                     every kind here, the prudent reading.
 #   energy_label_bonus  Trhk art. 4 lid 3; unchanged for 2027 (advies 2027 tabel 6).
 #   nhg               nhg.nl Voorwaarden en normen 2026-1: €470.000 (€498.200 with energy-saving
 #                     measures), borgtochtprovisie 0,4%.
@@ -41,7 +63,7 @@
 
 # Bump on any change to this file: the Case records it, so Verdicts built on the old table become
 # Achterhaald.
-version = 2
+version = 3
 
 # Offered mortgage rates, ten years fixed, annuity: the test rate for a rentevaste periode of ten
 # years or longer and the rate the monthly cost is worked out at. A market snapshot, not a year
@@ -142,6 +164,28 @@ rows = [
 # Gross-up factor for the monthly cost of other loans, per toetsrente column (same columns).
 [years.2026.debt_gross_up]
 factors = [1.05, 1.05, 1.10, 1.15, 1.20, 1.20, 1.25, 1.30, 1.30, 1.35, 1.40, 1.40]
+
+# Debts by kind: the monthly toetslast of each, as a share of the figure the household enters
+# (study loan: the derived wettelijk maandbedrag), and whether the debt_gross_up applies.
+[years.2026.debts.study_loan]
+term_months = { SF35 = 420, SF15 = 180 }  # annuity at yearly rate / 12: UNVERIFIED, see the header
+gross_up = true
+
+[years.2026.debts.revolving_credit]
+share_of_limit = 0.02
+gross_up = true
+
+[years.2026.debts.instalment_loan]
+share_of_term = 1.0
+gross_up = true
+
+[years.2026.debts.private_lease]
+share_of_term = 1.0  # UNVERIFIED: see the header
+gross_up = true
+
+[years.2026.debts.other]
+share_of_term = 1.0
+gross_up = true
 
 [years.2026.single_bonus]
 amount = 17000
@@ -270,6 +314,28 @@ rows = [
 # Gross-up factor for the monthly cost of other loans, per toetsrente column (same columns).
 [years.2027.debt_gross_up]
 factors = [1.05, 1.05, 1.10, 1.15, 1.20, 1.20, 1.25, 1.30, 1.30, 1.35, 1.40, 1.40]
+
+# Debts by kind: the monthly toetslast of each, as a share of the figure the household enters
+# (study loan: the derived wettelijk maandbedrag), and whether the debt_gross_up applies.
+[years.2027.debts.study_loan]
+term_months = { SF35 = 420, SF15 = 180 }  # annuity at yearly rate / 12: UNVERIFIED, see the header
+gross_up = true
+
+[years.2027.debts.revolving_credit]
+share_of_limit = 0.02
+gross_up = true
+
+[years.2027.debts.instalment_loan]
+share_of_term = 1.0
+gross_up = true
+
+[years.2027.debts.private_lease]
+share_of_term = 1.0  # UNVERIFIED: see the header
+gross_up = true
+
+[years.2027.debts.other]
+share_of_term = 1.0
+gross_up = true
 
 [years.2027.single_bonus]
 amount = 18000

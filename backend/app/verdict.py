@@ -90,13 +90,22 @@ def judge(
         raise LlmError("no LLM client configured")
     derivation = derive_walk_away_maximum(case, margins)
     response = llm_client.rate(
-        {**case, "provenance_legend": PROVENANCE_LEGEND, "walk_away": derivation}, reduced_profile
+        {**_for_llm(case), "provenance_legend": PROVENANCE_LEGEND, "walk_away": derivation}, reduced_profile
     )
     return {
         **_validated(response, case, derivation, monthly_cost_at),
         "deterministic": False,
         "built_from": built_from,
     }
+
+
+def _for_llm(case: dict) -> dict:
+    """The Case as the LLM may see it: without the household's debts, which only the app's own UI
+    shows (ticket 30)."""
+    affordability = case["affordability"]
+    if not affordability:
+        return case
+    return {**case, "affordability": {key: value for key, value in affordability.items() if key != "debts"}}
 
 
 def derive_walk_away_maximum(case: dict, margins: WalkAwayMargins) -> WalkAwayDerivation:
@@ -154,6 +163,9 @@ def inputs_of(case: dict, model: str | None) -> dict:
         **case["built_from"],
         "rules_year": case["rules"]["year"],
         "rules_version": case["rules"].get("version"),
+        # The rate per loan route the figures rest on; a change shows through the profile or
+        # rules version, so it is recorded, not compared.
+        "mortgage_rates": case["rules"].get("rates"),
         "source_fetches": source_fetches,
         "model": model,
     }

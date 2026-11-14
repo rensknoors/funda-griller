@@ -8,6 +8,7 @@ import {
   type Listing,
   type ListingFact,
   type Metrics,
+  type RouteRates,
   type SourceFact,
   type SourceStatus,
   type FindingFact,
@@ -17,11 +18,23 @@ import {
 import { Documenten, VerkoperInformatie } from "./Documenten";
 import { FACT_LABELS, ENVIRONMENT_FACTS, formatValue, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
-import { type Tone, decimal, euro, headroomTone, longDate, monthOf, percentChange, priceTone, signedEuro, signedPercent } from "./format";
+import {
+  type Tone,
+  euro,
+  headroomTone,
+  monthOf,
+  percentChange,
+  priceTone,
+  rateText,
+  routeRatesText,
+  signedEuro,
+  signedPercent,
+} from "./format";
 import { HardNoBanner, Signalen, signaalAnchor } from "./Signalen";
 import { statusLabel } from "./ListingsTable";
 import { TierMark } from "./TierMark";
 import { plural } from "./plural";
+import { debtLabel } from "./profile";
 import { tierOf } from "./comparison";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 import { STAMP_LEGEND, Stamp } from "./Stamp";
@@ -479,7 +492,7 @@ function Betaalruimte({
             label="Netto maandlasten bij vraagprijs"
             value={affordability.monthly_cost_net !== null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
           >
-            {monthlyNote(affordability)}
+            {monthlyNote(affordability, rules.rates)}
           </Figure>
           <Figure
             label="Ruimte boven vraag"
@@ -503,8 +516,8 @@ function Betaalruimte({
         />
       )}
       <p className="muted rules-year">
-        Leennormen {rules.year}, levering rond {monthOf(rules.levering_on)}; hypotheekrente van{" "}
-        {longDate(rules.market_rate_as_of)}
+        Leennormen {rules.year}, levering rond {monthOf(rules.levering_on)}; hypotheekrente{" "}
+        {routeRatesText(rules.rates)}
         {!rules.is_current_year && (
           <>
             {" "}
@@ -532,14 +545,18 @@ function bonusNote(affordability: Affordability): string | null {
     affordability.nhg_energy_measures > 0
       ? `Met NHG kan bij label E, F of G standaard ${euro.format(affordability.nhg_energy_measures)} extra mee voor energiebesparende maatregelen (niet meegerekend)`
       : null;
-  return [included, nhg].filter(Boolean).join(". ") || null;
+  const debts = affordability.debts.length
+    ? affordability.debts.map((debt) => `${debtLabel(debt.kind)} kost ${euro.format(debt.leenruimte_cost)} leenruimte`).join(", ")
+    : null;
+  return [included, debts, nhg].filter(Boolean).join(". ") || null;
 }
 
 /** Gross beside net with the rate and NHG, then a warning when a lender would not lend this. */
-function monthlyNote(affordability: Affordability): string | null {
+function monthlyNote(affordability: Affordability, rates: RouteRates): string | null {
   if (affordability.monthly_cost === null || affordability.mortgage_needed === null) return null;
   if (affordability.mortgage_needed === 0) return "geen hypotheek nodig";
-  const rate = affordability.mortgage_rate !== null ? ` tegen ${decimal.format(affordability.mortgage_rate * 100)}%` : "";
+  const route = affordability.nhg ? rates.nhg : rates.no_nhg;
+  const rate = ` tegen ${rateText(route)}`;
   const gross = `bruto ${euro.format(affordability.monthly_cost)} p/m${rate}${affordability.nhg ? " met NHG" : ""}`;
   if (affordability.own_funds_shortfall)
     return `${gross}. Let op: ${euro.format(affordability.own_funds_shortfall)} eigen geld tekort voor kosten koper; de hypotheek stopt bij de koopsom`;

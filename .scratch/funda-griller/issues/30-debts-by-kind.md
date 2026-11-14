@@ -4,7 +4,7 @@
 
 **Blocked by:** none
 
-**Status:** needs-triage
+**Status:** resolved
 
 ### Current state
 
@@ -34,25 +34,25 @@
 
 ### Acceptance criteria
 
-- [ ] `affordability.toml` has a sourced `debts` section for 2026 and 2027; each rule cites a primary source and check date, or is marked UNVERIFIED
-- [ ] A study loan weighs by its wettelijk maandbedrag (from original debt, rate and stelsel), times the `debt_gross_up` factor of the toetsrente column, also during the aanloopfase
-- [ ] A revolving credit limit lowers the max mortgage even when nothing is drawn
-- [ ] A private lease lowers the max mortgage by its lease term at the Gedragscode weight
-- [ ] An instalment loan weighs per the Gedragscode
-- [ ] An existing profile with `other_monthly_debt` migrates to one `other` debt with unchanged figures
-- [ ] The Gevolgen panel shows, per debt, the leenruimte it costs
-- [ ] Rule table and profile versions bumped; Oordelen built on the old figures show Achterhaald
-- [ ] `GLOSSARY.md` updated (Buyer Profile, a term for a debt's toetslast if one is needed)
+- [x] `affordability.toml` has a sourced `debts` section for 2026 and 2027; each rule cites a primary source and check date, or is marked UNVERIFIED
+- [x] A study loan weighs by its wettelijk maandbedrag (from original debt, rate and stelsel), times the `debt_gross_up` factor of the toetsrente column, also during the aanloopfase
+- [x] A revolving credit limit lowers the max mortgage even when nothing is drawn
+- [x] A private lease lowers the max mortgage by its lease term at the Gedragscode weight
+- [x] An instalment loan weighs per the Gedragscode
+- [x] An existing profile with `other_monthly_debt` migrates to one `other` debt with unchanged figures
+- [x] The Gevolgen panel shows, per debt, the leenruimte it costs
+- [x] Rule table and profile versions bumped; Oordelen built on the old figures show Achterhaald
+- [x] `GLOSSARY.md` updated (Buyer Profile, a term for a debt's toetslast if one is needed)
 
 ### Tests
 
 Seam: the HTTP API, as ticket 28.
 
-- [ ] API: study loan of €30.000 at a given rate, SF35 and SF15, against a hand-computed wettelijk maandbedrag and the resulting max mortgage (at 5 and 10 years fixed)
-- [ ] API: revolving credit with a €5.000 limit and nothing drawn lowers the max mortgage
-- [ ] API: private lease and instalment loan against hand-computed examples
-- [ ] API: several debts together equal the sum of their separate effects
-- [ ] API: a profile stored with `other_monthly_debt` reads back as one `other` debt; Buyer Profile validates each kind's fields
+- [x] API: study loan of €30.000 at a given rate, SF35 and SF15, against a hand-computed wettelijk maandbedrag and the resulting max mortgage (at 5 and 10 years fixed)
+- [x] API: revolving credit with a €5.000 limit and nothing drawn lowers the max mortgage
+- [x] API: private lease and instalment loan against hand-computed examples
+- [x] API: several debts together equal the sum of their separate effects
+- [x] API: a profile stored with `other_monthly_debt` reads back as one `other` debt; Buyer Profile validates each kind's fields
 
 ## Comments
 
@@ -63,3 +63,17 @@ Open questions for triage:
 - Gedragscode weights (doorlopend krediet 2% of limit, private lease share, aflopend krediet) need a check against the current NVB Gedragscode text before they go into config.
 - Alimentatie for an ex-partner: lenders subtract it from income. In scope here, or a separate ticket?
 - Is a DUO override worth it, or should only the derived wettelijk maandbedrag count (as the lender will)?
+
+Triage 2026-11-09 (user), resolving the open questions:
+
+- Check the weights against primary sources first: the current NVB Gedragscode Hypothecaire Financieringen for doorlopend krediet, private lease and aflopend krediet; DUO for the wettelijk maandbedrag for SF35/SF15; the Trhk. Notes go in `.scratch/funda-griller/research/`. A weight that cannot be confirmed from a primary source goes into config marked UNVERIFIED.
+- Alimentatie is out of scope.
+- Keep the Mijn DUO override.
+
+Resolved 2026-11-10. Research notes: `.scratch/funda-griller/research/debt-weights.md`. Rule table version 3.
+
+- Verified: study loan (Trhk art. 3a lid 1–3; DUO 35/15 years), doorlopend krediet 2% of the limit and aflopend krediet at the contractual monthly term (Gedragscode Hypothecaire Financieringen 2020, §4 lid 5, in force 2020-08-01; no later version found).
+- UNVERIFIED: private lease at 100% of the monthly lease term. The Gedragscode does not mention lease; BKR registers new contracts (from 2022-04-01) at 100%. So the "Gedragscode weight" criterion is met by the configured, UNVERIFIED weight.
+- Decided in build: the instalment loan asks only for its monthly term. The Gedragscode prescribes the contractual term, so an original amount would go unused. The gross-up stays on for every kind (Nibud advice; the Trhk prescribes it only for study loans); each kind has a `gross_up` switch in config.
+- What a debt costs is the maximum mortgage without that debt less the maximum with every debt. Shown in Gevolgen, as a note under Maximale hypotheek in the Dossier, and in the export (toetslast rounded to €50, cost to €5.000; left out without the profile).
+- Stored profiles are not rewritten: an `other_monthly_debt` is migrated on read (API, Case, export). Figures do not move. The rule table version bump marks existing Oordelen Achterhaald; a saved split bumps the profile version as any save does.

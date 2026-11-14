@@ -267,6 +267,51 @@ def test_editing_the_buyer_profile_marks_verdicts_out_of_date_until_rerun(
     assert client.get("/api/verdicts/out-of-date").json()["count"] == 0
 
 
+def test_saving_a_changed_own_rate_marks_the_verdict_out_of_date(client, listing_provider, llm_client):
+    prepare(client, listing_provider, typical_profile() | {"offered_rate_nhg": 0.042})
+    llm_client.verdict = model_says()
+    client.post(VERDICT)
+
+    client.put("/api/buyer-profile", json=typical_profile() | {"offered_rate_nhg": 0.039})
+
+    state = client.get(VERDICT).json()
+    assert state["out_of_date"] is True
+    assert state["changed"] == ["buyer_profile"]
+
+
+def test_the_model_sees_the_rate_per_route_and_where_it_came_from(client, listing_provider, llm_client):
+    prepare(client, listing_provider, typical_profile() | {"offered_rate_no_nhg": 0.0455})
+    llm_client.verdict = model_says()
+
+    verdict = client.post(VERDICT).json()
+
+    rates = {
+        "nhg": {"rate": 0.044, "source": "market", "as_of": "2026-11-02"},
+        "no_nhg": {"rate": 0.0455, "source": "own", "as_of": None},
+    }
+    [(_, buyer_profile)] = llm_client.rate_calls
+    assert buyer_profile["mortgage_rates"] == rates
+    # Recorded with the Verdict as the Case carries them, so its Hoe berekend names the rates it rests on.
+    recorded = verdict["built_from"]["mortgage_rates"]
+    assert {route: {key: rate[key] for key in ("rate", "source", "as_of")} for route, rate in recorded.items()} == rates
+    assert recorded == client.get("/api/listings/80907644/case").json()["rules"]["rates"]
+
+
+def test_the_model_never_sees_the_household_debts(client, listing_provider, llm_client):
+    debts = [{"kind": "study_loan", "debt": 30_000, "interest_rate": 0.0257, "stelsel": "SF35"}]
+    prepare(client, listing_provider, typical_profile() | {"debts": debts})
+    llm_client.verdict = model_says()
+
+    client.post(VERDICT)
+
+    [(case, buyer_profile)] = llm_client.rate_calls
+    assert "debts" not in case["affordability"]
+    assert "debts" not in buyer_profile
+    assert "study_loan" not in repr((case, buyer_profile))
+    # The Dossier still shows them.
+    assert client.get("/api/listings/80907644/case").json()["affordability"]["debts"][0]["kind"] == "study_loan"
+
+
 def test_refetching_a_source_marks_the_verdict_out_of_date(
     client, listing_provider, source_clients, clock, llm_client
 ):

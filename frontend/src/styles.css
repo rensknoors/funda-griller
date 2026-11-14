@@ -544,6 +544,8 @@ button.signaal-chip { min-height: 34px; padding: 0 12px 0 8px; border-radius: 99
 .gevolgen-figures dd { margin: 0; }
 .gevolgen-figures dd.num { text-align: left; font-size: 26px; font-weight: 650; letter-spacing: -0.015em; }
 .gevolgen-figures .note { font-size: 13px; }
+.gevolgen-debts { list-style: none; margin: 16px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: grid; gap: 6px; font-size: 14px; }
+.gevolgen-debts .note { font-size: 13px; }
 .section-select { display: none; }
 .form-section { border-top: 1px solid var(--line); scroll-margin-top: calc(var(--topbar-h) + 20px); }
 .form-section:first-of-type { border-top: 0; }
@@ -585,6 +587,8 @@ fieldset.vak { border: 0; }
 
 /* Pendelbestemming as a sentence: "Naar [adres] max. [50] min", named underneath. Labels stay for screen readers. */
 .commute-destination { display: grid; gap: 8px; width: 100%; padding: 14px 16px; background: var(--band); border-radius: var(--radius-m); }
+.debts { display: grid; gap: 12px; border: 0; padding: 0; margin: 0; }
+.debt { display: grid; gap: 8px; padding: 14px 16px; background: var(--band); border-radius: var(--radius-m); }
 .commute-route { display: flex; align-items: center; gap: 10px; }
 .commute-word { font-size: 17px; font-weight: 650; color: var(--ink-2); }
 .commute-route .vak-head { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

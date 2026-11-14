@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   type BidAdvice,
   type Listing,
+  type RouteRates,
   type Verdict,
   type VerdictError,
   type VerdictInput,
@@ -14,7 +15,7 @@ import {
   runVerdict,
 } from "./api";
 import { TIER_LABEL } from "./comparison";
-import { euro, signedEuro } from "./format";
+import { euro, routeRatesText, signedEuro } from "./format";
 import { statusLabel } from "./ListingsTable";
 import { PriceScale, type ScaleMarker } from "./charts";
 import { TierMark } from "./TierMark";
@@ -178,7 +179,13 @@ export function VerdictView(props: {
             )}
           </TierBlock>
           <Redenering verdict={latest} onShowFlag={props.onShowFlag} />
-          {latest.bid_advice && <Biedadvies advice={latest.bid_advice} rulesYear={latest.built_from.rules_year} />}
+          {latest.bid_advice && (
+            <Biedadvies
+              advice={latest.bid_advice}
+              rulesYear={latest.built_from.rules_year}
+              rates={latest.built_from.mortgage_rates ?? null}
+            />
+          )}
           <VersieStempel verdicts={data.verdicts} />
         </>
       )}
@@ -274,7 +281,7 @@ function BidScale({ advice }: { advice: BidAdvice }) {
   );
 }
 
-function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: number }) {
+function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear: number; rates: RouteRates | null }) {
   const renovationDirect = advice.derivation?.renovation_direct ?? 0;
   const headroom = advice.asking_price !== null ? advice.affordable_maximum - advice.asking_price : null;
   return (
@@ -305,6 +312,7 @@ function Biedadvies({ advice, rulesYear }: { advice: BidAdvice; rulesYear: numbe
                   )
                 </span>
               </li>
+              {rates && <li>Hypotheekrente: {routeRatesText(rates)}</li>}
               <li>
                 Vergelijkbare woningen:{" "}
                 {advice.comparables ? (

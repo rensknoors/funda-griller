@@ -386,8 +386,21 @@ def _version(row: sqlite3.Row) -> dict:
     return {
         "version": row["version"],
         "created_at": row["created_at"],
-        "profile": json.loads(row["profile"]),
+        "profile": _migrate_profile(json.loads(row["profile"])),
     }
+
+
+def _migrate_profile(profile: dict) -> dict:
+    """Every stored Buyer Profile is read through here. One stored before debts by kind had one
+    `other_monthly_debt`: it reads as one `other` debt with that amount, so the figures do not move
+    until the household splits it. The stored row is not rewritten."""
+    if "other_monthly_debt" not in profile:
+        return profile
+    migrated = {key: value for key, value in profile.items() if key != "other_monthly_debt"}
+    amount = profile["other_monthly_debt"]
+    if "debts" not in migrated:
+        migrated["debts"] = [{"kind": "other", "monthly": amount}] if amount else []
+    return migrated
 
 
 def add_verdict(database_path: Path, funda_id: str, created_at: str, verdict: dict) -> dict:

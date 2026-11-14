@@ -2,6 +2,21 @@
 
 from tests.profile_fixtures import low_income_profile, typical_profile
 
+COMPUTED_AT = "2026-10-24T12:00:00+00:00"
+# The market snapshot comes from the rule table; an own rate is a Buyer Profile value.
+MARKET_NHG = {"rate": 0.044, "source": "market", "as_of": "2026-11-02", "provenance": "rule", "computed_at": COMPUTED_AT}
+MARKET_NO_NHG = {
+    "rate": 0.0478,
+    "source": "market",
+    "as_of": "2026-11-02",
+    "provenance": "rule",
+    "computed_at": COMPUTED_AT,
+}
+
+
+def own(rate: float) -> dict:
+    return {"rate": rate, "source": "own", "as_of": None, "provenance": "buyer_profile", "computed_at": COMPUTED_AT}
+
 
 def draft(profile: dict) -> dict:
     """The finance vakken of a profile, as the form sends them while editing."""
@@ -22,12 +37,14 @@ def test_typical_household_sees_maximum_mortgage_equity_and_budget(client):
         "max_mortgage": 433_174,
         "equity": 172_000,
         "budget": 640_586,
+        "debts": [],
         "rules": {
-            "version": 2,
+            "version": 3,
             "year": 2027,
             "is_current_year": True,
             "levering_on": "2027-01-24",
             "market_rate_as_of": "2026-11-02",
+            "rates": {"nhg": MARKET_NHG, "no_nhg": MARKET_NO_NHG},
         },
     }
 
@@ -148,18 +165,6 @@ def test_a_single_adult_may_borrow_the_alleenstaandenbonus_more(client):
     assert consequences["max_mortgage"] == 279_267 + 18_000
 
 
-def test_other_monthly_debt_lowers_the_maximum_mortgage(client, settings, tmp_path):
-    """Nibud advies 2027 §5.1: at 4,25% a study loan of €69,69 a month costs €17.708 of mortgage
-    (gross-up 1,25), so €70 a month costs €17.708 × 70 / 69,69 ≈ €17.787."""
-    offered_rate(settings, tmp_path, "0.0425")
-
-    consequences = client.post(
-        "/api/buyer-profile/consequences", json=couple(70_000, fixed_rate_years=10, other_monthly_debt=70)
-    ).json()
-
-    assert consequences["max_mortgage"] == 294_074 - 17_787
-
-
 def test_kosten_koper_cannot_be_borrowed(client):
     consequences = client.post(
         "/api/buyer-profile/consequences", json=couple(70_000, fixed_rate_years=5)
@@ -189,3 +194,81 @@ def test_without_nhg_a_lender_finances_what_the_nhg_fee_would_tip_over(client):
     ).json()
 
     assert consequences["budget"] == 247_525
+
+
+
+
+def test_own_nhg_rate_changes_only_the_nhg_route(client):
+    """€95.000, ten years fixed. With NHG at an own 5%: 28,4% at 5% gives €418.823, so the route
+    without NHG at the market 4,78% (28,4%, €429.516) is the larger one."""
+    consequences = client.post(
+        "/api/buyer-profile/consequences", json={**draft(typical_profile()), "offered_rate_nhg": 0.05}
+    ).json()
+
+    assert consequences["max_mortgage"] == 429_516
+    assert consequences["rules"]["rates"] == {
+        "nhg": own(0.05),
+        "no_nhg": MARKET_NO_NHG,
+    }
+
+
+def test_own_rate_without_nhg_changes_only_that_route(client):
+    """Without NHG at an own 5% the NHG route at the market 4,40% still gives €433.174."""
+    consequences = client.post(
+        "/api/buyer-profile/consequences", json={**draft(typical_profile()), "offered_rate_no_nhg": 0.05}
+    ).json()
+
+    assert consequences["max_mortgage"] == 433_174
+    assert consequences["rules"]["rates"] == {
+        "nhg": MARKET_NHG,
+        "no_nhg": own(0.05),
+    }
+
+
+def test_blank_own_rates_rest_on_the_market_snapshot(client):
+    consequences = client.post(
+        "/api/buyer-profile/consequences",
+        json={**draft(typical_profile()), "offered_rate_nhg": None, "offered_rate_no_nhg": None},
+    ).json()
+
+    assert consequences["max_mortgage"] == 433_174
+    assert consequences["rules"]["rates"] == {"nhg": MARKET_NHG, "no_nhg": MARKET_NO_NHG}
+
+
+def test_own_rate_below_the_toetsrente_still_tests_at_it_under_ten_years(client):
+    """€70.000, 5 years fixed, own 4%: tested at the 5% toetsrente, Nibud tabel 4's €279.267."""
+    consequences = client.post(
+        "/api/buyer-profile/consequences",
+        json=couple(70_000, fixed_rate_years=5, offered_rate_nhg=0.04, offered_rate_no_nhg=0.04),
+    ).json()
+
+    assert consequences["max_mortgage"] == 279_267
+
+
+def test_own_rate_is_the_test_rate_from_ten_years(client):
+    """€70.000, 10 years fixed, own 4%: 23,9% of €70.000 a year (the 3,5-4% column) over 30 years
+    at 4% is €1.394,17 a month × 209,46 = €292.024."""
+    consequences = client.post(
+        "/api/buyer-profile/consequences",
+        json=couple(70_000, fixed_rate_years=10, offered_rate_nhg=0.04, offered_rate_no_nhg=0.04),
+    ).json()
+
+    assert consequences["max_mortgage"] == 292_024
+
+
+def test_own_rate_out_of_range_is_rejected(client):
+    for rate in (0.004, 0.151):
+        response = client.post(
+            "/api/buyer-profile/validation", json={**typical_profile(), "offered_rate_nhg": rate}
+        )
+        assert response.json()["errors"] == [
+            {"field": "offered_rate_nhg", "message": "Kies een rente van 0,5% tot en met 15%"}
+        ]
+
+
+def test_own_rate_out_of_range_blocks_the_gevolgen(client):
+    response = client.post(
+        "/api/buyer-profile/consequences", json={**draft(typical_profile()), "offered_rate_no_nhg": 0.2}
+    )
+
+    assert response.status_code == 422
