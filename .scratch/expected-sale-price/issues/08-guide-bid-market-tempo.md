@@ -15,7 +15,7 @@
 
 ## Comments
 
-Built on `ticket/08-guide-bid-tempo`. Everything but the real-model regression run is done, so the Status stays open, as with ticket 07: the user runs `uv run python -m app.verdict_regression run --yes` (costs money) and tunes `[guide_bid]` in `config/defaults.toml` if `example-guide-bid-tempo` (137 days, 565.000 to 535.000, Richtbod 500.000, expected opening bid 485.000-515.000) disagrees.
+Built on `ticket/08-guide-bid-tempo`. Everything but the real-model regression run is done; that run stays with the user, who runs `uv run python -m app.verdict_regression run --yes` (costs money) and tunes `[guide_bid]` in `config/defaults.toml` if `example-guide-bid-tempo` (137 days, 565.000 to 535.000, Richtbod 500.000, expected opening bid 485.000-515.000) disagrees.
 
 - The Case carries a new metric `market_tempo` (`listed_on`, `days_on_market`, `first_asking_price`, `asking_price`, `price_reduction`), null without a readable first `price_history` date. Dates are read in funda's Dutch form ("15 apr 2026") and ISO.
 - The Guide Bid's breakdown gains `days_on_market` and `price_reduction` (the latter labelled "geen" with 0% when there is none), plus `tempo_known` and `discount_capped`.
