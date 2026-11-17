@@ -1,8 +1,13 @@
 """The Listings list as comparison view: per-Listing key figures, Stale counts, archive, status change."""
 
+import pytest
+
 from app.ports import SourceFact
 from tests.listing_fixtures import LIVE_URL, SOLD_URL, live_listing, sold_listing
 from tests.profile_fixtures import low_income_profile, typical_profile
+from tests.test_comparables_api import FETCH_COMPARABLES, comparable
+
+pytestmark = pytest.mark.usefixtures("price_at_asking")
 
 
 def capture(client, listing_provider, url=LIVE_URL, listing=None):
@@ -33,11 +38,15 @@ def test_list_shows_price_area_and_key_metrics_per_listing(client, listing_provi
     assert row["asking_vs_woz_percent"] == 11.0
     case = client.get("/api/listings/80907644/case").json()
     assert row["headroom"] == case["affordability"]["headroom"] > 0
+    # Headroom is at the Expected Sale Price (the indexed WOZ, 536.082); the asking price is 11,0% above it.
+    assert row["headroom"] == case["affordability"]["affordable_maximum"] - 536_082
+    assert row["asking_vs_expected_percent"] == 11.0
     assert row["flag_counts"] == {"pro": 1, "con": 0, "risk": 0}
     assert row["status"] == "available"
 
 
-def test_without_register_label_the_listing_claim_is_shown(client, listing_provider):
+def test_without_register_label_the_listing_claim_is_shown(client, listing_provider, source_clients):
+    source_clients["woz"].at_asking_price = False
     capture(client, listing_provider)
 
     row = comparison(client)
@@ -57,9 +66,14 @@ def test_tier_is_empty_until_a_verdict_exists(client, listing_provider):
     assert row["hard_no_reason"] is None
 
 
-def test_a_deal_breaker_hit_shows_as_hard_no_with_its_reason(client, listing_provider):
+def test_a_deal_breaker_hit_shows_as_hard_no_with_its_reason(client, listing_provider, source_clients):
+    """A price deal-breaker needs a strongly grounded Expected Sale Price: sufficient comparables."""
     client.put("/api/buyer-profile", json=low_income_profile() | {"deal_breakers": ["Boven budget"]})
     capture(client, listing_provider)
+    source_clients["comparables"].facts = [
+        comparable(str(i), price * 10_000, 100) for i, price in zip(range(101, 106), (30, 35, 40, 45, 50))
+    ]
+    client.post(FETCH_COMPARABLES)
 
     row = comparison(client)
 

@@ -40,6 +40,13 @@ def source_clients():
 
 
 @pytest.fixture
+def price_at_asking(source_clients):
+    """The Expected Sale Price (from the WOZ value) equals the asking price, so affordability,
+    headroom and monthly costs read as if assessed at the asking price."""
+    source_clients["woz"].at_asking_price = True
+
+
+@pytest.fixture
 def llm_client():
     return FakeLlmClient()
 

@@ -10,6 +10,8 @@ from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.pdf_fixtures import make_pdf
 from tests.profile_fixtures import typical_profile, well_off_profile
 
+pytestmark = pytest.mark.usefixtures("price_at_asking")
+
 CASE = "/api/listings/80907644/case"
 
 # A test-owned cost table, so the figures below do not move when the user edits the shipped one.

@@ -10,6 +10,8 @@ from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
+pytestmark = pytest.mark.usefixtures("price_at_asking")
+
 VERDICT = "/api/listings/80907644/verdict"
 
 # The typical household can pay at most 650_351 for the live Listing (asking 595_000, headroom 55_351).

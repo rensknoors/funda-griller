@@ -32,11 +32,16 @@ class FakeSourceClient:
         self.facts = facts or []
         self.error: Exception | None = None
         self.calls: list[Listing] = []
+        # For tests about money at the price assessed: the WOZ value equals the Listing's asking
+        # price (peildatum outside the price index, so it is used as it is), unless `facts` is set.
+        self.at_asking_price = False
 
     def fetch(self, listing: Listing) -> list[SourceFact]:
         self.calls.append(listing)
         if self.error is not None:
             raise self.error
+        if self.at_asking_price and not self.facts and listing.asking_price is not None:
+            return [SourceFact(name="woz_value", value=listing.asking_price, as_of="2014-01-01")]
         return self.facts
 
 

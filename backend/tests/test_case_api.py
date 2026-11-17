@@ -1,7 +1,11 @@
+import pytest
+
 from app import store
 from tests.flag_rules import COST_TABLE_VERSION, FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import high_equity_profile, low_income_profile, typical_profile
+
+pytestmark = pytest.mark.usefixtures("price_at_asking")
 
 
 def capture(client, listing_provider, **overrides):
@@ -9,7 +13,8 @@ def capture(client, listing_provider, **overrides):
     return client.post("/api/listings", json={"url": LIVE_URL}).json()
 
 
-def test_case_shows_listing_facts_each_labelled_with_provenance(client, listing_provider):
+def test_case_shows_listing_facts_each_labelled_with_provenance(client, listing_provider, source_clients):
+    source_clients["woz"].at_asking_price = False
     snapshot = capture(client, listing_provider)["snapshots"][0]
 
     response = client.get("/api/listings/80907644/case")

@@ -13,6 +13,8 @@ from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
+pytestmark = pytest.mark.usefixtures("price_at_asking")
+
 EXPORT = "/api/listings/80907644/export.md"
 VERDICT = "/api/listings/80907644/verdict"
 
