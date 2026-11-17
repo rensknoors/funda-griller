@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] `guide_bid` derivation in the Case with its discount breakdown; unit tests per Prijsstelling band, the asking-price cap, the Walk-away Maximum cap, rounding, weakly grounded basis, none without a Walk-away Maximum, none when sold under reservation
 - [x] Prompt: bid within ±3% of the Guide Bid, deviations explained; `VERDICT_PROMPT_VERSION` bumped
@@ -18,3 +18,5 @@
 ## Comments
 
 Built on `ticket/07-guide-bid`. Everything but the real-model regression run is done, so the Status stays open: the user runs `uv run python -m app.verdict_regression run --yes` (costs money) and tunes `[guide_bid]` in `config/defaults.toml` if the three new `example-guide-bid-*` entries disagree. Deviation: the model's `deviation_reason` is stored and shown but not required by validation.
+
+Resolved after the code review (branch `fix/review-findings`), like ticket 04: the real-model regression run stays with the user (`uv run python -m app.verdict_regression run --yes`, costs money). The review made `deviation_reason` required (a different opening bid without one is `deviation_reason_missing`) and rejects an opening bid above the asking price (`opening_bid_above_asking_price`); sold under reservation is now the Listing status `sold_under_reservation`. `VERDICT_PROMPT_VERSION` is 11.

@@ -4,7 +4,7 @@
 
 **Blocked by:** 07
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [x] Tempo signal derived from `price_history` in the Case; unit tests at 60 and 120 days, with and without a price reduction, the 10% cap, missing or empty history
 - [x] Discount breakdown shows days on the market and the reduction
@@ -21,3 +21,5 @@ Built on `ticket/08-guide-bid-tempo`. Everything but the real-model regression r
 - The Guide Bid's breakdown gains `days_on_market` and `price_reduction` (the latter labelled "geen" with 0% when there is none), plus `tempo_known` and `discount_capped`.
 - `VERDICT_PROMPT_VERSION` is 10. There is no separate Case version in the code: the Case shape change is covered by the prompt version, and the tempo rests only on the snapshot, already part of a Verdict's inputs.
 - The e2e Richtbod woning Kerkpad 2 now has no price history (it ran on the real clock, so its fixed history date would cross 60 days and change its Richtbod); the tempo woning Kerkpad 4 dates its history relative to today.
+
+Resolved after the code review (branch `fix/review-findings`), like ticket 04: the real-model regression run stays with the user. The breakdown components now store values (`prijsstelling`, `days`, `reduced` with both prices) instead of Dutch labels; the export and the UI word them, and older Verdicts with a `label` still render.
