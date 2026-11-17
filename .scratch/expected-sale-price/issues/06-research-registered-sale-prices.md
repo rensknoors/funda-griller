@@ -6,8 +6,10 @@
 
 **Blocked by:** none
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Candidate sources with cost, terms, coverage and lag
-- [ ] Whether pyfunda exposes sale prices
-- [ ] Recommendation: which source, if any, becomes the strongest Expected Sale Price basis
+**Findings:** `.scratch/expected-sale-price/research/registered-sale-prices.md`. pyfunda gives only the last asking price and sale date of sold listings; recommended basis is Kadaster Koopsominformatie (€3,70 per postcode, €1,50 per address by SMS), bought manually and imported.
+
+- [x] Candidate sources with cost, terms, coverage and lag
+- [x] Whether pyfunda exposes sale prices
+- [x] Recommendation: which source, if any, becomes the strongest Expected Sale Price basis
