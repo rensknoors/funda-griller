@@ -35,6 +35,11 @@ export type Comparison = {
   energy_label: { value: string; official: boolean } | null;
   asking_vs_woz_percent: number | null;
   asking_vs_comparables_percent: number | null;
+  /** The Prijsstelling as a percentage: the asking price against the Expected Sale Price. */
+  asking_vs_expected_percent: number | null;
+  /** What the house is expected to sell for; null when it cannot be judged. */
+  expected_sale_price: number | null;
+  /** Betaalruimte above (+) or short of (−) the Expected Sale Price. */
   headroom: number | null;
   /** The Renovation Estimate's Direct nodig total. */
   renovation_direct: RenovationTotal;
@@ -340,9 +345,38 @@ export type Metrics = {
     provenance: "computed";
   } | null;
   asking_vs_comparables: AskingVsComparables;
+  expected_sale_price: ExpectedSalePrice;
+  /** Prijsstelling; null without an asking price or an Expected Sale Price. */
+  asking_vs_expected: AskingVsExpected | null;
   /** Koperprofiel commute destinations with no travel time for their current address (added, or
    * address changed since the last fetch): not judged until the commute Source is fetched again. */
   commute_coverage: { not_fetched: string[]; provenance: "computed" } | null;
+};
+
+/** What the house is expected to sell for, from evidence independent of its asking price: the
+ * comparables plus the average overbid (strong), else the indexed WOZ value (weak), else nothing. */
+export type ExpectedSalePrice = {
+  value: number | null;
+  basis: "comparables" | "woz" | null;
+  weakly_grounded: boolean | null;
+  overbid: { value: number; house_type: string | null; source: string; period: string } | null;
+  /** Interquartile range of the comparables; null on the WOZ basis. */
+  low: number | null;
+  high: number | null;
+  provenance: "computed";
+};
+
+export type Prijsstelling = "hoog ingezet" | "marktconform" | "laag ingezet";
+
+/** How the seller priced the house against its Expected Sale Price. Information only. */
+export type AskingVsExpected = {
+  asking_price: number;
+  expected_sale_price: number;
+  difference: number;
+  percent: number;
+  prijsstelling: Prijsstelling;
+  band: number;
+  provenance: "computed";
 };
 
 /** Coverage says plainly whether comparables were fetched and whether there are enough to lean on. */
@@ -376,7 +410,7 @@ export type Affordability = {
    * not counted in the other figures. */
   nhg_energy_measures: number;
   kosten_koper: { transfer_tax: number; fixed_costs: number; nhg_fee: number; total: number } | null;
-  /** What the lender lends at the asking price: at most the price itself. */
+  /** What the lender lends at the Expected Sale Price: at most the price itself. */
   mortgage_needed: number | null;
   /** What own funds lack for kosten koper and renovation, since the mortgage stops at the price. */
   own_funds_shortfall: number | null;
@@ -384,10 +418,11 @@ export type Affordability = {
   nhg: boolean | null;
   /** Where that rate came from: the Case's `rules.rates`. */
   mortgage_rate: number | null;
-  /** Gross annuity of the mortgage needed at the asking price. */
+  /** Gross annuity of the mortgage needed at the Expected Sale Price. */
   monthly_cost: number | null;
   /** The same, net of hypotheekrenteaftrek and eigenwoningforfait in the first year. */
   monthly_cost_net: number | null;
+  /** Affordable maximum minus the Expected Sale Price; null without one. */
   headroom: number | null;
   /** Highest purchase price the household can pay, kosten koper included, after setting aside
    * `renovation_direct`. */
@@ -610,8 +645,9 @@ export type GuideBid = {
 };
 
 export type BidAdvice = {
-  opening_bid: number;
-  walk_away_maximum: number;
+  /** Null (with the Walk-away Maximum) when there is no Expected Sale Price: conditions only. */
+  opening_bid: number | null;
+  walk_away_maximum: number | null;
   conditions: string[];
   affordable_maximum: number;
   /** Absent on Verdicts made before comparables existed. */

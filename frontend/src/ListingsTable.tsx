@@ -36,7 +36,7 @@ const SORT_OPTIONS: [string, string][] = [
   ["woz:ascending", "t.o.v. WOZ"],
   ["comparables:ascending", "t.o.v. vergelijkbaar"],
   ["area:descending", "Woonoppervlak"],
-  ["headroom:descending", "Ruimte boven vraag"],
+  ["headroom:descending", "Ruimte boven verwachte prijs"],
   ["renovation:ascending", "Direct nodig"],
   ["stale:descending", "Meest verouderd"],
 ];
@@ -517,8 +517,13 @@ function RowDetails({ listing }: { listing: Listing }) {
       >
         {signedPercent(row.asking_vs_comparables_percent)}
       </RowFact>
-      <RowFact label="Ruimte boven vraag" title="Betaalruimte boven (+) of tekort onder (−) de vraagprijs" tone={headroomTone(row.headroom)}>
+      <RowFact
+        label="Ruimte boven verwachte prijs"
+        title="Betaalruimte boven (+) of tekort onder (−) de verwachte verkoopprijs"
+        tone={headroomTone(row.headroom)}
+      >
         {row.headroom != null ? signedEuro(row.headroom) : "–"}
+        {row.expected_sale_price === null && <span className="muted note"> Haal vergelijkbare woningen op</span>}
       </RowFact>
       <RowFact label="Direct nodig" title="Geschatte kosten van direct nodig onderhoud (Verbouwingsraming)">
         {row.renovation_direct

@@ -12,6 +12,7 @@ from app.ports import SourceFact
 from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
+from tests.test_comparables_api import FETCH_COMPARABLES, SEVERAL
 
 pytestmark = pytest.mark.usefixtures("price_at_asking")
 
@@ -570,7 +571,7 @@ def test_kosten_koper_is_rounded(client, listing_provider):
     markdown = client.get(EXPORT).text
 
     assert not mentions(markdown, total)
-    assert f"Kosten koper bij de vraagprijs: ≈ € {round(total / 5000) * 5000:,}".replace(",", ".") in markdown
+    assert f"Kosten koper bij de verwachte verkoopprijs: ≈ € {round(total / 5000) * 5000:,}".replace(",", ".") in markdown
 
 
 def test_the_header_prints_the_prompt_version_the_verdict_was_made_with(
@@ -630,7 +631,46 @@ def test_monthly_costs_are_exported_net_with_gross_beside_them(client, listing_p
 
     markdown = client.get(EXPORT).text
 
-    assert "Maandlasten bij de vraagprijs: ≈ € 1.450 per maand netto (≈ € 1.950 per maand bruto)" in markdown
+    assert "Maandlasten bij de verwachte verkoopprijs: ≈ € 1.450 per maand netto (≈ € 1.950 per maand bruto)" in markdown
+
+
+def kengetallen(markdown: str) -> str:
+    return markdown.split("## Kengetallen")[1].split("\n## ")[0]
+
+
+def test_the_expected_sale_price_and_prijsstelling_are_exported_with_their_basis(
+    client, listing_provider, source_clients
+):
+    capture(client, listing_provider)
+    source_clients["comparables"].facts = SEVERAL
+    client.post(FETCH_COMPARABLES)
+
+    section = kengetallen(client.get(EXPORT).text)
+
+    # 608.000 by comparables plus NVM's 4,6% average overbid; the asking price is 595.000.
+    assert "- Verwachte verkoopprijs: € 635.968 (bandbreedte € " in section
+    assert "op basis van 5 vergelijkbare woningen, incl. 4,6% gemiddeld overbod" in section
+    assert "- Prijsstelling: vraagprijs 6,4% onder verwachte verkoopprijs: laag ingezet" in section
+    assert "Zwak onderbouwd" not in section
+
+
+def test_a_weakly_grounded_expected_sale_price_says_so(client, listing_provider):
+    capture(client, listing_provider)
+
+    section = kengetallen(client.get(EXPORT).text)
+
+    assert "- Verwachte verkoopprijs: € 595.000 (op basis van de WOZ-waarde; zwak onderbouwd)" in section
+    assert "- Prijsstelling: vraagprijs gelijk aan verwachte verkoopprijs: marktconform" in section
+
+
+def test_without_an_expected_sale_price_the_export_says_how_to_get_one(client, listing_provider, source_clients):
+    source_clients["woz"].at_asking_price = False
+    capture(client, listing_provider)
+
+    section = kengetallen(client.get(EXPORT).text)
+
+    assert "- Verwachte verkoopprijs: onbekend (haal vergelijkbare woningen op)" in section
+    assert "Prijsstelling" not in section
 
 
 def dotted(amount: int) -> str:

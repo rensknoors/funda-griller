@@ -544,6 +544,7 @@ def metrics(export: ExportInput) -> list[str]:
         f"- Vraagprijs t.o.v. vergelijkbaar: {percent} ({vs['count']} vergelijkbare woningen, "
         f"dekking {COVERAGE_LABELS.get(vs['coverage'], vs['coverage'])}{detail})"
     )
+    lines += _expected_sale_price_lines(case["metrics"])
     check = case["metrics"]["energy_label_check"]
     if check:
         lines.append(
@@ -553,6 +554,33 @@ def metrics(export: ExportInput) -> list[str]:
     lines += _commute_lines(export, anonymiser)
     if export.with_profile and case["affordability"]:
         lines += _affordability_lines(case["affordability"])
+    return lines
+
+
+def _expected_sale_price_lines(metrics: dict) -> list[str]:
+    """What the house is expected to sell for, how that was reached, and how the seller priced it
+    against it (Prijsstelling). House figures, so exact."""
+    expected = metrics["expected_sale_price"]
+    if expected["value"] is None:
+        return ["- Verwachte verkoopprijs: onbekend (haal vergelijkbare woningen op)"]
+    if expected["basis"] == "comparables":
+        spread = f"bandbreedte {_range(expected['low'], expected['high'])}; "
+        count = metrics["asking_vs_comparables"]["count"]
+        basis = f"op basis van {count} vergelijkbare woningen, incl. {_number(round(expected['overbid']['value'] * 100, 1))}% gemiddeld overbod"
+    else:
+        woz = metrics["asking_vs_woz"]
+        spread = ""
+        basis = "op basis van de WOZ-waarde" + (" naar vandaag" if woz and woz["indexed"] else "") + "; zwak onderbouwd"
+    lines = [f"- Verwachte verkoopprijs: {euro(expected['value'])} ({spread}{basis})"]
+    prijsstelling = metrics["asking_vs_expected"]
+    if prijsstelling:
+        percent = prijsstelling["percent"]
+        gap = (
+            "gelijk aan"
+            if percent == 0
+            else f"{_number(abs(percent))}% {'boven' if percent > 0 else 'onder'}"
+        )
+        lines.append(f"- Prijsstelling: vraagprijs {gap} verwachte verkoopprijs: {prijsstelling['prijsstelling']}")
     return lines
 
 
@@ -586,15 +614,15 @@ def _affordability_lines(affordability: dict) -> list[str]:
         + _after_renovation(affordability.get("renovation_direct", 0)),
     ]
     if affordability["headroom"] is not None:
-        lines.append(f"  - Ruimte onder het betaalbare maximum bij de vraagprijs: {rounded_euro(affordability['headroom'])}")
+        lines.append(f"  - Ruimte onder het betaalbare maximum bij de verwachte verkoopprijs: {rounded_euro(affordability['headroom'])}")
     if affordability["mortgage_needed"] is not None:
-        lines.append(f"  - Benodigde hypotheek bij de vraagprijs: {rounded_euro(affordability['mortgage_needed'])}")
+        lines.append(f"  - Benodigde hypotheek bij de verwachte verkoopprijs: {rounded_euro(affordability['mortgage_needed'])}")
     if affordability["monthly_cost"] is not None:
         lines.append(
-            f"  - Maandlasten bij de vraagprijs: {_net_and_gross(affordability.get('monthly_cost_net'), affordability['monthly_cost'])}"
+            f"  - Maandlasten bij de verwachte verkoopprijs: {_net_and_gross(affordability.get('monthly_cost_net'), affordability['monthly_cost'])}"
         )
     if affordability["kosten_koper"]:
-        lines.append(f"  - Kosten koper bij de vraagprijs: {rounded_euro(affordability['kosten_koper']['total'])}")
+        lines.append(f"  - Kosten koper bij de verwachte verkoopprijs: {rounded_euro(affordability['kosten_koper']['total'])}")
     if affordability.get("debts"):
         lines.append("  - Schulden (toetslast, en wat ze aan leenruimte kosten):")
         lines += [

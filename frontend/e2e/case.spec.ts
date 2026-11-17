@@ -24,13 +24,27 @@ test("dossier shows listing facts with herkomst and the affordability for the sa
   await expect(page.getByText("Maximale hypotheek", { exact: true })).toBeVisible();
   // 2027 norms (levering after the turn of the year), NHG at 4,40%, label B and the alleenstaandenbonus.
   await expect(page.getByText("€ 461.174")).toBeVisible();
-  await expect(page.getByText("+€ 72.928", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("€ 1.461 p/m", { exact: true }).first()).toBeVisible();
+  // Room and monthly costs are at the verwachte verkoopprijs (the WOZ-waarde in today's prices, € 420.289).
+  await expect(page.getByText("+€ 247.639", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("€ 796 p/m", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Ruimte boven verwachte prijs").first()).toBeVisible();
   await expect(page.getByText(/^Leennormen 2027, levering rond/)).toBeVisible();
   await expect(page.getByText(/hypotheekrente met NHG marktrente 4,4% \(2 november 2026\); zonder NHG marktrente 4,78%/)).toBeVisible();
   await expect(page.getByText(/tegen marktrente 4,4% \(2 november 2026\) met NHG/)).toBeVisible();
   await expect(page.getByText("Vraagprijs", { exact: true }).first()).toBeVisible();
   await expect(page.getByLabel(/Bron: advertentie/).first()).toBeVisible();
+});
+
+test("dossier shows the verwachte verkoopprijs with its basis, zwak onderbouwd and the prijsstelling", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Buchterweg 15" }).click();
+
+  const block = page.getByRole("region", { name: "Verwachte verkoopprijs" });
+  await expect(block.getByText("€ 420.289")).toBeVisible();
+  await expect(block.getByText("op basis van de WOZ-waarde naar vandaag")).toBeVisible();
+  await expect(block.getByText("Zwak onderbouwd")).toBeVisible();
+  await expect(block.getByText("hoog ingezet")).toBeVisible();
+  await expect(block.getByText("Vraagprijs 41,6% boven verwachte verkoopprijs")).toBeVisible();
 });
 
 test("dossier shows bronnen: official energielabel, third-party WOZ, coverage and per-bron refetch", async ({
