@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.ports import Ports, SourceFact
+from app.ports import Ports
 from app.settings import Settings
 from tests.fakes import (
     FakeClock,
