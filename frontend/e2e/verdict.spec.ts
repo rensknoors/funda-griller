@@ -39,6 +39,7 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   await expect(bedragen.getByText(/Richtbod\s€\s395\.000: Vocht in de kelder\./)).toBeVisible();
   // The scale above draws the same bid as one stretch.
   await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 396.000, Maximumbod € 441.303", { exact: false })).toBeAttached();
+  await expect(advies.getByRole("figure").getByText("Verwachte verkoopprijs € 420.289", { exact: false })).toBeAttached();
   await expect(advies.getByText(/Zwak onderbouwd: de verwachte verkoopprijs rust op de WOZ-waarde/)).toBeVisible();
   // Monthly costs are at the verwachte verkoopprijs.
   await expect(advies.getByText("Netto maandlasten bij verwachte verkoopprijs")).toBeVisible();

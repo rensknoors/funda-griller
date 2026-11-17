@@ -260,8 +260,9 @@ function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (fl
   );
 }
 
-/** Openingsbod to Maximumbod as one stretch, with the asking price and the comparables' value on
- * the same line: where the bid starts, where it must stop, and what it is read against. */
+/** Openingsbod to Maximumbod as one stretch, with the asking price and the Verwachte verkoopprijs on
+ * the same line: where the bid starts, where it must stop, and what it is read against. Older
+ * Verdicts, made before the Verwachte verkoopprijs, show the comparables' value instead. */
 function BidScale({ advice }: { advice: BidAdvice }) {
   const { opening_bid: opening, walk_away_maximum: maximum } = advice;
   if (opening === null || maximum === null) return null;
@@ -271,7 +272,11 @@ function BidScale({ advice }: { advice: BidAdvice }) {
   ];
   if (advice.asking_price !== null) markers.push({ label: "Vraagprijs", value: advice.asking_price, primary: true });
   const comparables = advice.comparables?.comparables_value;
-  if (comparables != null) markers.push({ label: "Vergelijkbaar", value: comparables });
+  if (advice.expected_sale_price != null) {
+    markers.push({ label: "Verwachte verkoopprijs", value: advice.expected_sale_price });
+  } else if (comparables != null) {
+    markers.push({ label: "Vergelijkbaar", value: comparables });
+  }
   return (
     <div className="bid-scale">
       <PriceScale
