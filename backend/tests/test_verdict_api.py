@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.ports import LlmError, Ports, SourceFact
+from app.ports import LlmError, Ports, PricePoint, SourceFact
 
 from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
@@ -500,3 +500,43 @@ def test_an_opening_bid_on_a_house_sold_under_reservation_is_rejected(client, li
 
     assert response.status_code == 502
     assert response.json()["problems"] == ["opening_bid_when_sold_under_reservation"]
+
+
+def test_a_long_time_on_the_market_and_a_price_reduction_deepen_the_guide_bids_discount(
+    client, listing_provider, llm_client
+):
+    # Listed at 625.000 on 27 May, 150 days before the fetch, now asking 595.000: 2,5% + 2% + 1%.
+    prepare(client, listing_provider, price_history=(PricePoint(date="27 mei 2026", price=625_000),))
+    llm_client.verdict = model_says(bid_advice={"opening_bid": 562_000, "conditions": []})
+
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    [(sent, _)] = llm_client.rate_calls
+    assert sent["guide_bid"] == guide
+    assert guide["value"] == 562_000  # 595.000 * 0,945 = 562.275
+    assert guide["discount"] == 0.055
+    assert guide["breakdown"]["days_on_market"] == {"label": "150 dagen", "days": 150, "discount": 0.02}
+    assert guide["breakdown"]["price_reduction"]["discount"] == 0.01
+    assert guide["tempo_known"] is True
+
+
+def test_without_a_price_history_the_guide_bid_says_the_tempo_is_unknown(client, listing_provider, llm_client):
+    prepare(client, listing_provider, price_history=())
+    llm_client.verdict = model_says(bid_advice={"opening_bid": GUIDE_BID, "conditions": []})
+
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    assert guide["value"] == GUIDE_BID
+    assert guide["tempo_known"] is False
+    assert list(guide["breakdown"]) == ["prijsstelling"]
+
+
+def test_the_tempo_figures_come_from_configuration(client, listing_provider, llm_client, settings):
+    settings.guide_bid.long_on_market_days = 2
+    prepare(client, listing_provider)  # listed three days before the fetch
+    llm_client.verdict = model_says(bid_advice={"opening_bid": 574_000, "conditions": []})
+
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    assert guide["breakdown"]["days_on_market"]["discount"] == 0.01
+    assert guide["value"] == 574_000  # 595.000 * 0,965 = 574.175

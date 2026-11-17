@@ -188,6 +188,7 @@ def build_case(
                     snapshot.get("asking_price"), expected_sale_price["value"], prijsstelling_band
                 ),
                 "commute_coverage": commute_coverage,
+                "market_tempo": _market_tempo(snapshot),
             }.items()
         },
         # funda's "Verkocht onder voorbehoud": no Guide Bid, conditions only.
@@ -341,6 +342,46 @@ def _asking_vs_expected(asking_price: int | None, expected: int | None, band: fl
         "band": band,
         "provenance": "computed",
     }
+
+
+# funda's month abbreviations in price_history dates ("15 apr 2026").
+DUTCH_MONTHS = ("jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec")
+
+
+def _market_tempo(snapshot: dict) -> dict | None:
+    """How long the house has been on the market and whether its asking price came down: from the
+    first `price_history` entry (the current listing; later entries are earlier listings and sales)
+    to the snapshot's fetch date, so it is reproducible per snapshot. None without a readable date."""
+    history = snapshot.get("price_history") or []
+    listed_on = _history_date(history[0].get("date")) if history else None
+    if listed_on is None:
+        return None
+    first_price, asking_price = history[0].get("price"), snapshot.get("asking_price")
+    return {
+        "listed_on": listed_on.isoformat(),
+        "days_on_market": (datetime.fromisoformat(snapshot["fetched_at"]).date() - listed_on).days,
+        "first_asking_price": first_price,
+        "asking_price": asking_price,
+        "price_reduction": first_price is not None and asking_price is not None and first_price > asking_price,
+        "provenance": "computed",
+    }
+
+
+def _history_date(text: str | None) -> date | None:
+    """A price_history date, in funda's Dutch form ("15 apr 2026") or ISO; None when unreadable."""
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        pass
+    parts = text.casefold().split()
+    if len(parts) != 3 or parts[1] not in DUTCH_MONTHS or not (parts[0].isdigit() and parts[2].isdigit()):
+        return None
+    try:
+        return date(int(parts[2]), DUTCH_MONTHS.index(parts[1]) + 1, int(parts[0]))
+    except ValueError:
+        return None
 
 
 def _quartiles(sorted_values: list[float]) -> tuple[float, float]:

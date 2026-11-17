@@ -8,7 +8,7 @@ import pytest
 
 from app import store
 from app.gemini_client import VERDICT_PROMPT_VERSION
-from app.ports import SourceFact
+from app.ports import PricePoint, SourceFact
 from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
@@ -420,6 +420,33 @@ def test_without_the_profile_an_affordability_bound_richtbod_is_rounded_down(cli
     assert guide["capped_by"] == "walk_away_maximum"
     assert not mentions(bid, guide["value"])
     assert f"- Richtbod: € {guide['value'] // 5000 * 5000:,} (afgerond)".replace(",", ".") in bid
+
+
+def test_the_export_gives_days_on_the_market_and_the_price_reduction_in_the_breakdown(
+    client, listing_provider, llm_client
+):
+    # Listed at 625.000 150 days before the fetch, now asking 595.000.
+    capture(client, listing_provider, price_history=(PricePoint(date="27 mei 2026", price=625_000),))
+    llm_client.verdict = model_says(opening_bid=562_000)
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Dagen te koop: 150 dagen, 2% korting op de verwachte verkoopprijs" in bid
+    assert "- Prijsverlaging: van € 625.000 naar € 595.000, 1% korting op de verwachte verkoopprijs" in bid
+    assert "- Samen 5,5% korting, naar beneden afgerond" in bid
+    assert "Tempo onbekend" not in bid
+
+
+def test_without_a_price_history_the_export_says_the_tempo_is_unknown(client, listing_provider, llm_client):
+    capture(client, listing_provider, price_history=())
+    llm_client.verdict = model_says(opening_bid=580_000)
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Tempo onbekend: geen prijshistorie, dus geen korting voor dagen te koop of prijsverlaging" in bid
+    assert "Dagen te koop" not in bid
 
 
 @pytest.fixture

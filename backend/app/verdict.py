@@ -53,13 +53,21 @@ class WalkAwayDerivation(TypedDict):
 @dataclass(frozen=True)
 class GuideBidConfig:
     """The Guide Bid's configured figures (config/defaults.toml, `[guide_bid]`): the discount per
-    Prijsstelling, the band the model's opening bid must stay within, and the rounding step."""
+    Prijsstelling, the extra discount for time on the market (over the long threshold, or the very
+    long one instead) and for a price reduction, the cap on the total, the band the model's opening
+    bid must stay within, and the rounding step."""
 
     discount_hoog_ingezet: float
     discount_marktconform: float
     discount_laag_ingezet: float
     band: float
     rounding_step: int
+    long_on_market_days: int
+    discount_long_on_market: float
+    very_long_on_market_days: int
+    discount_very_long_on_market: float
+    discount_price_reduction: float
+    max_discount: float
 
     def discount_for(self, prijsstelling: str) -> float:
         return {
@@ -67,15 +75,26 @@ class GuideBidConfig:
             "laag ingezet": self.discount_laag_ingezet,
         }.get(prijsstelling, self.discount_marktconform)
 
+    def discount_for_days(self, days: int) -> float:
+        if days > self.very_long_on_market_days:
+            return self.discount_very_long_on_market
+        if days > self.long_on_market_days:
+            return self.discount_long_on_market
+        return 0.0
+
 
 class GuideBid(TypedDict):
     """The Guide Bid and how it came about. `breakdown` holds one entry per discount component
-    (now only the Prijsstelling), each with its label and discount; `discount` is their total.
-    `capped_by` names the cap that lowered it, if any."""
+    (Prijsstelling, and with a price history days on the market and the price reduction), each with
+    its label and discount; `discount` is their total, capped (`discount_capped`). `tempo_known` is
+    false without a price history, so the tempo did not count. `capped_by` names the cap that lowered
+    the value, if any."""
 
     value: int
     discount: float
+    discount_capped: bool
     breakdown: dict[str, dict]
+    tempo_known: bool
     weakly_grounded: bool
     capped_by: Literal["asking_price", "walk_away_maximum"] | None
     band: float
@@ -172,16 +191,25 @@ def derive_walk_away_maximum(case: dict, premium: float) -> WalkAwayDerivation:
 
 def derive_guide_bid(case: dict, walk_away_maximum: int | None, config: GuideBidConfig) -> GuideBid | None:
     """The opening bid the Case derives before the model sees it: the Expected Sale Price less the
-    Prijsstelling's discount, never above the asking price or the Walk-away Maximum, rounded down to
-    the step. None without a Walk-away Maximum, an Expected Sale Price or an asking price (so no
-    Prijsstelling), and for a house sold under reservation."""
+    discount for the Prijsstelling and the time on the market (capped), never above the asking price
+    or the Walk-away Maximum, rounded down to the step. None without a Walk-away Maximum, an Expected
+    Sale Price or an asking price (so no Prijsstelling), and for a house sold under reservation."""
     if walk_away_maximum is None or case["sold_under_reservation"]:
         return None
     expected = case["metrics"]["expected_sale_price"]
     prijsstelling = case["metrics"]["asking_vs_expected"]
     if expected["value"] is None or prijsstelling is None:
         return None
-    discount = config.discount_for(prijsstelling["prijsstelling"])
+    tempo = case["metrics"].get("market_tempo")
+    breakdown: dict[str, dict] = {
+        "prijsstelling": {
+            "label": prijsstelling["prijsstelling"],
+            "discount": config.discount_for(prijsstelling["prijsstelling"]),
+        },
+        **(_tempo_components(tempo, config) if tempo else {}),
+    }
+    total = sum(component["discount"] for component in breakdown.values())
+    discount = round(min(total, config.max_discount), 4)
     value = round(expected["value"] * (1 - discount))
     capped_by: Literal["asking_price", "walk_away_maximum"] | None = None
     if prijsstelling["asking_price"] < value:
@@ -191,11 +219,33 @@ def derive_guide_bid(case: dict, walk_away_maximum: int | None, config: GuideBid
     return {
         "value": math.floor(value / config.rounding_step) * config.rounding_step,
         "discount": discount,
-        "breakdown": {"prijsstelling": {"label": prijsstelling["prijsstelling"], "discount": discount}},
+        "discount_capped": total > config.max_discount,
+        "breakdown": breakdown,
+        "tempo_known": tempo is not None,
         "weakly_grounded": expected["weakly_grounded"],
         "capped_by": capped_by,
         "band": config.band,
     }
+
+
+def _tempo_components(tempo: dict, config: GuideBidConfig) -> dict[str, dict]:
+    """The Guide Bid's discount for time on the market and for a price reduction (Case metric
+    `market_tempo`), labelled for the Biedadvies."""
+    days = tempo["days_on_market"]
+    first, asking = tempo["first_asking_price"], tempo["asking_price"]
+    return {
+        "days_on_market": {"label": f"{days} dagen", "days": days, "discount": config.discount_for_days(days)},
+        "price_reduction": {
+            "label": f"van {_euro(first)} naar {_euro(asking)}" if tempo["price_reduction"] else "geen",
+            "first_asking_price": first,
+            "asking_price": asking,
+            "discount": config.discount_price_reduction if tempo["price_reduction"] else 0.0,
+        },
+    }
+
+
+def _euro(amount: int) -> str:
+    return f"€ {amount:,}".replace(",", ".")
 
 
 def _asking_price(case: dict) -> int | None:

@@ -427,9 +427,11 @@ const CAPPED_BY_COPY = {
   walk_away_maximum: "Begrensd door het Maximumbod.",
 };
 
-/** Labels of the Richtbod's discount components; a new component (the tempo signal) adds a line here. */
+/** Labels of the Richtbod's discount components; a new component adds a line here. */
 const DISCOUNT_COMPONENT_LABELS: Record<string, string> = {
   prijsstelling: "Prijsstelling",
+  days_on_market: "Dagen te koop",
+  price_reduction: "Prijsverlaging",
 };
 
 /** The Richtbod under the Openingsbod when they differ, with the model's reason, and always how the
@@ -466,6 +468,10 @@ function RichtbodNote({ advice }: { advice: BidAdvice }) {
               {component.label ? `: ${component.label}` : ""}, {percent(component.discount)}
             </li>
           ))}
+          {guide.tempo_known === false && (
+            <li>Tempo onbekend: geen prijshistorie, dus geen korting voor dagen te koop of prijsverlaging.</li>
+          )}
+          {guide.discount_capped && <li>De korting is begrensd op het maximum.</li>}
           {guide.capped_by && <li>{CAPPED_BY_COPY[guide.capped_by]}</li>}
           <li>Het Openingsbod blijft binnen {percent(guide.band)} van het Richtbod.</li>
         </ul>

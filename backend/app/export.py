@@ -835,7 +835,11 @@ def _richtbod_line(advice: dict, export: ExportInput) -> list[str]:
     return [f"- Richtbod: {shown}" + (f" (afwijking: {export.anonymiser.scrub_text(reason)})" if reason else "")]
 
 
-DISCOUNT_COMPONENTS = {"prijsstelling": "Prijsstelling"}
+DISCOUNT_COMPONENTS = {
+    "prijsstelling": "Prijsstelling",
+    "days_on_market": "Dagen te koop",
+    "price_reduction": "Prijsverlaging",
+}
 CAPS = {
     "asking_price": "begrensd door de vraagprijs",
     "walk_away_maximum": "begrensd door het Maximumbod",
@@ -849,7 +853,11 @@ def _guide_bid_breakdown(guide_bid: dict) -> list[str]:
         label = DISCOUNT_COMPONENTS.get(key, key)
         detail = f": {component['label']}" if component.get("label") else ""
         lines.append(f"- {label}{detail}, {_number(round(component['discount'] * 100, 1))}% korting op de verwachte verkoopprijs")
-    lines.append(f"- Samen {_number(round(guide_bid['discount'] * 100, 1))}% korting, naar beneden afgerond")
+    # Absent on Verdicts made before the tempo signal.
+    if guide_bid.get("tempo_known") is False:
+        lines.append("- Tempo onbekend: geen prijshistorie, dus geen korting voor dagen te koop of prijsverlaging")
+    capped = " (begrensd op het maximum)" if guide_bid.get("discount_capped") else ""
+    lines.append(f"- Samen {_number(round(guide_bid['discount'] * 100, 1))}% korting{capped}, naar beneden afgerond")
     if guide_bid["capped_by"]:
         lines.append(f"- Richtbod {CAPS[guide_bid['capped_by']]}")
     if guide_bid["weakly_grounded"]:

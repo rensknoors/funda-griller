@@ -2,10 +2,12 @@
 
 import base64
 import tempfile
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+from app.case import DUTCH_MONTHS
 from app.main import create_app
-from app.ports import Ports, ProviderBlocked, SourceFact, SourceSkipped
+from app.ports import Ports, PricePoint, ProviderBlocked, SourceFact, SourceSkipped
 from app.settings import Settings
 from tests.conftest import SOURCES
 from tests.fakes import (
@@ -57,10 +59,22 @@ _listing_provider.listings[CHANGING_URL] = [
     live_listing(**_markt, raw_status="Verkocht"),
 ]
 
-# Its own woning for the Richtbod spec.
+# Its own woning for the Richtbod spec. No price history, so its tempo is unknown.
 GUIDE_BID_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-2/80907660/"
 _listing_provider.listings[GUIDE_BID_URL] = live_listing(
-    funda_id="80907660", provider_id="17270390", url=GUIDE_BID_URL, address="Kerkpad 2"
+    funda_id="80907660", provider_id="17270390", url=GUIDE_BID_URL, address="Kerkpad 2", price_history=()
+)
+# Listed 130 days before today (the e2e app runs on the real clock) at 625.000, now asking 595.000:
+# over 120 days on the market with a price reduction.
+TEMPO_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-4/80907661/"
+# UTC, like the snapshot's fetch time.
+_listed = datetime.now(UTC).date() - timedelta(days=130)
+_listing_provider.listings[TEMPO_URL] = live_listing(
+    funda_id="80907661",
+    provider_id="17270391",
+    url=TEMPO_URL,
+    address="Kerkpad 4",
+    price_history=(PricePoint(date=f"{_listed.day} {DUTCH_MONTHS[_listed.month - 1]} {_listed.year}", price=625_000),),
 )
 # Verkocht onder voorbehoud: its Oordeel gives conditions only (no Openingsbod or Richtbod).
 RESERVED_URL = "https://www.funda.nl/detail/koop/maastricht/appartement-molenstraat-7/55500002/"

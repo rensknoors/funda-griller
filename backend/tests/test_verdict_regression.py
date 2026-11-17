@@ -236,6 +236,20 @@ def test_the_shipped_set_is_well_formed(settings, llm_client):
     assert total >= 3
 
 
+def test_the_shipped_tempo_entry_counts_its_time_on_the_market_and_price_reduction(settings, llm_client):
+    llm_client.verdict = answer_per_case("consider")
+
+    _, output = run(settings, llm_client, "run", "--yes")
+
+    sent = next(case for case, _ in llm_client.rate_calls if case["funda_id"] == "example-guide-bid-tempo")
+    breakdown = sent["guide_bid"]["breakdown"]
+    assert breakdown["days_on_market"]["days"] > 120
+    assert breakdown["days_on_market"]["discount"] == 0.02
+    assert breakdown["price_reduction"]["discount"] == 0.01
+    # The model opens at the Guide Bid, so the entry's expected opening-bid range holds it.
+    assert next(line for line in output.splitlines() if "example-guide-bid-tempo" in line).count("OK") == 1
+
+
 ERFPACHT_DOCUMENT = {
     "id": 1,
     "kind": "user",

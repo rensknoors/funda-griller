@@ -42,6 +42,14 @@ class GuideBidSettings(BaseModel):
     # The model's opening bid stays within this share of the Guide Bid.
     band: float = 0.03
     rounding_step: int = 500
+    # Time on the market: more than this many days adds the first discount, more than the very long
+    # threshold the second instead (not both); a price reduction adds its own. The total is capped.
+    long_on_market_days: int = 60
+    discount_long_on_market: float = 0.01
+    very_long_on_market_days: int = 120
+    discount_very_long_on_market: float = 0.02
+    discount_price_reduction: float = 0.01
+    max_discount: float = 0.10
 
 
 class Settings(BaseSettings):

@@ -631,13 +631,18 @@ export type WalkAwayDerivation = {
   weakly_grounded: boolean;
 };
 
-/** One component of the Guide Bid's discount: its label (Prijsstelling) and discount. */
+/** One component of the Guide Bid's discount (Prijsstelling, days on the market, price reduction):
+ * its label ("hoog ingezet", "130 dagen", "van € 625.000 naar € 595.000") and discount. */
 export type GuideBidComponent = { label?: string; discount: number };
 
 /** The Guide Bid (Richtbod) the Case derived; `breakdown` has one entry per discount component. */
 export type GuideBid = {
   value: number;
   discount: number;
+  /** The components add up to more than the configured maximum; absent on older Verdicts. */
+  discount_capped?: boolean;
+  /** False without a price history: the tempo did not count. Absent on Verdicts made before the tempo signal. */
+  tempo_known?: boolean;
   breakdown: Record<string, GuideBidComponent>;
   weakly_grounded: boolean;
   capped_by: "asking_price" | "walk_away_maximum" | null;
