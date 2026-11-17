@@ -120,7 +120,9 @@ export function VerdictView(props: {
           <strong>
             {snapshot.status === "negotiations"
               ? "Deze woning is onder bod. Controleer bij de makelaar of er nog geboden kan worden."
-              : "Deze woning is verkocht. Een biedadvies is niet meer van toepassing."}
+              : snapshot.status === "sold_under_reservation"
+                ? "Deze woning is verkocht onder voorbehoud. Het biedadvies geeft alleen voorwaarden."
+                : "Deze woning is verkocht. Een biedadvies is niet meer van toepassing."}
           </strong>
         </div>
       )}

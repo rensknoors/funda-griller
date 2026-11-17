@@ -210,7 +210,12 @@ def _yes_no(value: object) -> str:
     return "ja" if value else "nee"
 
 
-STATUS_LABELS = {"available": "Beschikbaar", "negotiations": "Onder bod", "sold": "Verkocht"}
+STATUS_LABELS = {
+    "available": "Beschikbaar",
+    "negotiations": "Onder bod",
+    "sold_under_reservation": "Verkocht onder voorbehoud",
+    "sold": "Verkocht",
+}
 TIER_LABELS = {
     "must_buy": "Zeker kopen",
     "consider": "Overwegen",

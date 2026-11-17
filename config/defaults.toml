@@ -12,6 +12,8 @@ verdict_model = "gemini-3.8-flash"
 "beschikbaar" = "available"
 "onder bod" = "negotiations"
 "verkocht" = "sold"
+# Sold, but the sale may still fall through: no Guide Bid, conditions only (ADR-0005).
+"verkocht onder voorbehoud" = "sold_under_reservation"
 "sold" = "sold"
 "negotiations" = "negotiations"
 "available" = "available"

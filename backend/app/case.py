@@ -202,8 +202,8 @@ def build_case(
                 "market_tempo": _market_tempo(snapshot),
             }.items()
         },
-        # funda's "Verkocht onder voorbehoud": no Guide Bid, conditions only.
-        "sold_under_reservation": "voorbehoud" in (snapshot.get("raw_status") or "").casefold(),
+        # funda's "Verkocht onder voorbehoud", read into the Listing status: no Guide Bid, conditions only.
+        "sold_under_reservation": snapshot.get("status") == "sold_under_reservation",
         "affordability": affordability,
         "renovation_estimate": renovation,
         "flags": flags,

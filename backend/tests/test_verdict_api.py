@@ -534,6 +534,7 @@ def test_a_house_sold_under_reservation_gets_conditions_and_a_note_but_no_guide_
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
+    assert client.get("/api/listings").json()[0]["comparison"]["status"] == "sold_under_reservation"
     [(sent, _)] = llm_client.rate_calls
     assert sent["guide_bid"] is None
     assert sent["sold_under_reservation"] is True

@@ -694,6 +694,7 @@ export function addressOf(listing: Listing): string {
 export function statusLabel(status: string, raw: string): string {
   if (status === "available") return "Beschikbaar";
   if (status === "negotiations") return "Onder bod";
+  if (status === "sold_under_reservation") return "Verkocht onder voorbehoud";
   if (status === "sold") return "Verkocht";
   return raw || "Onbekend";
 }
