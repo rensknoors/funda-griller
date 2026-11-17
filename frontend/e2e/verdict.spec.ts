@@ -30,12 +30,15 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   await expect(tier.getByText("Overwegen", { exact: true })).toBeVisible();
   const advies = page.getByRole("region", { name: "Biedadvies" });
   const bedragen = advies.getByRole("group", { name: "Bedragen" });
-  await expect(bedragen.getByText("Openingsbod")).toBeVisible();
+  await expect(bedragen.getByText("Openingsbod", { exact: true })).toBeVisible();
   // No vergelijkbare woningen fetched: the verwachte verkoopprijs is the WOZ-waarde in today's prices
-  // (€ 420.289) and the Maximumbod that plus 5%, and says it is weak. The fake model opens at the Maximumbod.
-  await expect(bedragen.getByText("€ 441.303", { exact: true })).toHaveCount(2);
+  // (€ 420.289) and the Maximumbod that plus 5%, and says it is weak. The fake model opens € 1.000 above the
+  // Richtbod (hoog ingezet: 6% off), so the Richtbod shows with the model's reason.
+  await expect(bedragen.getByText("€ 441.303", { exact: true })).toBeVisible();
+  await expect(bedragen.getByText("€ 396.000", { exact: true })).toBeVisible();
+  await expect(bedragen.getByText(/Richtbod\s€\s395\.000: Vocht in de kelder\./)).toBeVisible();
   // The scale above draws the same bid as one stretch.
-  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 441.303, Maximumbod € 441.303", { exact: false })).toBeAttached();
+  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 396.000, Maximumbod € 441.303", { exact: false })).toBeAttached();
   await expect(advies.getByText(/Zwak onderbouwd: de verwachte verkoopprijs rust op de WOZ-waarde/)).toBeVisible();
   // Monthly costs are at the verwachte verkoopprijs.
   await expect(advies.getByText("Netto maandlasten bij verwachte verkoopprijs")).toBeVisible();

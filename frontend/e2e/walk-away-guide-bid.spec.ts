@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-// Woningen of their own in the e2e app (see tests/e2e_app.py): the Oordelen here must not count in
-// the other specs' "Dit verandert N oordelen".
+// Woningen of their own in the e2e app (see tests/e2e_app.py). Specs run in file order and this one
+// runs after verdict.spec, whose "Dit verandert 1 oordeel" would otherwise count these Oordelen.
 const GUIDE_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-2/80907660/";
 const RESERVED_URL = "https://www.funda.nl/detail/koop/maastricht/appartement-molenstraat-7/55500002/";
 
