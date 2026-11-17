@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 10
+VERDICT_PROMPT_VERSION = 11
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -68,10 +68,12 @@ give conditions only, with no `opening_bid`.
 follows from how the seller priced the house and how long it has been on the market (`breakdown`:
 prijsstelling, days_on_market, price_reduction; the total is capped), never above the asking price or
 the walk-away maximum. When `case.guide_bid.tempo_known` is false there is no price history, so the
-time on the market is unknown and did not count: do not guess it. Propose your `opening_bid` within `case.guide_bid.band` (3%) of
-`case.guide_bid.value`; a bid outside that band is rejected. When your bid differs from the guide bid,
-give the reason in `deviation_reason` (Dutch, one or two sentences, from what you see in the
-observations, findings, documents or flags); leave it null when you bid exactly the guide bid. When
+time on the market is unknown and did not count: do not guess it. Propose your `opening_bid` within
+`case.guide_bid.band` (a share) of `case.guide_bid.value`, and never above the asking price or the
+walk-away maximum; a bid outside those bounds is rejected. When your bid differs from the guide bid,
+you must give the reason in `deviation_reason` (Dutch, one or two sentences, from what you see in the
+observations, findings, documents or flags); a different bid without one is rejected. Leave it null
+when you bid exactly the guide bid. When
 `case.guide_bid.weakly_grounded` is true the guide bid is weakly grounded: say so. When
 `case.guide_bid` is null, propose an opening bid within the walk-away maximum without an anchor, except
 when `case.sold_under_reservation` is true: the house is sold under reservation, so give conditions
