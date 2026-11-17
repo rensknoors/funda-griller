@@ -258,9 +258,11 @@ function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (fl
 /** Openingsbod to Maximumbod as one stretch, with the asking price and the comparables' value on
  * the same line: where the bid starts, where it must stop, and what it is read against. */
 function BidScale({ advice }: { advice: BidAdvice }) {
+  const { opening_bid: opening, walk_away_maximum: maximum } = advice;
+  if (opening === null || maximum === null) return null;
   const markers: ScaleMarker[] = [
-    { label: "Openingsbod", value: advice.opening_bid },
-    { label: "Maximumbod", value: advice.walk_away_maximum },
+    { label: "Openingsbod", value: opening },
+    { label: "Maximumbod", value: maximum },
   ];
   if (advice.asking_price !== null) markers.push({ label: "Vraagprijs", value: advice.asking_price, primary: true });
   const comparables = advice.comparables?.comparables_value;
@@ -271,9 +273,9 @@ function BidScale({ advice }: { advice: BidAdvice }) {
         label="Biedruimte"
         markers={markers}
         span={{
-          from: advice.opening_bid,
-          to: advice.walk_away_maximum,
-          label: `biedruimte ${euro.format(advice.walk_away_maximum - advice.opening_bid)}`,
+          from: opening,
+          to: maximum,
+          label: `biedruimte ${euro.format(maximum - opening)}`,
           tone: "neutral",
         }}
       />
@@ -283,19 +285,32 @@ function BidScale({ advice }: { advice: BidAdvice }) {
 
 function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear: number; rates: RouteRates | null }) {
   const renovationDirect = advice.derivation?.renovation_direct ?? 0;
-  const headroom = advice.asking_price !== null ? advice.affordable_maximum - advice.asking_price : null;
+  const { opening_bid: opening, walk_away_maximum: maximum } = advice;
+  // Without an Expected Sale Price there is nothing to bid on: the Voorwaarden only.
+  const conditionsOnly = opening === null || maximum === null;
+  // Verdicts from before the Expected Sale Price read headroom against the asking price.
+  const judgedPrice = advice.expected_sale_price === undefined ? advice.asking_price : advice.expected_sale_price;
+  const headroom = judgedPrice != null ? advice.affordable_maximum - judgedPrice : null;
   return (
     <section aria-labelledby="biedadvies-title">
       <h2 id="biedadvies-title">Biedadvies</h2>
       <BidScale advice={advice} />
       <div className="bid-vakken" role="group" aria-label="Bedragen">
-        <div className="figure">
-          <p className="vak-label">Openingsbod</p>
-          <p className="bid-amount num">{euro.format(advice.opening_bid)}</p>
-        </div>
+        {!conditionsOnly && (
+          <div className="figure">
+            <p className="vak-label">Openingsbod</p>
+            <p className="bid-amount num">{euro.format(opening)}</p>
+          </div>
+        )}
+        {conditionsOnly ? (
+          <div className="figure">
+            <p className="vak-label">Maximumbod</p>
+            <p className="muted">Haal vergelijkbare woningen op voor een Maximumbod.</p>
+          </div>
+        ) : (
         <div className="figure">
           <p className="vak-label">Maximumbod</p>
-          <p className="bid-amount num">{euro.format(advice.walk_away_maximum)}</p>
+          <p className="bid-amount num">{euro.format(maximum)}</p>
           {advice.derivation?.weakly_grounded && (
             <p className="weak-grounding">{weakGroundingNote(advice.derivation)}</p>
           )}
@@ -329,16 +344,17 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
                 <>
                   {basisLine(advice, advice.derivation) && <li>{basisLine(advice, advice.derivation)}</li>}
                   {marginSourceLine(advice.derivation) && <li>{marginSourceLine(advice.derivation)}</li>}
-                  <li>{bindingLine(advice, advice.derivation)}</li>
+                  <li>{bindingLine(maximum, advice.derivation)}</li>
                 </>
               ) : (
                 <li>
-                  <LegacyBindingLimit advice={advice} />
+                  <LegacyBindingLimit advice={advice} maximum={maximum} />
                 </li>
               )}
             </ul>
           </details>
         </div>
+        )}
         <div className="figure">
           <p className="vak-label">Voorwaarden</p>
           {advice.conditions.length === 0 ? (
@@ -355,6 +371,7 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
           )}
         </div>
       </div>
+      {!conditionsOnly && (
       <dl className="figures bid-context">
         <MonthlyFigure
           label={advice.expected_sale_price === undefined ? "vraagprijs" : "verwachte verkoopprijs"}
@@ -367,12 +384,13 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
           net={advice.monthly_cost_net_at_walk_away_maximum}
         />
         <div className="figure">
-          <dt>Ruimte boven vraag</dt>
+          <dt>{advice.expected_sale_price === undefined ? "Ruimte boven vraag" : "Ruimte boven verwachte prijs"}</dt>
           <dd className="num">
             {headroom === null ? "–" : signedEuro(headroom)}
           </dd>
         </div>
       </dl>
+      )}
       <p className="muted rules-year">Regels {rulesYear}</p>
     </section>
   );
@@ -393,8 +411,7 @@ const BASIS_LABELS: Record<WalkAwayDerivation["basis"], BasisLabels> = {
   expected_sale_price: {
     line: "Verwachte verkoopprijs",
     noun: "verwachte verkoopprijs",
-    // Bid Advice does not carry the Expected Sale Price yet (ticket 04): no basis line until it does.
-    value: () => null,
+    value: (advice) => advice.expected_sale_price,
     weak: "Zwak onderbouwd: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.",
   },
   comparables: {
@@ -452,8 +469,8 @@ function marginSourceLine(derivation: WalkAwayDerivation): string | null {
 }
 
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */
-function bindingLine(advice: BidAdvice, derivation: WalkAwayDerivation): string {
-  const maximum = euro.format(advice.walk_away_maximum);
+function bindingLine(walkAwayMaximum: number, derivation: WalkAwayDerivation): string {
+  const maximum = euro.format(walkAwayMaximum);
   if (derivation.basis === "affordability") return `Maximumbod: de betaalruimte, ${maximum}.`;
   const basis = BASIS_LABELS[derivation.basis].noun;
   return derivation.binding === "basis"
@@ -462,11 +479,11 @@ function bindingLine(advice: BidAdvice, derivation: WalkAwayDerivation): string 
 }
 
 /** For older Verdicts whose model proposed the Maximumbod: names the lowest limit it stayed under. */
-function LegacyBindingLimit({ advice }: { advice: BidAdvice }) {
+function LegacyBindingLimit({ advice, maximum }: { advice: BidAdvice; maximum: number }) {
   const comparables = advice.comparables?.maximum ?? null;
   const byComparables = comparables !== null && comparables < advice.affordable_maximum;
   const limit = byComparables ? comparables : advice.affordable_maximum;
-  const below = limit - advice.walk_away_maximum;
+  const below = limit - maximum;
   return (
     <>
       Laagste grens: {byComparables ? "vergelijkbare woningen" : "betaalruimte"}, {euro.format(limit)}.{" "}
@@ -546,7 +563,7 @@ function describeChange(older: Verdict, newer: Verdict): string {
   if (older.built_from.model !== newer.built_from.model) parts.push("ander model");
   const before = older.bid_advice?.walk_away_maximum;
   const after = newer.bid_advice?.walk_away_maximum;
-  if (before !== undefined && after !== undefined && before !== after) {
+  if (before != null && after != null && before !== after) {
     parts.push(`Maximumbod ${after > before ? "+" : "−"}${euro.format(Math.abs(after - before))}`);
   }
   const tiers =

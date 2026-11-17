@@ -32,6 +32,7 @@ def summarise(snapshots: list[dict], case: dict, tier: str | None = None) -> dic
         "asking_vs_expected_percent": (
             case["metrics"]["asking_vs_expected"]["percent"] if case["metrics"]["asking_vs_expected"] else None
         ),
+        "expected_sale_price": case["metrics"]["expected_sale_price"]["value"],
         "headroom": affordability["headroom"] if affordability else None,
         "renovation_direct": case["renovation_estimate"]["classes"]["direct"],
         "flag_counts": counts,

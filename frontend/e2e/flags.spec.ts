@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const LISTING_URL = "https://www.funda.nl/detail/koop/holtum/huis-buchterweg-15/80907644/";
+// A woning of its own: its comparables are fetched here, which the other specs's Buchterweg 15 must not see.
+const LISTING_URL = "https://www.funda.nl/detail/koop/holtum/huis-hoogstraat-8/80907658/";
 
 test("dossier groups signalen and shows the deal-breaker behind a harde afwijzing", async ({
   page,
@@ -19,17 +20,26 @@ test("dossier groups signalen and shows the deal-breaker behind a harde afwijzin
   // Captured already when another spec ran first; a 409 is fine.
   await request.post("/api/listings", { data: { url: LISTING_URL } });
   await page.goto("/");
-  await page.getByRole("link", { name: "Buchterweg 15" }).click();
-  await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
+  await page.getByRole("link", { name: "Hoogstraat 8" }).click();
+  await expect(page.getByRole("heading", { name: "Dossier: Hoogstraat 8" })).toBeVisible();
+
+  // On the WOZ-waarde alone the verwachte verkoopprijs is weakly grounded: the Signaal is raised
+  // for the oordeel to weigh, but it is no Harde afwijzing.
+  await expect(page.getByRole("paragraph").filter({ hasText: "Harde afwijzing" })).toBeHidden();
+  await expect(page.getByRole("region", { name: "Signalen" }).getByText("Verwachte verkoopprijs boven je betaalruimte")).toBeVisible();
+
+  // With comparables it is strongly grounded, and the deal-breaker applies.
+  const group = page.locator("details", { has: page.getByRole("heading", { name: "Vergelijkbare woningen" }) });
+  await group.getByRole("button", { name: "Vergelijkbare woningen ophalen" }).click();
+  await expect(group.getByText("5 vergelijkbare woningen", { exact: true })).toBeVisible();
 
   await expect(page.getByRole("paragraph").filter({ hasText: "Harde afwijzing" })).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Deal-breaker" })).toContainText("Deal-breaker: Boven budget");
   const signalen = page.getByRole("region", { name: "Signalen" });
-  // Headroom, missing tuin, and the asking price far above the fixture WOZ.
-  await expect(signalen.getByRole("heading", { name: /Minpunt \(3\)/ })).toBeVisible();
-  await expect(signalen.getByText("Vraagprijs ver boven de WOZ-waarde")).toBeVisible();
+  // The expected price beyond headroom, and the missing tuin.
+  await expect(signalen.getByRole("heading", { name: /Minpunt \(2\)/ })).toBeVisible();
 
-  await signalen.getByText("Vraagprijs boven je betaalruimte").click();
-  await expect(signalen.getByText("Regel ask_beyond_headroom · versie 1")).toBeVisible();
-  await expect(signalen.getByRole("link", { name: /Zie vak \d+/ })).toBeVisible();
+  await signalen.getByText("Verwachte verkoopprijs boven je betaalruimte").click();
+  await expect(signalen.getByText("Regel expected_price_beyond_headroom · versie 1")).toBeVisible();
+  await expect(signalen.getByText("Ruimte boven verwachte prijs")).toBeVisible();
 });

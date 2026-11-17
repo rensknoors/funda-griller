@@ -40,6 +40,7 @@ import { tierOf } from "./comparison";
 import { Vergelijkbaar, comparablesFigure, coverageNote } from "./Vergelijkbaar";
 import { STAMP_LEGEND, Stamp } from "./Stamp";
 import { Verbouwingskosten } from "./Verbouwingskosten";
+import { VerwachteVerkoopprijs } from "./VerwachteVerkoopprijs";
 import { type Neighbours, WoningHeader } from "./WoningHeader";
 
 type LoadState = { kind: "laden" } | { kind: "fout" } | { kind: "klaar"; data: Case };
@@ -216,6 +217,7 @@ export function CaseView(props: {
             rulesVersion={state.data.built_from.flag_rules_version}
             focusFlagId={focusFlagId ?? null}
           />
+          <VerwachteVerkoopprijs metrics={state.data.metrics} />
           <Betaalruimte affordability={state.data.affordability} rules={state.data.rules} />
           <Verbouwingskosten estimate={state.data.renovation_estimate} facts={state.data.facts} />
           <FactGroup
@@ -409,12 +411,12 @@ function KeyFigures({
           {coverageNote(metrics.asking_vs_comparables)}
         </Figure>
         <Figure
-          label="Ruimte boven vraag"
+          label="Ruimte boven verwachte prijs"
           tone={headroomTone(affordability?.headroom)}
           value={affordability?.headroom != null ? signedEuro(affordability.headroom) : "–"}
         />
         <Figure
-          label="Netto maandlasten bij vraagprijs"
+          label="Netto maandlasten bij verwachte prijs"
           value={affordability?.monthly_cost_net != null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
         />
       </dl>
@@ -475,7 +477,7 @@ function Betaalruimte({
       {affordability === null ? (
         <p className="empty">
           Vul je koperprofiel in om je budget bij deze woning te zien: maximale hypotheek,
-          kosten koper en ruimte boven de vraagprijs.
+          kosten koper en ruimte boven de verwachte verkoopprijs.
         </p>
       ) : (
         <dl className="figures">
@@ -492,13 +494,13 @@ function Betaalruimte({
                 (affordability.kosten_koper.nhg_fee > 0 ? `, NHG ${euro.format(affordability.kosten_koper.nhg_fee)}` : "")}
           </Figure>
           <Figure
-            label="Netto maandlasten bij vraagprijs"
+            label="Netto maandlasten bij verwachte prijs"
             value={affordability.monthly_cost_net !== null ? `${euro.format(affordability.monthly_cost_net)} p/m` : "–"}
           >
             {monthlyNote(affordability, rules.rates)}
           </Figure>
           <Figure
-            label="Ruimte boven vraag"
+            label="Ruimte boven verwachte prijs"
             tone={headroomTone(affordability.headroom)}
             value={affordability.headroom !== null ? signedEuro(affordability.headroom) : "–"}
           >
@@ -589,6 +591,7 @@ function HerkomstLegend() {
 
 const SECTIONS: [id: string, title: string][] = [
   ["signalen-title", "Signalen"],
+  ["verwachte-verkoopprijs-title", "Verwachte verkoopprijs"],
   ["betaalruimte-title", "Betaalruimte"],
   ["verbouwingskosten-title", "Verbouwingskosten"],
   ["kenmerken-title", "Kenmerken"],

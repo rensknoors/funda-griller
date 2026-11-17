@@ -57,7 +57,37 @@ _listing_provider.listings[CHANGING_URL] = [
     live_listing(**_markt, raw_status="Verkocht"),
 ]
 
+# Its own woning for the flags spec, whose Harde afwijzing needs fetched comparables (a strongly
+# grounded Expected Sale Price) there, so the other specs' woningen keep theirs as they are.
+STRONG_URL = "https://www.funda.nl/detail/koop/holtum/huis-hoogstraat-8/80907658/"
+_listing_provider.listings[STRONG_URL] = live_listing(
+    funda_id="80907658", provider_id="17270388", url=STRONG_URL, address="Hoogstraat 8"
+)
+# For the Verwachte verkoopprijs spec: one woning without any WOZ-waarde (no Expected Sale Price
+# until comparables are fetched) and one with a much lower WOZ-waarde (more headroom).
+NO_WOZ_URL = "https://www.funda.nl/detail/koop/holtum/huis-hoogstraat-7/80907657/"
+_listing_provider.listings[NO_WOZ_URL] = live_listing(
+    funda_id="80907657", provider_id="17270387", url=NO_WOZ_URL, address="Hoogstraat 7"
+)
+LOW_WOZ_URL = "https://www.funda.nl/detail/koop/holtum/huis-hoogstraat-9/80907659/"
+_listing_provider.listings[LOW_WOZ_URL] = live_listing(
+    funda_id="80907659", provider_id="17270389", url=LOW_WOZ_URL, address="Hoogstraat 9"
+)
+
+
+class _WozClient(FakeSourceClient):
+    """The same WOZ-waarde for every woning, except the two that exercise the Expected Sale Price."""
+
+    def fetch(self, listing):
+        if listing.funda_id == "80907657":
+            return []
+        if listing.funda_id == "80907659":
+            return [SourceFact("woz_value", 300_000, "2025-01-01")]
+        return super().fetch(listing)
+
+
 _source_clients = {name: FakeSourceClient(name) for name in SOURCES}
+_source_clients["woz"] = _WozClient("woz")
 _source_clients["energielabel"].facts = [SourceFact("energy_label", "A", "2021-06-14")]
 _source_clients["woz"].facts = [
     SourceFact("woz_value", 371_000, "2024-01-01"),
@@ -108,6 +138,15 @@ def _rate(case: dict, _profile: dict) -> dict:
             "bid_advice": None,
         }
     walk_away = case["walk_away"]["walk_away_maximum"]
+    if walk_away is None:
+        # No Expected Sale Price: the price cannot be judged, so conditions only.
+        return {
+            "tier": "consider",
+            "summary": "De prijs is niet te beoordelen.",
+            "reasoning": "Zonder verwachte verkoopprijs valt niet te zeggen wat de woning waard is.",
+            "cited_flags": cited,
+            "bid_advice": {"opening_bid": None, "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"]},
+        }
     return {
         "tier": "consider",
         "summary": "Degelijke woning, de vraagprijs is aan de hoge kant.",

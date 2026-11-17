@@ -41,6 +41,7 @@ def test_list_shows_price_area_and_key_metrics_per_listing(client, listing_provi
     # Headroom is at the Expected Sale Price (the indexed WOZ, 536.082); the asking price is 11,0% above it.
     assert row["headroom"] == case["affordability"]["affordable_maximum"] - 536_082
     assert row["asking_vs_expected_percent"] == 11.0
+    assert row["expected_sale_price"] == 536_082
     assert row["flag_counts"] == {"pro": 1, "con": 0, "risk": 0}
     assert row["status"] == "available"
 
@@ -54,6 +55,7 @@ def test_without_register_label_the_listing_claim_is_shown(client, listing_provi
     assert row["energy_label"] == {"value": "B", "official": False}
     assert row["asking_vs_woz_percent"] is None
     assert row["headroom"] is None
+    assert row["expected_sale_price"] is None
 
 
 def test_tier_is_empty_until_a_verdict_exists(client, listing_provider):
