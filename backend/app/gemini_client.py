@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 11
+VERDICT_PROMPT_VERSION = 12
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -66,11 +66,14 @@ give conditions only, with no `opening_bid`.
 
 `case.guide_bid` is the opening bid the case derives: the expected sale price less a discount that
 follows from how the seller priced the house and how long it has been on the market (`breakdown`:
-prijsstelling, days_on_market, price_reduction; the total is capped), never above the asking price or
-the walk-away maximum. When `case.guide_bid.tempo_known` is false there is no price history, so the
+prijsstelling, days_on_market, price_reduction; the total is capped), never above the walk-away
+maximum. It may lie above the asking price: a house that is laag ingezet draws several bidders, often
+in a one-round bidding procedure, so a bid at the asking price is hopeless there; the asking price is
+the seller's marketing, not an anchor. When your opening bid lies above the asking price, say so in
+the reasoning and why. When `case.guide_bid.tempo_known` is false there is no price history, so the
 time on the market is unknown and did not count: do not guess it. Propose your `opening_bid` within
-`case.guide_bid.band` (a share) of `case.guide_bid.value`, and never above the asking price or the
-walk-away maximum; a bid outside those bounds is rejected. When your bid differs from the guide bid,
+`case.guide_bid.band` (a share) of `case.guide_bid.value`, and never above the walk-away maximum; a
+bid outside those bounds is rejected. When your bid differs from the guide bid,
 you must give the reason in `deviation_reason` (Dutch, one or two sentences, from what you see in the
 observations, findings, documents or flags); a different bid without one is rejected. Leave it null
 when you bid exactly the guide bid. When

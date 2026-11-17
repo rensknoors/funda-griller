@@ -1,10 +1,10 @@
 {
   "expected_tier": "consider",
   "expected_opening_bid": [
-    436500,
-    463500
+    513130,
+    544870
   ],
-  "note": "PLACEHOLDER: fictional Listing and expected tier. Laag ingezet: asking well below the expected sale price (weak WOZ basis). No discount: the Guide Bid is the asking price, so the opening bid is at asking. Replace with a real Listing you have judged yourself.",
+  "note": "PLACEHOLDER: fictional Listing and expected tier. Laag ingezet: asking well below the expected sale price (weak WOZ basis). No discount and no asking-price cap: the Guide Bid is the Expected Sale Price (about 529.000), well above the asking price, so the opening bid lies above asking (Guide Bid ±3%). Replace with a real Listing you have judged yourself.",
   "as_of": "2026-10-25T12:00:00+00:00",
   "snapshot": {
     "funda_id": "example-guide-bid-laag-ingezet",

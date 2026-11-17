@@ -90,7 +90,7 @@ class GuideBid(TypedDict):
     (Prijsstelling, and with a price history days on the market and the price reduction), each with
     its values and discount (older Verdicts carry a Dutch `label` instead); `discount` is their total, capped (`discount_capped`). `tempo_known` is
     false without a price history, so the tempo did not count. `capped_by` names the cap that lowered
-    the value, if any."""
+    the value, if any; only older Verdicts carry `asking_price` there (ADR-0005)."""
 
     value: int
     discount: float
@@ -191,8 +191,8 @@ def derive_walk_away_maximum(case: dict, premium: float) -> WalkAwayDerivation:
 
 def derive_guide_bid(case: dict, walk_away_maximum: int | None, config: GuideBidConfig) -> GuideBid | None:
     """The opening bid the Case derives before the model sees it: the Expected Sale Price less the
-    discount for the Prijsstelling and the time on the market (capped), never above the asking price
-    or the Walk-away Maximum, rounded down to the step. None without a Walk-away Maximum, an Expected
+    discount for the Prijsstelling and the time on the market (capped), never above the Walk-away
+    Maximum, rounded down to the step. It may lie above the asking price (laag ingezet, ADR-0005). None without a Walk-away Maximum, an Expected
     Sale Price or an asking price (so no Prijsstelling), and for a house sold under reservation."""
     if walk_away_maximum is None or case["sold_under_reservation"]:
         return None
@@ -211,9 +211,7 @@ def derive_guide_bid(case: dict, walk_away_maximum: int | None, config: GuideBid
     total = sum(component["discount"] for component in breakdown.values())
     discount = round(min(total, config.max_discount), 4)
     value = round(expected["value"] * (1 - discount))
-    capped_by: Literal["asking_price", "walk_away_maximum"] | None = None
-    if prijsstelling["asking_price"] < value:
-        value, capped_by = prijsstelling["asking_price"], "asking_price"
+    capped_by: Literal["walk_away_maximum"] | None = None
     if walk_away_maximum < value:
         value, capped_by = walk_away_maximum, "walk_away_maximum"
     return {
@@ -401,9 +399,6 @@ def _bid_advice(
     if conditions_only:
         return {**common, **_CONDITIONS_ONLY}, []
     problems = ["opening_bid_above_walk_away_maximum"] if opening > walk_away_maximum else []
-    # Bidding above the asking price is the buyer's own choice, never the advice.
-    if asking_price is not None and opening > asking_price:
-        problems.append("opening_bid_above_asking_price")
     if guide_bid is not None and abs(opening - guide_bid["value"]) > guide_bid["value"] * guide_bid["band"]:
         problems.append("opening_bid_outside_guide_bid_band")
     reason = advice.get("deviation_reason")

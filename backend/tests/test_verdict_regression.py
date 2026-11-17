@@ -250,6 +250,18 @@ def test_the_shipped_tempo_entry_counts_its_time_on_the_market_and_price_reducti
     assert next(line for line in output.splitlines() if "example-guide-bid-tempo" in line).count("OK") == 1
 
 
+def test_the_shipped_laag_ingezet_entry_opens_above_the_asking_price(settings, llm_client):
+    llm_client.verdict = answer_per_case("consider")
+
+    _, output = run(settings, llm_client, "run", "--yes")
+
+    sent = next(case for case, _ in llm_client.rate_calls if case["funda_id"] == "example-guide-bid-laag-ingezet")
+    assert sent["guide_bid"]["value"] > sent["metrics"]["asking_vs_expected"]["asking_price"]
+    assert sent["guide_bid"]["capped_by"] is None
+    # The model opens at the Guide Bid, so the entry's expected opening-bid range holds it.
+    assert next(line for line in output.splitlines() if "example-guide-bid-laag-ingezet" in line).count("OK") == 1
+
+
 ERFPACHT_DOCUMENT = {
     "id": 1,
     "kind": "user",

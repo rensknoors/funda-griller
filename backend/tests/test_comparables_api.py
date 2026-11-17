@@ -15,6 +15,9 @@ NOW = "2026-10-24T12:00:00+00:00"
 
 # The well-off household can pay at most 709_174 for the live Listing (asking 595_000, 152 m²).
 AFFORDABLE_MAXIMUM = 709_174
+# SEVERAL puts the house at an Expected Sale Price of 635_968, above the asking price of 595_000:
+# laag ingezet, so the Guide Bid takes no discount and lies above the asking price.
+SEVERAL_GUIDE_BID = 635_500
 
 NVM = "NVM, Marktoverzicht Nederland 2e kwartaal 2026 (via openwoning.nl)"
 
@@ -155,7 +158,7 @@ def test_the_comparison_row_shows_asking_vs_comparables(client, listing_provider
 def test_sufficient_comparables_derive_the_walk_away_maximum(client, listing_provider, source_clients, llm_client):
     with_comparables(client, listing_provider, source_clients, SEVERAL)
     client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid()
+    llm_client.verdict = bid(SEVERAL_GUIDE_BID)
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
@@ -187,7 +190,7 @@ def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_
     pricey = [comparable(str(i), 800_000, 150) for i in (101, 102, 103, 104, 105)]
     with_comparables(client, listing_provider, source_clients, pricey)
     client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid()
+    llm_client.verdict = bid(709_000)  # the Guide Bid: the Walk-away Maximum, rounded down
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
@@ -267,7 +270,7 @@ def test_the_monthly_cost_at_the_walk_away_maximum_goes_into_the_models_input(
 ):
     with_comparables(client, listing_provider, source_clients, SEVERAL)
     client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid()
+    llm_client.verdict = bid(SEVERAL_GUIDE_BID)
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
@@ -284,7 +287,7 @@ def test_bid_advice_carries_the_expected_sale_price_and_the_monthly_cost_at_it(
 ):
     with_comparables(client, listing_provider, source_clients, SEVERAL)
     client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid()
+    llm_client.verdict = bid(SEVERAL_GUIDE_BID)
 
     verdict = client.post(VERDICT).json()
     advice = verdict["bid_advice"]
@@ -313,7 +316,7 @@ def test_the_walk_away_premium_comes_from_configuration(
     settings.walk_away_premium = 0.02
     with_comparables(client, listing_provider, source_clients, SEVERAL)
     client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid()
+    llm_client.verdict = bid(SEVERAL_GUIDE_BID)
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
@@ -323,7 +326,7 @@ def test_the_walk_away_premium_comes_from_configuration(
 def test_a_walk_away_maximum_from_the_model_is_ignored(client, listing_provider, source_clients, llm_client):
     with_comparables(client, listing_provider, source_clients, SEVERAL)
     client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid(walk_away_maximum=700_000)
+    llm_client.verdict = bid(SEVERAL_GUIDE_BID, walk_away_maximum=700_000)
 
     advice = client.post(VERDICT).json()["bid_advice"]
 

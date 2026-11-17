@@ -69,12 +69,12 @@ def test_hoog_ingezet_takes_the_larger_discount():
     assert guide["value"] == 470_000  # 500.000 * 0,94
 
 
-def test_laag_ingezet_takes_no_discount_but_never_goes_above_the_asking_price():
+def test_laag_ingezet_takes_no_discount_and_opens_above_the_asking_price():
     guide = _guide(_case(expected=600_000, asking=570_000, prijsstelling="laag ingezet"))
 
     assert guide["discount"] == 0.0
-    assert guide["value"] == 570_000
-    assert guide["capped_by"] == "asking_price"
+    assert guide["value"] == 600_000
+    assert guide["capped_by"] is None
 
 
 def test_the_walk_away_maximum_caps_the_guide_bid():
