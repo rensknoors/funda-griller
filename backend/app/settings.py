@@ -27,6 +27,7 @@ class _DefaultsFileSource(PydanticBaseSettingsSource):
             data = tomllib.load(f)
         return {
             **data.get("llm", {}),
+            **data.get("case", {}),
             "listing_status_map": data.get("listing_status_map", {}),
         }
 
@@ -68,6 +69,10 @@ class Settings(BaseSettings):
     # at (never above what the household can afford). When comparables are thin or missing it sits
     # the average overbid for the soort woning above the asking price (config/bid_margins.toml).
     walk_away_comparables_premium: float = 0.10
+
+    # Within this share of the Expected Sale Price an asking price is marktconform; beyond it the
+    # seller priced the house hoog or laag ingezet (config/defaults.toml).
+    prijsstelling_band: float = 0.05
 
     # Months from today to the expected levering at the notary: the affordability rules, the
     # starters' ages and the startersvrijstelling limit are taken at that date.

@@ -15,3 +15,7 @@ verdict_model = "gemini-3.8-flash"
 "sold" = "sold"
 "negotiations" = "negotiations"
 "available" = "available"
+
+# Case metrics. An asking price within this share of the Expected Sale Price is marktconform.
+[case]
+prijsstelling_band = 0.05

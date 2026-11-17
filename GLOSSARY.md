@@ -80,9 +80,19 @@ _Dutch UI_: **Verbouwingsraming** (shown as **Verbouwingskosten**); the classes 
 _Avoid_: Renovation budget, quote, cost to fix
 
 **Comparable**:
-A nearby Listing that funda offers as recently sold or recently listed next to a house, fetched only on the user's request and capped in number. Its price is its (last) asking price, not a registered sale price. Only comparables of the same kind count (an apartment is no comparable for a house), and only those of the same soort woning when there are enough of them. Too few comparables are **thin** and do not ground the Walk-away Maximum.
+A nearby Listing that funda offers as recently sold or recently listed next to a house, fetched only on the user's request and capped in number. Its price is its (last) asking price, not a registered sale price: the average overbid for the soort woning is added to it before it feeds the Expected Sale Price. Only comparables of the same kind count (an apartment is no comparable for a house), and only those of the same soort woning when there are enough of them. Too few comparables are **thin** and do not ground the Expected Sale Price (or the Walk-away Maximum).
 _Dutch UI_: **Vergelijkbare woning**; the metric is **t.o.v. vergelijkbaar**; thin is **Dun**
 _Avoid_: Comps, similar listing, reference house
+
+**Expected Sale Price**:
+What the house is expected to sell for, derived in the Case from evidence independent of its own asking price: sufficient comparables plus the average overbid for the soort woning (strongly grounded), else the WOZ value brought to today's prices (weakly grounded), else none. Never the asking price. Carries a low-high range (the interquartile range of the comparables) on the comparables basis.
+_Dutch UI_: **Verwachte verkoopprijs**; weak is **Zwak onderbouwd**
+_Avoid_: Market value, valuation, taxatie, realistic price
+
+**Prijsstelling**:
+How the seller priced the house against its Expected Sale Price: **hoog ingezet** (asking price more than the configured band, default 5%, above), **marktconform** (within the band) or **laag ingezet** (below it). Information only: not a Flag, never counted against the house. Absent when there is no asking price or no Expected Sale Price.
+_Dutch UI_: **Prijsstelling**
+_Avoid_: Overpriced, underpriced
 
 **Expected levering**:
 The date a bid made today is expected to transfer at the notary (today plus a configured number of months). The year's lending norms, the starters' ages and the startersvrijstelling limit are taken at this date, not today.

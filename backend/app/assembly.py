@@ -49,6 +49,7 @@ def assemble_case(
         sources,
         observation_runs,
         documents,
+        settings.prijsstelling_band,
     )
 
 

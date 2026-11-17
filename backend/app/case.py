@@ -1,5 +1,6 @@
 """Case builder (Dossier): pure assembly of Listing facts and computed metrics. No I/O, no judgement."""
 
+import statistics
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
@@ -75,6 +76,7 @@ def build_case(
     sources: SourceInputs,
     observation_runs: dict | None = None,
     documents: Sequence[dict] = (),
+    prijsstelling_band: float = 0.05,
 ) -> dict:
     """Staleness is computed against `now`, never stored. `observation_runs` holds the latest and
     latest succeeded vision run over the snapshot's photo set. `documents` are the Listing's stored
@@ -105,9 +107,13 @@ def build_case(
     observed = (observation_runs or {}).get("last_success")
     facts += _observation_facts(observed, photos)
     facts += finding_facts(documents)
-    vs_woz = _asking_vs_woz(snapshot.get("asking_price"), source_facts, price_index, today)
+    woz = _latest_woz(source_facts, price_index, today)
+    vs_woz = _asking_vs_woz(snapshot.get("asking_price"), woz)
     vs_comparables = _asking_vs_comparables(
         snapshot, source_facts, comparables_fetched, sources.comparables_min_count
+    )
+    expected_sale_price = _expected_sale_price(
+        snapshot, source_facts, vs_comparables, woz, bid_margins, sources.comparables_min_count
     )
     # The Renovation Estimate reads no Buyer Profile and no affordability: it is the same for every
     # household, and its Direct nodig midpoint lowers what the household can pay for this house.
@@ -166,6 +172,10 @@ def build_case(
                 "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
                 "asking_vs_woz": vs_woz,
                 "asking_vs_comparables": vs_comparables,
+                "expected_sale_price": expected_sale_price,
+                "asking_vs_expected": _asking_vs_expected(
+                    snapshot.get("asking_price"), expected_sale_price["value"], prijsstelling_band
+                ),
                 "commute_coverage": commute_coverage,
             }.items()
         },
@@ -227,9 +237,10 @@ def _energy_label_check(listing_label: str | None, register_label: object) -> di
     }
 
 
-def _asking_vs_woz(asking_price: int | None, facts: list[dict], price_index: PriceIndex, today: date) -> dict | None:
-    """The asking price against the latest WOZ value, as it is and brought from its peildatum to
-    today's prices with the house price index (None when the peildatum is outside the series)."""
+def _latest_woz(facts: list[dict], price_index: PriceIndex, today: date) -> dict | None:
+    """The latest WOZ value, as it is and brought from its peildatum to today's prices with the
+    house price index (`indexed` is None when the peildatum is outside the series). Needs no
+    asking price."""
     woz = [
         (dated, f["value"])
         for f in facts
@@ -239,14 +250,26 @@ def _asking_vs_woz(asking_price: int | None, facts: list[dict], price_index: Pri
         and f["value"] > 0
         and (dated := peildatum(f["as_of"])) is not None
     ]
-    if asking_price is None or not woz:
+    if not woz:
         return None
     as_of, value = max(woz)
-    indexed = price_index.bring_to(value, as_of, today)
+    return {
+        "woz_value": value,
+        "woz_as_of": as_of,
+        "indexed": price_index.bring_to(value, as_of, today),
+        "source": price_index.source,
+    }
+
+
+def _asking_vs_woz(asking_price: int | None, woz: dict | None) -> dict | None:
+    """The asking price against the latest WOZ value, as it is and in today's prices."""
+    if asking_price is None or woz is None:
+        return None
+    value, indexed = woz["woz_value"], woz["indexed"]
     return {
         "asking_price": asking_price,
         "woz_value": value,
-        "woz_as_of": as_of.isoformat(),
+        "woz_as_of": woz["woz_as_of"].isoformat(),
         "difference": asking_price - value,
         "percent": round((asking_price - value) / value * 100, 1),
         "indexed": {
@@ -255,7 +278,7 @@ def _asking_vs_woz(asking_price: int | None, facts: list[dict], price_index: Pri
             "index_to": indexed.index_to,
             "difference": asking_price - indexed.value,
             "percent": round((asking_price - indexed.value) / indexed.value * 100, 1),
-            "source": price_index.source,
+            "source": woz["source"],
         }
         if indexed
         else None,
@@ -263,18 +286,72 @@ def _asking_vs_woz(asking_price: int | None, facts: list[dict], price_index: Pri
     }
 
 
+def _expected_sale_price(
+    snapshot: dict,
+    facts: list[dict],
+    vs_comparables: dict,
+    woz: dict | None,
+    bid_margins: AskingPriceMargins,
+    min_count: int,
+) -> dict:
+    """What the house is expected to sell for, from evidence independent of its asking price:
+    sufficient comparables plus the average overbid for the soort woning (strong), else the WOZ
+    value in today's prices (weak), else nothing. Never the asking price. `low` and `high` are the
+    interquartile range of the comparables' price per m², with the same overbid."""
+    value = basis = weak = overbid = low = high = None
+    area = snapshot.get("living_area")
+    if vs_comparables["coverage"] == "sufficient" and vs_comparables["comparables_value"] is not None:
+        overbid = bid_margins.for_category(category(snapshot.get("object_type"), snapshot.get("house_type")))
+        factor = 1 + overbid["value"]
+        q1, q3 = _quartiles(_comparable_per_m2(snapshot, facts, min_count))
+        value, basis, weak = round(vs_comparables["comparables_value"] * factor), "comparables", False
+        low, high = round(q1 * area * factor), round(q3 * area * factor)
+    elif woz is not None:
+        indexed = woz["indexed"]
+        value, basis, weak = indexed.value if indexed else woz["woz_value"], "woz", True
+    return {
+        "value": value,
+        "basis": basis,
+        "weakly_grounded": weak,
+        "overbid": overbid,
+        "low": low,
+        "high": high,
+        "provenance": "computed",
+    }
+
+
+def _asking_vs_expected(asking_price: int | None, expected: int | None, band: float) -> dict | None:
+    """Prijsstelling: how the seller priced the house against its Expected Sale Price. Information
+    only, never counted against the house."""
+    if asking_price is None or expected is None:
+        return None
+    ratio = (asking_price - expected) / expected
+    return {
+        "asking_price": asking_price,
+        "expected_sale_price": expected,
+        "difference": asking_price - expected,
+        "percent": round(ratio * 100, 1),
+        "prijsstelling": "hoog ingezet" if ratio > band else "laag ingezet" if ratio < -band else "marktconform",
+        "band": band,
+        "provenance": "computed",
+    }
+
+
+def _quartiles(sorted_values: list[float]) -> tuple[float, float]:
+    if len(sorted_values) < 2:
+        return sorted_values[0], sorted_values[0]
+    q1, _, q3 = statistics.quantiles(sorted_values, n=4, method="inclusive")
+    return q1, q3
+
+
 def _asking_vs_comparables(snapshot: dict, facts: list[dict], fetched: bool, min_count: int) -> dict:
     """Asking price per m² against the median price per m² of the comparables that state both
     price and living area and are of the same kind (an apartment is no comparable for a house).
     With enough of the same soort woning (tussenwoning, vrijstaand, ...) only those count. Coverage
     states plainly when there are none or too few to lean on."""
-    usable = [
-        c
-        for c in (f["value"] for f in facts if f["source"] == "comparables" and f["key"] == "comparable")
-        if _positive(c.get("asking_price")) and _positive(c.get("living_area"))
-    ]
+    usable = _usable_comparables(facts)
     chosen, matched_on = _same_type(snapshot, usable, min_count)
-    per_m2 = sorted(c["asking_price"] / c["living_area"] for c in chosen)
+    per_m2 = _comparable_per_m2(snapshot, facts, min_count)
     count = len(per_m2)
     coverage = "not_fetched" if not fetched else "none" if count == 0 else "thin" if count < min_count else "sufficient"
     asking, area = snapshot.get("asking_price"), snapshot.get("living_area")
@@ -292,6 +369,20 @@ def _asking_vs_comparables(snapshot: dict, facts: list[dict], fetched: bool, min
         "comparables_value": round(median * area) if median is not None and _positive(area) else None,
         "provenance": "computed",
     }
+
+
+def _usable_comparables(facts: list[dict]) -> list[dict]:
+    return [
+        c
+        for c in (f["value"] for f in facts if f["source"] == "comparables" and f["key"] == "comparable")
+        if _positive(c.get("asking_price")) and _positive(c.get("living_area"))
+    ]
+
+
+def _comparable_per_m2(snapshot: dict, facts: list[dict], min_count: int) -> list[float]:
+    """Sorted asking price per m² of the comparables that count for this Listing."""
+    chosen, _ = _same_type(snapshot, _usable_comparables(facts), min_count)
+    return sorted(c["asking_price"] / c["living_area"] for c in chosen)
 
 
 def _same_type(snapshot: dict, comparables: list[dict], min_count: int) -> tuple[list[dict], str | None]:

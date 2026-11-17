@@ -4,11 +4,11 @@
 
 **Blocked by:** none
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `expected_sale_price` per spec shape, with basis, overbid source, low/high range and `weakly_grounded`
-- [ ] No asking price fallback: neither sufficient comparables nor WOZ gives `value: null`
-- [ ] WOZ basis works for a Listing without an asking price
-- [ ] `asking_vs_expected` with `prijsstelling_band` (default 0.05), null when either side is missing
-- [ ] Unit tests per basis and at the band edges
-- [ ] GLOSSARY: Expected Sale Price, Prijsstelling; Comparable updated
+- [x] `expected_sale_price` per spec shape, with basis, overbid source, low/high range and `weakly_grounded`
+- [x] No asking price fallback: neither sufficient comparables nor WOZ gives `value: null`
+- [x] WOZ basis works for a Listing without an asking price
+- [x] `asking_vs_expected` with `prijsstelling_band` (default 0.05), null when either side is missing
+- [x] Unit tests per basis and at the band edges
+- [x] GLOSSARY: Expected Sale Price, Prijsstelling; Comparable updated
