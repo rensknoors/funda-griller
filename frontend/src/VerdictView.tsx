@@ -357,9 +357,9 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
       </div>
       <dl className="figures bid-context">
         <MonthlyFigure
-          label="vraagprijs"
-          gross={advice.monthly_cost_at_asking_price}
-          net={advice.monthly_cost_net_at_asking_price}
+          label={advice.expected_sale_price === undefined ? "vraagprijs" : "verwachte verkoopprijs"}
+          gross={advice.monthly_cost_at_expected_sale_price ?? advice.monthly_cost_at_asking_price ?? null}
+          net={advice.monthly_cost_net_at_expected_sale_price ?? advice.monthly_cost_net_at_asking_price}
         />
         <MonthlyFigure
           label="Maximumbod"

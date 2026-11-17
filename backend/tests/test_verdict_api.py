@@ -207,9 +207,9 @@ def test_cited_flags_are_named_and_bid_advice_shows_monthly_costs(client, listin
     ]
     advice = verdict["bid_advice"]
     assert advice["asking_price"] == 595_000
-    assert advice["monthly_cost_at_asking_price"] == 1_935
-    assert advice["monthly_cost_net_at_asking_price"] == 1_461
-    assert advice["monthly_cost_at_walk_away_maximum"] > advice["monthly_cost_at_asking_price"]
+    assert advice["monthly_cost_at_expected_sale_price"] == 1_935
+    assert advice["monthly_cost_net_at_expected_sale_price"] == 1_461
+    assert advice["monthly_cost_at_walk_away_maximum"] > advice["monthly_cost_at_expected_sale_price"]
     assert advice["monthly_cost_net_at_walk_away_maximum"] < advice["monthly_cost_at_walk_away_maximum"]
 
 

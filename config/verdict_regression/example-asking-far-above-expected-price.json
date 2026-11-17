@@ -1,6 +1,6 @@
 {
-  "expected_tier": "skip",
-  "note": "PLACEHOLDER: fictional Listing and expected tier. Replace with a real Listing you have judged yourself.",
+  "expected_tier": "consider",
+  "note": "PLACEHOLDER: fictional Listing and expected tier. Asked 34% above its expected sale price (weak WOZ basis, hoog ingezet) but well within reach at that price: judged at the Expected Sale Price it is a consider with a bid far below the asking price, not a skip. Replace with a real Listing you have judged yourself.",
   "as_of": "2026-10-25T12:00:00+00:00",
   "snapshot": {
     "funda_id": "example-2",

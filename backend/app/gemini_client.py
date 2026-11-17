@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 7
+VERDICT_PROMPT_VERSION = 8
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -44,16 +44,30 @@ Answer with:
   whole euros and `conditions` (e.g. financieringsvoorbehoud, bouwkundige keuring, follow-ups on
   seller Documents).
 
+Judge the house at its expected sale price, `case.metrics.expected_sale_price` (what it is expected
+to sell for, from comparables plus the average overbid, or from the indexed WOZ value), not at the
+asking price, which the seller sets strategically. Headroom, `case.affordability.monthly_cost` and
+the price Flags are all measured at the expected sale price. `basis` says where it comes from and
+`weakly_grounded` is true when it rests on the WOZ value alone; then say in the reasoning that the
+judgement of the price is weakly grounded. `case.metrics.asking_vs_expected` only says how the seller
+priced the house against it (hoog ingezet, marktconform, laag ingezet): use it for the opening bid,
+never as a reason to like or dislike the house.
+
+When `case.metrics.expected_sale_price.value` is null the price cannot be judged: say so plainly in
+the reasoning and that comparables should be fetched. Do not fall back on the asking price or on the
+budget, and do not answer must_buy.
+
 The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derived from the expected
-sale price (`case.metrics.expected_sale_price`) and affordability (`case.walk_away` says how). Do not
-propose your own. The opening bid must not exceed it. When `case.walk_away.weakly_grounded` is true
-the expected sale price rests on the WOZ value, not on comparables; say in the reasoning that the
-bid advice is weakly grounded. Without an expected sale price `case.walk_away.walk_away_maximum` is
-null: give conditions only, with no `opening_bid`, and say that comparables should be fetched.
+sale price and affordability (`case.walk_away` says how); `case.walk_away.monthly_cost` is the monthly
+cost at that maximum (gross and net). Do not propose your own. The opening bid must not exceed it,
+and normally lies below the expected sale price when the house is asked high, and at or near the
+asking price when it is asked low. When `case.walk_away.weakly_grounded` is true say that the bid
+advice is weakly grounded. Without an expected sale price `case.walk_away.walk_away_maximum` is null:
+give conditions only, with no `opening_bid`.
 
 `case.metrics.asking_vs_woz.indexed` is the WOZ value brought from its peildatum to today's prices
-with the CBS house price index; weigh the asking price against that, not the raw WOZ value, which
-lags the market. Comparables count only when of the same kind as the house (`matched_on`).
+with the CBS house price index; it is evidence for the expected sale price, not a second anchor.
+Comparables count only when of the same kind as the house (`matched_on`).
 
 `case.renovation_estimate` is what the house may cost to renovate, from a versioned cost table:
 items in three classes (`direct`: Direct nodig, `within_5_years`: Binnen 5 jaar, `optional`:
@@ -66,7 +80,7 @@ subtract it again. Weigh the estimate against `buyer_profile.renovation_toleranc
 `case.affordability` follows the Dutch lending norms for the year of the expected levering
 (`case.rules.year`, `case.rules.levering_on`). The mortgage may not exceed the price, so kosten koper
 and the Direct nodig renovation come from own funds and equity. `monthly_cost` is the gross annuity
-of the mortgage needed at the asking price; `monthly_cost_net` is what the household pays after
+of the mortgage needed at the expected sale price; `monthly_cost_net` is what the household pays after
 hypotheekrenteaftrek, the figure to weigh affordability by. `nhg` says whether that mortgage fits
 under the NHG limit. When `case.rules.is_current_year` is false the norms are from an earlier year;
 say so. `buyer_profile.mortgage_rates` gives the rate per loan route (`nhg`, `no_nhg`) and its

@@ -4,11 +4,11 @@
 
 **Blocked by:** 02, 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `VERDICT_INSTRUCTION` rewritten for the Expected Sale Price; `VERDICT_PROMPT_VERSION` bumped
-- [ ] Validation: `must_buy_without_expected_sale_price`; opening bid without a Walk-away Maximum rejected; conditions-only Bid Advice accepted
-- [ ] `case.walk_away.monthly_cost` in the input
-- [ ] Bid Advice fields renamed/added; older Verdicts still render
-- [ ] Regression example entries re-judged (`example-asking-far-above-woz` rewritten or replaced)
-- [ ] Real-model regression run (user, costs money)
+- [x] `VERDICT_INSTRUCTION` rewritten for the Expected Sale Price; `VERDICT_PROMPT_VERSION` bumped
+- [x] Validation: `must_buy_without_expected_sale_price`; opening bid without a Walk-away Maximum rejected; conditions-only Bid Advice accepted
+- [x] `case.walk_away.monthly_cost` in the input
+- [x] Bid Advice fields renamed/added; older Verdicts still render
+- [x] Regression example entries re-judged (`example-asking-far-above-woz` replaced by `example-asking-far-above-expected-price`, expected tier consider; `example-efficient-family-home` note updated; flood and label entries unchanged)
+- [ ] Real-model regression run (user, costs money; not run by the agent)

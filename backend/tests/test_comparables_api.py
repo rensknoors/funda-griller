@@ -247,6 +247,65 @@ def test_without_an_expected_sale_price_there_is_no_walk_away_maximum_and_no_ope
     assert "asking_price_margin" not in sent_case
 
 
+def test_must_buy_is_not_allowed_without_an_expected_sale_price(client, listing_provider, llm_client):
+    capture(client, listing_provider)
+    client.put("/api/buyer-profile", json=well_off_profile())
+    llm_client.verdict = {**bid(), "tier": "must_buy", "bid_advice": {"conditions": ["Financieringsvoorbehoud"]}}
+
+    rejected = client.post(VERDICT)
+
+    assert rejected.status_code == 502
+    assert rejected.json()["problems"] == ["must_buy_without_expected_sale_price"]
+
+    llm_client.verdict = {**bid(), "bid_advice": {"conditions": ["Financieringsvoorbehoud"]}}
+    assert client.post(VERDICT).status_code == 201  # consider, conditions only
+
+
+def test_the_monthly_cost_at_the_walk_away_maximum_goes_into_the_models_input(
+    client, listing_provider, source_clients, llm_client
+):
+    with_comparables(client, listing_provider, source_clients, SEVERAL)
+    client.put("/api/buyer-profile", json=well_off_profile())
+    llm_client.verdict = bid()
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    [*_, (sent_case, _)] = llm_client.rate_calls
+    assert sent_case["walk_away"]["monthly_cost"] == {
+        "gross": advice["monthly_cost_at_walk_away_maximum"],
+        "net": advice["monthly_cost_net_at_walk_away_maximum"],
+    }
+    assert advice["monthly_cost_at_walk_away_maximum"] > 0
+
+
+def test_bid_advice_carries_the_expected_sale_price_and_the_monthly_cost_at_it(
+    client, listing_provider, source_clients, llm_client
+):
+    with_comparables(client, listing_provider, source_clients, SEVERAL)
+    client.put("/api/buyer-profile", json=well_off_profile())
+    llm_client.verdict = bid()
+
+    verdict = client.post(VERDICT).json()
+    advice = verdict["bid_advice"]
+    affordability = client.get(CASE).json()["affordability"]
+
+    assert advice["expected_sale_price"] == client.get(CASE).json()["metrics"]["expected_sale_price"]["value"]
+    assert advice["monthly_cost_at_expected_sale_price"] == affordability["monthly_cost"]
+    assert advice["monthly_cost_net_at_expected_sale_price"] == affordability["monthly_cost_net"]
+    assert "monthly_cost_at_asking_price" not in advice
+
+
+def test_conditions_only_bid_advice_has_no_expected_sale_price_either(client, listing_provider, llm_client):
+    capture(client, listing_provider)
+    client.put("/api/buyer-profile", json=well_off_profile())
+    llm_client.verdict = {**bid(), "bid_advice": {"conditions": ["Financieringsvoorbehoud"]}}
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["expected_sale_price"] is None
+    assert advice["monthly_cost_at_expected_sale_price"] is None
+
+
 def test_the_walk_away_premium_comes_from_configuration(
     client, listing_provider, source_clients, settings, llm_client
 ):

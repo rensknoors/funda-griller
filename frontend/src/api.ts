@@ -611,7 +611,12 @@ export type BidAdvice = {
   /** How the Walk-away Maximum was derived; absent on Verdicts whose model proposed it. */
   derivation?: WalkAwayDerivation;
   asking_price: number | null;
-  monthly_cost_at_asking_price: number | null;
+  /** The Expected Sale Price the advice rests on; absent on Verdicts made before it existed. */
+  expected_sale_price?: number | null;
+  monthly_cost_at_expected_sale_price?: number | null;
+  monthly_cost_net_at_expected_sale_price?: number | null;
+  /** Older Verdicts: at the asking price, replaced by the Expected Sale Price figures. */
+  monthly_cost_at_asking_price?: number | null;
   monthly_cost_at_walk_away_maximum: number | null;
   /** Net of hypotheekrenteaftrek; absent on Verdicts made before net costs existed. */
   monthly_cost_net_at_asking_price?: number | null;

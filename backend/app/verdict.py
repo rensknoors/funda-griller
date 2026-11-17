@@ -6,10 +6,9 @@ anything stores or shows it: one of four tiers, Flags it cites must exist, and t
 not exceed the Walk-away Maximum.
 
 The Walk-away Maximum is not the model's: it is derived here, before the model is asked. With
-sufficient comparables it is what they put the house at plus a premium; with thin or missing ones
-the asking price plus a margin, stated as weakly grounded. The Renovation Estimate's Direct nodig
-midpoint comes off that basis first. Either way never above what the household can afford (which
-has set the same amount aside).
+the Expected Sale Price, less the Renovation Estimate's Direct nodig midpoint, plus a premium, never
+above what the household can afford; without an Expected Sale Price there is none. Must buy needs an
+Expected Sale Price, and an opening bid needs a Walk-away Maximum.
 """
 
 from collections.abc import Callable
@@ -79,8 +78,10 @@ def judge(
     if llm_client is None:
         raise LlmError("no LLM client configured")
     derivation = derive_walk_away_maximum(case, walk_away_premium)
+    maximum = derivation["walk_away_maximum"]
+    walk_away = {**derivation, "monthly_cost": monthly_cost_at(maximum) if maximum is not None else None}
     response = llm_client.rate(
-        {**_for_llm(case), "provenance_legend": PROVENANCE_LEGEND, "walk_away": derivation}, reduced_profile
+        {**_for_llm(case), "provenance_legend": PROVENANCE_LEGEND, "walk_away": walk_away}, reduced_profile
     )
     return {
         **_validated(response, case, derivation, monthly_cost_at),
@@ -225,6 +226,8 @@ def _validated(
     if not isinstance(cited_ids, list) or any(flag_id not in flags for flag_id in cited_ids):
         problems.append("unknown_flag_cited")
         cited_ids = []
+    if tier == "must_buy" and case["metrics"]["expected_sale_price"]["value"] is None:
+        problems.append("must_buy_without_expected_sale_price")
     bid_advice, bid_problems = _bid_advice(response.get("bid_advice"), tier, case, derivation, monthly_cost_at)
     problems += bid_problems
     if problems:
@@ -279,8 +282,9 @@ def _bid_advice(
         },
         "derivation": {key: value for key, value in derivation.items() if key != "walk_away_maximum"},
         "asking_price": _asking_price(case),
-        "monthly_cost_at_asking_price": affordability["monthly_cost"],
-        "monthly_cost_net_at_asking_price": affordability["monthly_cost_net"],
+        "expected_sale_price": case["metrics"]["expected_sale_price"]["value"],
+        "monthly_cost_at_expected_sale_price": affordability["monthly_cost"],
+        "monthly_cost_net_at_expected_sale_price": affordability["monthly_cost_net"],
         "monthly_cost_at_walk_away_maximum": at_walk_away["gross"],
         "monthly_cost_net_at_walk_away_maximum": at_walk_away["net"],
     }, problems
@@ -298,8 +302,9 @@ def _conditions_only(opening: object, conditions: object, case: dict) -> tuple[d
         "conditions": [condition.strip() for condition in conditions],
         "affordable_maximum": case["affordability"]["affordable_maximum"],
         "asking_price": _asking_price(case),
-        "monthly_cost_at_asking_price": case["affordability"]["monthly_cost"],
-        "monthly_cost_net_at_asking_price": case["affordability"]["monthly_cost_net"],
+        "expected_sale_price": None,
+        "monthly_cost_at_expected_sale_price": None,
+        "monthly_cost_net_at_expected_sale_price": None,
         "monthly_cost_at_walk_away_maximum": None,
         "monthly_cost_net_at_walk_away_maximum": None,
     }, []
