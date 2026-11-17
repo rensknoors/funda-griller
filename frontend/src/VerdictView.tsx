@@ -559,7 +559,7 @@ function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | 
   const renovation = derivation.renovation_direct
     ? ` − ${euro.format(derivation.renovation_direct)} Direct nodig`
     : "";
-  return `${basis.line} ${euro.format(value)}${renovation} + ${percent(premium)}:${euro.format(derivation.basis_maximum)}`;
+  return `${basis.line} ${euro.format(value)}${renovation} + ${percent(premium)}: ${euro.format(derivation.basis_maximum)}`;
 }
 
 const HOUSE_LABELS: Record<string, string> = {
@@ -576,7 +576,7 @@ function marginSourceLine(derivation: WalkAwayDerivation): string | null {
   const premium = premiumOf(derivation);
   if (!source || premium === null) return null;
   const house = source.house_type ? (HOUSE_LABELS[source.house_type] ?? source.house_type) : "alle woningen";
-  return `Marge ${percent(premium)}:gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
+  return `Marge ${percent(premium)}: gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
 }
 
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */

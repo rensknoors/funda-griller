@@ -45,7 +45,7 @@ test("the Richtbod's breakdown shows the days on the market and the price reduct
   await expect(advies.getByText(/Richtbod\s€\s382\.000: Vocht in de kelder\./)).toBeVisible();
   await advies.getByText("Hoe het Richtbod is berekend").click();
   await expect(advies.getByText("Dagen te koop: 130 dagen, 2%")).toBeVisible();
-  await expect(advies.getByText(/^Prijsverlaging: van € 625\.000 naar € 595\.000, 1%$/)).toBeVisible();
+  await expect(advies.getByText(/^Prijsverlaging: van €\s625\.000 naar €\s595\.000, 1%$/)).toBeVisible();
   await expect(advies.getByText(/verwachte verkoopprijs min 9% korting/)).toBeVisible();
   await expect(advies.getByText(/Tempo onbekend/)).toBeHidden();
 });
