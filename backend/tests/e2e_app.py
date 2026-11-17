@@ -176,9 +176,10 @@ def _rate(case: dict, _profile: dict) -> dict:
     if case["sold_under_reservation"]:
         advice = {"conditions": ["Reserveringslijst opvragen"]}
     elif guide_bid:
-        # A little above the Guide Bid: inside the band, so the Richtbod shows next to the Openingsbod.
+        # A little above the Guide Bid (never above the asking price): inside the band, so the Richtbod
+        # shows next to the Openingsbod with the reason.
         advice = {
-            "opening_bid": min(walk_away, guide_bid["value"] + 1_000),
+            "opening_bid": min(walk_away, asking, guide_bid["value"] + 1_000),
             "deviation_reason": "Vocht in de kelder.",
             "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
         }

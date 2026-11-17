@@ -29,6 +29,7 @@ def model_says(tier="consider", **overrides):
         "cited_flags": [],
         "bid_advice": {
             "opening_bid": 585_000,
+            "deviation_reason": "Ruimte om te onderhandelen.",
             "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
         },
         **overrides,
@@ -92,12 +93,19 @@ def test_an_invalid_model_answer_is_rejected_and_reported(
     assert client.get(VERDICT).json()["verdicts"] == []
 
 
-def test_an_opening_bid_at_the_walk_away_maximum_but_far_above_the_guide_bid_is_rejected_for_the_band_only(client, listing_provider, llm_client):
+def test_an_opening_bid_at_the_walk_away_maximum_is_rejected_for_the_asking_price_and_the_band(
+    client, listing_provider, llm_client
+):
     prepare(client, listing_provider)
-    llm_client.verdict = model_says(bid_advice={"opening_bid": WALK_AWAY_MAXIMUM, "conditions": []})
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": WALK_AWAY_MAXIMUM, "conditions": [], "deviation_reason": "Gewilde straat."}
+    )
 
-    # The walk-away maximum (624.750) lies above the Guide Bid band, so only the band is the problem.
-    assert client.post(VERDICT).json()["problems"] == ["opening_bid_outside_guide_bid_band"]
+    # The walk-away maximum (624.750) lies above the asking price and the Guide Bid band, not above itself.
+    assert client.post(VERDICT).json()["problems"] == [
+        "opening_bid_above_asking_price",
+        "opening_bid_outside_guide_bid_band",
+    ]
 
 
 def test_a_skip_needs_no_bid_advice(client, listing_provider, llm_client):
@@ -446,10 +454,50 @@ def test_a_deviation_inside_the_band_keeps_the_models_reason(client, listing_pro
     assert advice["guide_bid_deviation_reason"] == "Vocht in de kelder."
 
 
-@pytest.mark.parametrize("opening_bid", [562_599, 597_401])
-def test_an_opening_bid_outside_the_band_is_rejected(client, listing_provider, llm_client, opening_bid):
+def test_an_opening_bid_above_the_asking_price_is_rejected_even_inside_the_band(client, listing_provider, llm_client):
+    # The band around the Guide Bid (580.000) reaches 597.400, above the asking price of 595.000.
     prepare(client, listing_provider)
-    llm_client.verdict = model_says(bid_advice={"opening_bid": opening_bid, "conditions": []})
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": 595_001, "conditions": [], "deviation_reason": "Veel belangstelling."}
+    )
+
+    response = client.post(VERDICT)
+
+    assert response.status_code == 502
+    assert response.json()["problems"] == ["opening_bid_above_asking_price"]
+
+
+def test_an_opening_bid_at_the_asking_price_is_accepted(client, listing_provider, llm_client):
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": 595_000, "conditions": [], "deviation_reason": "Veel belangstelling."}
+    )
+
+    assert client.post(VERDICT).status_code == 201
+
+
+@pytest.mark.parametrize("reason", [None, "", "   "])
+def test_an_opening_bid_off_the_guide_bid_without_a_reason_is_rejected(client, listing_provider, llm_client, reason):
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": 585_000, "conditions": [], "deviation_reason": reason}
+    )
+
+    response = client.post(VERDICT)
+
+    assert response.status_code == 502
+    assert response.json()["problems"] == ["deviation_reason_missing"]
+
+
+# With a 5% discount the Guide Bid is 565.000 and its 3% band runs from 548.050 to 581.950, below
+# the asking price of 595.000.
+@pytest.mark.parametrize("opening_bid", [548_049, 581_951])
+def test_an_opening_bid_outside_the_band_is_rejected(client, listing_provider, llm_client, settings, opening_bid):
+    settings.guide_bid.discount_marktconform = 0.05
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": opening_bid, "conditions": [], "deviation_reason": "Gebreken."}
+    )
 
     response = client.post(VERDICT)
 
@@ -457,10 +505,13 @@ def test_an_opening_bid_outside_the_band_is_rejected(client, listing_provider, l
     assert response.json()["problems"] == ["opening_bid_outside_guide_bid_band"]
 
 
-@pytest.mark.parametrize("opening_bid", [562_600, 597_400])
-def test_an_opening_bid_at_the_edge_of_the_band_is_accepted(client, listing_provider, llm_client, opening_bid):
+@pytest.mark.parametrize("opening_bid", [548_050, 581_950])
+def test_an_opening_bid_at_the_edge_of_the_band_is_accepted(client, listing_provider, llm_client, settings, opening_bid):
+    settings.guide_bid.discount_marktconform = 0.05
     prepare(client, listing_provider)
-    llm_client.verdict = model_says(bid_advice={"opening_bid": opening_bid, "conditions": []})
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": opening_bid, "conditions": [], "deviation_reason": "Gebreken."}
+    )
 
     assert client.post(VERDICT).status_code == 201
 

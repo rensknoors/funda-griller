@@ -65,7 +65,12 @@ def bid(opening_bid=580_000, **extra):
         "summary": "Prima woning.",
         "reasoning": "Past bij de wensen.",
         "cited_flags": [],
-        "bid_advice": {"opening_bid": opening_bid, "conditions": ["Financieringsvoorbehoud"], **extra},
+        "bid_advice": {
+            "opening_bid": opening_bid,
+            "deviation_reason": "Ruimte om te onderhandelen.",
+            "conditions": ["Financieringsvoorbehoud"],
+            **extra,
+        },
     }
 
 

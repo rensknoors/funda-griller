@@ -41,13 +41,17 @@ def test_an_unknown_listing_has_no_export(client):
     assert client.get("/api/listings/404/export.md").status_code == 404
 
 
-def model_says(tier="consider", opening_bid=585_000):
+def model_says(tier="consider", opening_bid=585_000, deviation_reason="Ruimte om te onderhandelen."):
     return {
         "tier": tier,
         "summary": "Degelijke woning, prijs aan de hoge kant.",
         "reasoning": "De woning past bij jullie wensen; de vraagprijs ligt ruim boven de WOZ.",
         "cited_flags": [],
-        "bid_advice": {"opening_bid": opening_bid, "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"]},
+        "bid_advice": {
+            "opening_bid": opening_bid,
+            "deviation_reason": deviation_reason,
+            "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
+        },
     }
 
 
@@ -546,7 +550,11 @@ def test_household_amounts_in_the_verdict_text_are_rounded_or_left_out(client, l
     llm_client.verdict = model_says() | {
         "summary": f"Betaalbaar tot {forms}.",
         "reasoning": f"Maandlasten {amount_forms(monthly)[0]} per maand, overwaarde {amount_forms(equity)[1]}.",
-        "bid_advice": {"opening_bid": 585_000, "conditions": [f"Niet boven {amount_forms(maximum)[0]}"]},
+        "bid_advice": {
+            "opening_bid": 585_000,
+            "deviation_reason": "Ruimte om te onderhandelen.",
+            "conditions": [f"Niet boven {amount_forms(maximum)[0]}"],
+        },
     }
     client.post(VERDICT)
 
