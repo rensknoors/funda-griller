@@ -1,6 +1,6 @@
 # Expected Sale Price: judge the house, not the asking price
 
-Decision record: `docs/adr/0004-judge-at-the-expected-sale-price.md`. Decisions settled with the user on 2026-11-14 (see Decisions below).
+Decision records: `docs/adr/0004-judge-at-the-expected-sale-price.md` and `docs/adr/0005-guide-bid-from-the-case.md`. Decisions settled with the user on 2026-11-14 (Expected Sale Price) and 2026-11-17 (Guide Bid); see Decisions below.
 
 ## Problem Statement
 
@@ -9,6 +9,7 @@ Sellers set the asking price strategically, sometimes above what a house will fe
 - **Missed chances.** A house asked above budget raises `ask_beyond_headroom`. Combined with a "te duur"/"boven budget" deal-breaker it is a deterministic Harde afwijzing, even when comparables put it within reach and a bid under the asking price is realistic.
 - **False hope.** An under-asked house looks affordable and gets a positive Oordeel, while it will sell far above the asking price. Monthly costs at the asking price understate what the household will pay.
 - **Weak Maximumbod.** With thin comparables the Walk-away Maximum is asking price × (1 + average overbid), so it copies the seller's pricing.
+- **Openingsbod hangs on the asking price.** The model proposes the opening bid freely, bounded only by the Walk-away Maximum, and lands just under the asking price (Europalaan 26: asking €525.000, opening €515.000, Maximumbod €582.813).
 
 ## Solution
 
@@ -17,7 +18,8 @@ The Case derives an **Expected Sale Price** (_Dutch UI_: **Verwachte verkoopprij
 1. The Expected Sale Price and its basis are computed in the Case.
 2. Affordability, headroom and the price Flags are measured at the Expected Sale Price.
 3. The Walk-away Maximum is derived from the Expected Sale Price.
-4. The Oordeel judges the house at the Expected Sale Price. The asking price only says how the seller has priced it (**Prijsstelling**) and shapes the opening bid tactics.
+4. The Oordeel judges the house at the Expected Sale Price. The asking price only says how the seller has priced it (**Prijsstelling**) and shapes the opening bid.
+5. The Case derives a **Guide Bid** (_Dutch UI_ **Richtbod**) from the Expected Sale Price, the Prijsstelling and the time on the market. The model's Openingsbod stays within a band around it.
 
 ## User Stories
 
@@ -30,6 +32,8 @@ The Case derives an **Expected Sale Price** (_Dutch UI_: **Verwachte verkoopprij
 7. As a buyer, when there is too little evidence I want to be told plainly that the price cannot be judged and how to fix that (fetch comparables), not a figure quietly copied from the asking price or my budget.
 8. As a buyer, I want my "boven budget" deal-breaker to reject houses whose expected sale price is firmly beyond me, not houses whose asking price merely is, and not on a coarse WOZ estimate.
 9. As a buyer comparing houses, I want the Woningen list to show and sort by headroom at the Expected Sale Price.
+10. As a buyer, I want the opening bid to follow from what the house is expected to sell for and how the seller priced it, not hover just under the asking price.
+11. As a buyer, I want to see how the opening bid came about (discount for Prijsstelling and time on the market) and when the model deviates from it, and why.
 
 ## Decisions
 
@@ -41,6 +45,11 @@ The Case derives an **Expected Sale Price** (_Dutch UI_: **Verwachte verkoopprij
 6. **No Expected Sale Price, Verdict.** No hard tier cap, but Must buy is not allowed; the Verdict service validates it.
 7. **No Expected Sale Price, Bid Advice.** No Walk-away Maximum and no opening bid; conditions only, plus the hint to fetch comparables.
 8. **Hard no on a weak basis.** The "boven budget" deal-breaker forces a Hard no only on a strongly grounded Expected Sale Price. On the WOZ basis the Flag is raised as a con and the model weighs it.
+9. **Guide Bid.** `min(asking price, expected_sale_price × (1 − discount))`, capped at the Walk-away Maximum, rounded down to €500. Discount by Prijsstelling: hoog ingezet 5–7%, marktconform 2–3%, laag ingezet 0%. Never above the asking price: bidding above it is the buyer's own choice.
+10. **Tempo.** Days on the market (first `price_history` date to the snapshot's fetch date, so it is reproducible) over 60 days add 1 point, over 120 days 2 points (not cumulative); a price reduction (first price above the asking price) adds 1 point; the discount is capped at 10%. Without `price_history` the signal does not count and the Biedadvies says the tempo is unknown.
+11. **Model adjustment.** The model proposes the Openingsbod within ±3% of the Guide Bid, never above the Walk-away Maximum or the asking price, and explains any deviation. Outside the band is a validation problem.
+12. **Weak basis, sold under reservation.** The same discount applies on a weakly grounded Expected Sale Price, flagged as such. A house sold under reservation gets no Guide Bid: conditions only, with a note.
+13. **Term.** Domain term Guide Bid, _Dutch UI_ Richtbod; the Openingsbod is the model's final bid.
 
 ## Implementation Decisions
 
@@ -78,32 +87,37 @@ Computed in `case.py` next to `asking_vs_woz` and `asking_vs_comparables`, prove
 
 ### Verdict
 
-- The prompt anchors the Oordeel on `case.metrics.expected_sale_price`, uses `asking_vs_expected` only for the opening bid tactics, and, without an Expected Sale Price, says the price cannot be judged and that comparables should be fetched.
+- The prompt anchors the Oordeel on `case.metrics.expected_sale_price`, uses `asking_vs_expected` only for the opening bid (through the Guide Bid), and, without an Expected Sale Price, says the price cannot be judged and that comparables should be fetched.
 - Validation: `must_buy` without an Expected Sale Price is a problem (`must_buy_without_expected_sale_price`); without a Walk-away Maximum an `opening_bid` is a problem; Bid Advice then carries conditions only.
 - The monthly cost at the Walk-away Maximum moves into the model's input (`case.walk_away.monthly_cost`).
 - Bid Advice keeps `asking_price` for display, adds `expected_sale_price`; `monthly_cost_at_asking_price` becomes `monthly_cost_at_expected_sale_price`. Older Verdicts keep rendering with the old fields.
 - `VERDICT_PROMPT_VERSION` bumps. The regression set is re-run, and the example entries' expected tiers are re-judged: `example-asking-far-above-woz` loses its premise.
+
+### Guide Bid (Case metric `guide_bid`)
+
+Computed in the Verdict service next to `derive_walk_away_maximum`, since it is capped by it. Shape: `{ value, discount, breakdown: {prijsstelling, days_on_market, price_reduction}, weakly_grounded, capped_by }`, null without a Walk-away Maximum or when sold under reservation. All figures (discounts per Prijsstelling, tempo thresholds and points, the 10% cap, the band, the rounding step) live in `config/defaults.toml`. It goes into the model's input as `case.guide_bid`; Bid Advice carries it with its breakdown. Tickets 07 (Prijsstelling) and 08 (tempo); `VERDICT_PROMPT_VERSION` bumps with them.
 
 ### UI (Dutch)
 
 - Dossier: a **Verwachte verkoopprijs** block with value, range, basis ("op basis van 7 vergelijkbare woningen, incl. 5,9% gemiddeld overbod" / "op basis van de WOZ-waarde naar vandaag"), **Zwak onderbouwd** when weak, and **Prijsstelling** (e.g. "Vraagprijs 8% boven verwachte verkoopprijs: hoog ingezet").
 - Woningen list and cards: "Ruimte boven vraag" becomes **Ruimte boven verwachte prijs**, with the sort key following. "–" plus "Haal vergelijkbare woningen op" when absent.
 - Biedadvies: maandlasten **bij verwachte verkoopprijs**. Without an Expected Sale Price: no Maximumbod or Openingsbod, the Voorwaarden, and "Haal vergelijkbare woningen op voor een Maximumbod".
+- Biedadvies shows the Openingsbod; when it differs from the Richtbod, the Richtbod and the model's reason appear beside it, with the discount breakdown (Prijsstelling, dagen te koop, prijsverlaging) or "Tempo onbekend". A house sold under reservation shows conditions and "Verkocht onder voorbehoud".
 - Markdown export follows the Dossier and Biedadvies.
 
 ### Glossary
 
-Add **Expected Sale Price** (_Dutch UI_ **Verwachte verkoopprijs**; _Avoid_ market value, valuation, taxatie, realistic price) and **Prijsstelling**. Rewrite Walk-away Maximum (basis is the Expected Sale Price; none without one) and update Comparable (its asking price plus the average overbid feeds the Expected Sale Price) and Hard no (a price deal-breaker needs a strongly grounded Expected Sale Price).
+**Guide Bid** (_Dutch UI_ **Richtbod**) is already added, with Bid Advice updated. Add **Expected Sale Price** (_Dutch UI_ **Verwachte verkoopprijs**; _Avoid_ market value, valuation, taxatie, realistic price) and **Prijsstelling**. Rewrite Walk-away Maximum (basis is the Expected Sale Price; none without one) and update Comparable (its asking price plus the average overbid feeds the Expected Sale Price) and Hard no (a price deal-breaker needs a strongly grounded Expected Sale Price).
 
 ## Testing Decisions
 
 - Unit (`case`): Expected Sale Price per basis (sufficient comparables with overbid; thin comparables → WOZ; indexed vs raw WOZ; WOZ without an asking price; neither → null); Prijsstelling at the band edges.
 - Unit (`affordability`, `flags`): headroom and monthly costs at the Expected Sale Price; `expected_price_beyond_headroom` raises at < 0 and stays silent without one; the deal-breaker Hard no only on a strong basis, the Flag on both.
 - Scenario tests for the motivating cases: an over-asked house within reach (no Flag, no Hard no); an under-asked house beyond reach (Flag raised, Hard no with the deal-breaker on a strong basis).
-- Unit (`verdict`): Walk-away Maximum from the Expected Sale Price, affordability binding, none without one; validation of Must buy and opening bid without an Expected Sale Price.
+- Unit (`verdict`): Guide Bid per Prijsstelling band, the asking-price and Walk-away Maximum caps, rounding, tempo thresholds and the 10% cap, missing history, weak basis, none when sold under reservation, the ±3% band validation; Walk-away Maximum from the Expected Sale Price, affordability binding, none without one; validation of Must buy and opening bid without an Expected Sale Price.
 - API: Case and comparison payloads carry the new fields; old Verdicts still render.
 - e2e: Dossier shows Verwachte verkoopprijs and Prijsstelling; the list sorts by the new headroom; Biedadvies without an Expected Sale Price shows conditions and the hint.
-- Regression set re-run against the real model (costs money, user runs it).
+- Regression set re-run against the real model (costs money, user runs it), with new cases: marktconform (Europalaan-26-like), hoog ingezet (bid far below asking), laag ingezet (bid at asking), 120+ days with a price reduction.
 
 ## Out of Scope
 

@@ -60,9 +60,14 @@ _Dutch UI_: **Harde afwijzing**
 _Avoid_: Reject, blocked
 
 **Bid Advice**:
-Guidance accompanying a Verdict on how to bid: an opening bid, a walk-away maximum, and suggested conditions.
+Guidance accompanying a Verdict on how to bid: an opening bid, a walk-away maximum, and suggested conditions. The opening bid is the model's, kept within a narrow band around the Guide Bid.
 _Dutch UI_: **Biedadvies**; its parts are **Openingsbod**, **Maximumbod** and **Voorwaarden**
 _Avoid_: Bid strategy, offer
+
+**Guide Bid**:
+The opening bid the Case derives deterministically, before the model sees it: the Expected Sale Price less a discount that follows from how the seller priced the house and how long it has been on the market, never above the asking price or the Walk-away Maximum, rounded down. The model may adjust it within a band and must explain any deviation. Absent when there is no Walk-away Maximum, and for a house sold under reservation.
+_Dutch UI_: **Richtbod**; shown next to the Openingsbod only when they differ
+_Avoid_: Calculated bid, baseline bid, target bid
 
 **Walk-away Maximum**:
 The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at, less the Renovation Estimate's Direct nodig midpoint, plus a configured premium. The affordable maximum is the highest price a lender would finance under the Dutch lending norms for the year of the expected levering: the mortgage may not exceed the price, so kosten koper and the same Direct nodig midpoint come from the household's own funds and home equity. With thin or missing comparables it rests on the asking price (less Direct nodig) plus the average overbid for the house's soort woning (a dated market figure) instead, and the Bid Advice says plainly that it is weakly grounded. With neither sufficient comparables nor an asking price it is the affordable maximum alone, also weakly grounded.
