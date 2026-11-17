@@ -44,6 +44,13 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
   await page.getByRole("link", { name: "Oordeel", exact: true }).click();
   await page.getByRole("button", { name: "Oordeel opvragen" }).click();
   const advies = page.getByRole("region", { name: "Biedadvies" });
+  // Laag ingezet: the Richtbod is the Expected Sale Price (€ 667.766, rounded down), above the asking
+  // price of € 595.000, and the fake model opens € 1.000 above it. Both say how far above asking.
+  const opening = advies.getByRole("group", { name: "Openingsbod" });
+  await expect(opening.getByText(/^€\s668\.500$/)).toBeVisible();
+  await expect(opening.getByText("12,4% boven de vraagprijs: laag ingezet, reken op overbieden")).toBeVisible();
+  await expect(opening.getByText(/^Verwachte verkoopprijs\s*€\s667\.766$/)).toBeVisible();
+  await expect(opening.getByText(/^Richtbod\s€\s667\.500 \(12,2% boven de vraagprijs\): Vocht in de kelder\.$/)).toBeVisible();
   await advies.getByText("Hoe berekend").click();
   // 638.400 plus NVM's 4,6% average overbid (soort woning unknown) is € 667.766; the Maximumbod adds 5%.
   await expect(advies.getByText(/Verwachte verkoopprijs €\s667\.766 \+ 5%: €\s701\.154/)).toBeVisible();

@@ -302,9 +302,20 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
       <BidScale advice={advice} />
       <div className="bid-vakken" role="group" aria-label="Bedragen">
         {!conditionsOnly && (
-          <div className="figure">
-            <p className="vak-label">Openingsbod</p>
+          <div className="figure" role="group" aria-labelledby="openingsbod-label">
+            <p className="vak-label" id="openingsbod-label">Openingsbod</p>
             <p className="bid-amount num">{euro.format(opening)}</p>
+            {aboveAsking(advice, opening) && (
+              <p className="above-asking">
+                {aboveAsking(advice, opening)}
+                {prijsstellingOf(advice) === "laag ingezet" && ": laag ingezet, reken op overbieden"}
+              </p>
+            )}
+            {advice.expected_sale_price != null && (
+              <p className="beside-bid">
+                Verwachte verkoopprijs <span className="num">{euro.format(advice.expected_sale_price)}</span>
+              </p>
+            )}
             <RichtbodNote advice={advice} />
           </div>
         )}
@@ -426,8 +437,22 @@ function VoorbehoudBiedadvies({ advice }: { advice: BidAdvice }) {
   );
 }
 
+/** "12,4% boven de vraagprijs" when a bid lies above the asking price, so the buyer sees it plainly. */
+function aboveAsking(advice: BidAdvice, amount: number): string | null {
+  const asking = advice.asking_price;
+  if (!asking || amount <= asking) return null;
+  return `${percent((amount - asking) / asking)} boven de vraagprijs`;
+}
+
+/** The Prijsstelling the Richtbod was derived from; older Verdicts stored it as a `label`. */
+function prijsstellingOf(advice: BidAdvice): string | null {
+  const component = advice.guide_bid?.breakdown.prijsstelling;
+  return component?.prijsstelling ?? component?.label ?? null;
+}
+
+// Older Verdicts may carry `asking_price`: the Richtbod was capped there until ADR-0005 dropped it.
 const CAPPED_BY_COPY = {
-  asking_price: "Begrensd door de vraagprijs: hoger bieden dan de vraagprijs is je eigen keuze.",
+  asking_price: "Begrensd door de vraagprijs.",
   walk_away_maximum: "Begrensd door het Maximumbod.",
 };
 
@@ -463,6 +488,7 @@ function RichtbodNote({ advice }: { advice: BidAdvice }) {
       {differs && (
         <p className="richtbod">
           Richtbod <span className="num">{euro.format(guide.value)}</span>
+          {aboveAsking(advice, guide.value) && ` (${aboveAsking(advice, guide.value)})`}
           {advice.guide_bid_deviation_reason && (
             <span className="muted">: {advice.guide_bid_deviation_reason}</span>
           )}
