@@ -390,6 +390,13 @@ type BasisLabels = {
 };
 
 const BASIS_LABELS: Record<WalkAwayDerivation["basis"], BasisLabels> = {
+  expected_sale_price: {
+    line: "Verwachte verkoopprijs",
+    noun: "verwachte verkoopprijs",
+    // Bid Advice does not carry the Expected Sale Price yet (ticket 04): no basis line until it does.
+    value: () => null,
+    weak: "Zwak onderbouwd: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.",
+  },
   comparables: {
     line: "Vergelijkbare woningen",
     noun: "vergelijkbare woningen",

@@ -44,12 +44,12 @@ Answer with:
   whole euros and `conditions` (e.g. financieringsvoorbehoud, bouwkundige keuring, follow-ups on
   seller Documents).
 
-The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derived from comparables
-and affordability (`case.walk_away` says how). Do not propose your own. The opening bid must not
-exceed it. When `case.walk_away.weakly_grounded` is true there are too few comparables and it rests
-on the asking price (or affordability alone); say in the reasoning that the bid advice is weakly
-grounded. On the asking price its margin is the average overbid for the soort woning
-(`case.walk_away.margin_source`); name it.
+The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derived from the expected
+sale price (`case.metrics.expected_sale_price`) and affordability (`case.walk_away` says how). Do not
+propose your own. The opening bid must not exceed it. When `case.walk_away.weakly_grounded` is true
+the expected sale price rests on the WOZ value, not on comparables; say in the reasoning that the
+bid advice is weakly grounded. Without an expected sale price `case.walk_away.walk_away_maximum` is
+null: give conditions only, with no `opening_bid`, and say that comparables should be fetched.
 
 `case.metrics.asking_vs_woz.indexed` is the WOZ value brought from its peildatum to today's prices
 with the CBS house price index; weigh the asking price against that, not the raw WOZ value, which

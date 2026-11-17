@@ -13,7 +13,6 @@ has set the same amount aside).
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from app.ports import LlmClient, LlmError
@@ -35,28 +34,19 @@ PROVENANCE_LEGEND = {
 }
 
 
-@dataclass(frozen=True)
-class WalkAwayMargins:
-    """How far above what sufficient comparables put the house at a Walk-away Maximum may sit. Above
-    the asking price (comparables thin or missing) the Case's `asking_price_margin` applies."""
-
-    comparables_premium: float
-
-
 class WalkAwayDerivation(TypedDict):
-    """The derived Walk-away Maximum and how: its basis, the Direct nodig renovation cost taken off
-    it, the margin over the rest and what that came to, which of basis and affordability bound it,
-    and whether it is weakly grounded."""
+    """The derived Walk-away Maximum and how: its basis (the Expected Sale Price), the Direct nodig
+    renovation cost taken off it, the premium over the rest and what that came to, which of basis
+    and affordability bound it, and whether it is weakly grounded. Without an Expected Sale Price
+    there is no maximum and everything else but the renovation cost is None."""
 
-    walk_away_maximum: int
-    basis: Literal["comparables", "asking_price", "affordability"]
+    walk_away_maximum: int | None
+    basis: Literal["expected_sale_price"] | None
     renovation_direct: int
     margin: float | None
-    # Where an asking price margin comes from: the soort woning and the market source.
-    margin_source: dict | None
     basis_maximum: int | None
-    binding: Literal["basis", "affordability"]
-    weakly_grounded: bool
+    binding: Literal["basis", "affordability"] | None
+    weakly_grounded: bool | None
 
 
 class MonthlyCosts(TypedDict):
@@ -79,7 +69,7 @@ def judge(
     reduced_profile: dict,
     llm_client: LlmClient | None,
     model: str | None,
-    margins: WalkAwayMargins,
+    walk_away_premium: float,
     monthly_cost_at: Callable[[int], MonthlyCosts],
 ) -> dict:
     """A Verdict for the Case, without id, version or creation time (the store adds those)."""
@@ -88,7 +78,7 @@ def judge(
         return _hard_no(case, {**built_from, "model": None})
     if llm_client is None:
         raise LlmError("no LLM client configured")
-    derivation = derive_walk_away_maximum(case, margins)
+    derivation = derive_walk_away_maximum(case, walk_away_premium)
     response = llm_client.rate(
         {**_for_llm(case), "provenance_legend": PROVENANCE_LEGEND, "walk_away": derivation}, reduced_profile
     )
@@ -108,41 +98,33 @@ def _for_llm(case: dict) -> dict:
     return {**case, "affordability": {key: value for key, value in affordability.items() if key != "debts"}}
 
 
-def derive_walk_away_maximum(case: dict, margins: WalkAwayMargins) -> WalkAwayDerivation:
+def derive_walk_away_maximum(case: dict, premium: float) -> WalkAwayDerivation:
     """The Walk-away Maximum and how it was derived: the lower of what the household can afford and
-    its basis, less the Direct nodig renovation cost, plus a margin. The basis is the comparables
-    value when coverage is sufficient, else the asking price (weakly grounded); with neither,
-    affordability alone (also weakly grounded)."""
-    affordable = case["affordability"]["affordable_maximum"]
+    the Expected Sale Price less the Direct nodig renovation cost plus the premium. Without an
+    Expected Sale Price there is none."""
     renovation_direct = case["renovation_estimate"]["direct_midpoint"]
-    comparables = case["metrics"]["asking_vs_comparables"]
-    asking = _asking_price(case)
-    basis: Literal["comparables", "asking_price", "affordability"]
-    if comparables["coverage"] == "sufficient" and comparables["comparables_value"] is not None:
-        basis, margin, value = "comparables", margins.comparables_premium, comparables["comparables_value"]
-    elif asking is not None:
-        basis, margin, value = "asking_price", case["asking_price_margin"]["value"], asking
-    else:
-        basis, margin, value = "affordability", None, None
-    basis_maximum = (
-        round((value - renovation_direct) * (1 + margin)) if value is not None and margin is not None else None
-    )
-    binding: Literal["basis", "affordability"] = (
-        "basis" if basis_maximum is not None and basis_maximum < affordable else "affordability"
-    )
+    expected = case["metrics"]["expected_sale_price"]
+    if expected["value"] is None:
+        return {
+            "walk_away_maximum": None,
+            "basis": None,
+            "renovation_direct": renovation_direct,
+            "margin": None,
+            "basis_maximum": None,
+            "binding": None,
+            "weakly_grounded": None,
+        }
+    affordable = case["affordability"]["affordable_maximum"]
+    basis_maximum = round((expected["value"] - renovation_direct) * (1 + premium))
+    binding: Literal["basis", "affordability"] = "basis" if basis_maximum < affordable else "affordability"
     return {
         "walk_away_maximum": basis_maximum if binding == "basis" else affordable,
-        "basis": basis,
+        "basis": "expected_sale_price",
         "renovation_direct": renovation_direct,
-        "margin": margin,
-        "margin_source": (
-            {key: case["asking_price_margin"][key] for key in ("house_type", "source", "period")}
-            if basis == "asking_price"
-            else None
-        ),
+        "margin": premium,
         "basis_maximum": basis_maximum,
         "binding": binding,
-        "weakly_grounded": basis != "comparables",
+        "weakly_grounded": expected["weakly_grounded"],
     }
 
 
@@ -273,11 +255,13 @@ def _bid_advice(
     if not isinstance(advice, dict):
         return None, ["bid_advice_invalid"]
     opening, conditions = advice.get("opening_bid"), advice.get("conditions")
+    walk_away_maximum = derivation["walk_away_maximum"]
+    if walk_away_maximum is None:
+        return _conditions_only(opening, conditions, case)
     if not _is_amount(opening):
         return None, ["bid_advice_invalid"]
     if not isinstance(conditions, list) or not all(isinstance(c, str) and c.strip() for c in conditions):
         return None, ["conditions_invalid"]
-    walk_away_maximum = derivation["walk_away_maximum"]
     problems = ["opening_bid_above_walk_away_maximum"] if opening > walk_away_maximum else []
     affordability = case["affordability"]
     comparables = case["metrics"]["asking_vs_comparables"]
@@ -291,7 +275,7 @@ def _bid_advice(
             "coverage": comparables["coverage"],
             "count": comparables["count"],
             "comparables_value": comparables["comparables_value"],
-            "maximum": derivation["basis_maximum"] if derivation["basis"] == "comparables" else None,
+            "maximum": None,
         },
         "derivation": {key: value for key, value in derivation.items() if key != "walk_away_maximum"},
         "asking_price": _asking_price(case),
@@ -300,6 +284,25 @@ def _bid_advice(
         "monthly_cost_at_walk_away_maximum": at_walk_away["gross"],
         "monthly_cost_net_at_walk_away_maximum": at_walk_away["net"],
     }, problems
+
+
+def _conditions_only(opening: object, conditions: object, case: dict) -> tuple[dict | None, list[str]]:
+    """Bid Advice without an Expected Sale Price: no Walk-away Maximum, so no opening bid either."""
+    if opening is not None:
+        return None, ["opening_bid_without_walk_away_maximum"]
+    if not isinstance(conditions, list) or not all(isinstance(c, str) and c.strip() for c in conditions):
+        return None, ["conditions_invalid"]
+    return {
+        "opening_bid": None,
+        "walk_away_maximum": None,
+        "conditions": [condition.strip() for condition in conditions],
+        "affordable_maximum": case["affordability"]["affordable_maximum"],
+        "asking_price": _asking_price(case),
+        "monthly_cost_at_asking_price": case["affordability"]["monthly_cost"],
+        "monthly_cost_net_at_asking_price": case["affordability"]["monthly_cost_net"],
+        "monthly_cost_at_walk_away_maximum": None,
+        "monthly_cost_net_at_walk_away_maximum": None,
+    }, []
 
 
 def _is_amount(value: object) -> bool:

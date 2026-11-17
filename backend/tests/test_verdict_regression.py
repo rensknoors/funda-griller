@@ -66,10 +66,23 @@ def answer(tier):
     }
 
 
+def answer_per_case(tier):
+    """The model's answer, with conditions only when the Case has no Expected Sale Price (and so no
+    Walk-away Maximum): the snapshots in these sets carry no WOZ value or comparables."""
+
+    def rate(case, _profile):
+        said = answer(tier)
+        if said["bid_advice"] and case["walk_away"]["walk_away_maximum"] is None:
+            said["bid_advice"] = {"conditions": said["bid_advice"]["conditions"]}
+        return said
+
+    return rate
+
+
 def test_prints_expected_versus_actual_per_listing_and_the_agreement(settings, llm_client, regression_set):
     regression_set("holtum-agrees", entry("consider"))
     regression_set("holtum-disagrees", entry("must_buy"))
-    llm_client.verdict = answer("consider")
+    llm_client.verdict = answer_per_case("consider")
 
     code, output = run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
 
@@ -95,7 +108,7 @@ def test_results_record_the_model_rule_version_and_prompt_version(tmp_path, sett
     rules.write_text("version = 7\n")
     settings = settings.model_copy(update={"flag_rules_path": rules, "verdict_model": "gemini-test-model"})
     regression_set("holtum", entry("consider"))
-    llm_client.verdict = answer("consider")
+    llm_client.verdict = answer_per_case("consider")
 
     code, output = run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
 
@@ -188,7 +201,7 @@ def test_adding_an_unknown_listing_fails(settings, llm_client, regression_set):
 
 
 def test_the_shipped_set_is_well_formed(settings, llm_client):
-    llm_client.verdict = answer("consider")
+    llm_client.verdict = answer_per_case("consider")
 
     code, output = run(settings, llm_client, "run", "--yes")
 

@@ -1,5 +1,5 @@
 """Comparables: nearby Listings fetched on request, the asking price set against them, and the
-Walk-away Maximum grounded in them as well as in affordability."""
+Expected Sale Price and Walk-away Maximum grounded in them as well as in affordability."""
 
 import pytest
 
@@ -154,33 +154,33 @@ def test_sufficient_comparables_derive_the_walk_away_maximum(client, listing_pro
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    # Comparables put the house at 608_000; 10% above that is 668_800, below affordability.
-    assert advice["walk_away_maximum"] == 668_800
+    # Comparables put the house at 608_000; with NVM's 4,6% average overbid it is expected to sell for
+    # 635_968; 5% above that is 667_766, below affordability.
+    assert advice["walk_away_maximum"] == 667_766
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM
     assert advice["comparables"] == {
         "coverage": "sufficient",
         "count": 5,
         "comparables_value": 608_000,
-        "maximum": 668_800,
+        "maximum": None,
     }
     assert advice["derivation"] == {
-        "basis": "comparables",
+        "basis": "expected_sale_price",
         "renovation_direct": 0,
-        "margin": 0.10,
-        "margin_source": None,
-        "basis_maximum": 668_800,
+        "margin": 0.05,
+        "basis_maximum": 667_766,
         "binding": "basis",
         "weakly_grounded": False,
     }
     # The model is told the derived figure before it answers.
     [(sent_case, _)] = llm_client.rate_calls
-    assert sent_case["walk_away"]["walk_away_maximum"] == 668_800
+    assert sent_case["walk_away"]["walk_away_maximum"] == 667_766
 
 
 def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_more(
     client, listing_provider, source_clients, llm_client
 ):
-    # 800_000 for 150 m² each: comparables put the house at 810_667, plus 10% far above affordability.
+    # 800_000 for 150 m² each: comparables put the house at 810_667, plus overbid and premium far above affordability.
     pricey = [comparable(str(i), 800_000, 150) for i in (101, 102, 103, 104, 105)]
     with_comparables(client, listing_provider, source_clients, pricey)
     client.put("/api/buyer-profile", json=well_off_profile())
@@ -189,7 +189,7 @@ def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_
     advice = client.post(VERDICT).json()["bid_advice"]
 
     assert advice["walk_away_maximum"] == AFFORDABLE_MAXIMUM
-    assert advice["derivation"]["basis"] == "comparables"
+    assert advice["derivation"]["basis"] == "expected_sale_price"
     assert advice["derivation"]["binding"] == "affordability"
     assert advice["derivation"]["basis_maximum"] > AFFORDABLE_MAXIMUM
 
@@ -198,8 +198,8 @@ def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_
     ("facts", "coverage"),
     [([comparable("101", 500_000, 125)], "thin"), ([], "none"), (None, "not_fetched")],
 )
-def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_the_asking_price(
-    client, listing_provider, source_clients, llm_client, facts, coverage
+def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_the_woz_value(
+    client, listing_provider, source_clients, llm_client, woz_expected_sale_price, facts, coverage
 ):
     if facts is None:
         capture(client, listing_provider)
@@ -210,82 +210,54 @@ def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_th
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    # Asking 595_000 plus 4,6%, NVM's average overbid for all homes (the Listing's soort woning is
-    # unknown); the thin comparables value is not used.
-    assert advice["walk_away_maximum"] == 622_370
+    # The Expected Sale Price is the indexed WOZ value, 589_691; 5% above that is 619_176. The thin
+    # comparables value is not used.
+    assert advice["walk_away_maximum"] == 619_176
     assert advice["comparables"]["coverage"] == coverage
-    assert advice["comparables"]["maximum"] is None
     assert advice["derivation"] == {
-        "basis": "asking_price",
+        "basis": "expected_sale_price",
         "renovation_direct": 0,
-        "margin": 0.046,
-        "margin_source": {"house_type": None, "source": NVM, "period": "2e kwartaal 2026"},
-        "basis_maximum": 622_370,
+        "margin": 0.05,
+        "basis_maximum": 619_176,
         "binding": "basis",
         "weakly_grounded": True,
     }
 
 
-def test_with_neither_comparables_nor_an_asking_price_only_affordability_bounds_the_walk_away_maximum(
+def test_without_an_expected_sale_price_there_is_no_walk_away_maximum_and_no_opening_bid(
     client, listing_provider, llm_client
 ):
-    listing_provider.listings[LIVE_URL] = live_listing(asking_price=None)
-    client.post("/api/listings", json={"url": LIVE_URL})
+    capture(client, listing_provider)
+    client.put("/api/buyer-profile", json=well_off_profile())
+    llm_client.verdict = bid()
+
+    rejected = client.post(VERDICT)
+
+    assert rejected.status_code == 502
+    assert rejected.json()["problems"] == ["opening_bid_without_walk_away_maximum"]
+
+    llm_client.verdict = {**bid(), "bid_advice": {"conditions": ["Financieringsvoorbehoud"]}}
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["walk_away_maximum"] is None
+    assert advice["opening_bid"] is None
+    assert advice["conditions"] == ["Financieringsvoorbehoud"]
+    [*_, (sent_case, _)] = llm_client.rate_calls
+    assert sent_case["walk_away"]["walk_away_maximum"] is None
+    assert "asking_price_margin" not in sent_case
+
+
+def test_the_walk_away_premium_comes_from_configuration(
+    client, listing_provider, source_clients, settings, llm_client
+):
+    settings.walk_away_premium = 0.02
+    with_comparables(client, listing_provider, source_clients, SEVERAL)
     client.put("/api/buyer-profile", json=well_off_profile())
     llm_client.verdict = bid()
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    assert advice["walk_away_maximum"] == AFFORDABLE_MAXIMUM
-    assert advice["derivation"] == {
-        "basis": "affordability",
-        "renovation_direct": 0,
-        "margin": None,
-        "margin_source": None,
-        "basis_maximum": None,
-        "binding": "affordability",
-        "weakly_grounded": True,
-    }
-
-
-@pytest.mark.parametrize(
-    ("house_type", "category", "margin", "walk_away"),
-    [
-        ("Eengezinswoning, tussenwoning", "tussenwoning", 0.059, 630_105),
-        ("Eengezinswoning, hoekwoning", "hoekwoning", 0.044, 621_180),
-        ("Woonboerderij, 2-onder-1-kapwoning", "twee_onder_een_kap", 0.035, 615_825),
-        ("Villa, vrijstaande woning", "vrijstaand", 0.006, 598_570),
-        ("Bovenwoning", "appartement", 0.056, 628_320),
-    ],
-)
-def test_the_asking_price_margin_follows_the_soort_woning(
-    client, listing_provider, source_clients, llm_client, house_type, category, margin, walk_away
-):
-    """NVM Q2 2026 average overbid by house type, on an asking price of 595.000."""
-    with_comparables(client, listing_provider, source_clients, [], house_type=house_type)
-    client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid(opening_bid=590_000)
-
-    advice = client.post(VERDICT).json()["bid_advice"]
-
-    assert advice["walk_away_maximum"] == walk_away
-    assert advice["derivation"]["margin"] == margin
-    assert advice["derivation"]["margin_source"]["house_type"] == category
-
-
-def test_the_asking_price_margins_come_from_configuration(
-    client, listing_provider, source_clients, settings, llm_client, tmp_path
-):
-    table = tmp_path / "bid_margins.toml"
-    table.write_text(settings.bid_margins_path.read_text().replace("all = 0.046", "all = 0.08"))
-    settings.bid_margins_path = table
-    with_comparables(client, listing_provider, source_clients, [])
-    client.put("/api/buyer-profile", json=well_off_profile())
-    llm_client.verdict = bid()
-
-    advice = client.post(VERDICT).json()["bid_advice"]
-
-    assert advice["walk_away_maximum"] == 642_600
+    assert advice["walk_away_maximum"] == 648_687  # 635_968 x 1.02
 
 
 def test_a_walk_away_maximum_from_the_model_is_ignored(client, listing_provider, source_clients, llm_client):
@@ -295,11 +267,11 @@ def test_a_walk_away_maximum_from_the_model_is_ignored(client, listing_provider,
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    assert advice["walk_away_maximum"] == 668_800
+    assert advice["walk_away_maximum"] == 667_766
 
 
 def test_an_opening_bid_above_the_derived_walk_away_maximum_is_rejected(
-    client, listing_provider, source_clients, llm_client
+    client, listing_provider, source_clients, llm_client, woz_expected_sale_price
 ):
     with_comparables(client, listing_provider, source_clients, [comparable("101", 500_000, 125)])
     client.put("/api/buyer-profile", json=well_off_profile())
@@ -313,7 +285,7 @@ def test_an_opening_bid_above_the_derived_walk_away_maximum_is_rejected(
 
 
 def test_fetching_comparables_makes_an_earlier_verdict_out_of_date(
-    client, listing_provider, source_clients, llm_client
+    client, listing_provider, source_clients, llm_client, woz_expected_sale_price
 ):
     capture(client, listing_provider)
     client.put("/api/buyer-profile", json=well_off_profile())

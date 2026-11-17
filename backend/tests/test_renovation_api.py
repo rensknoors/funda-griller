@@ -10,6 +10,8 @@ from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.pdf_fixtures import make_pdf
 from tests.profile_fixtures import typical_profile, well_off_profile
 
+pytestmark = pytest.mark.usefixtures("woz_expected_sale_price")
+
 CASE = "/api/listings/80907644/case"
 
 # A test-owned cost table, so the figures below do not move when the user edits the shipped one.
@@ -360,7 +362,7 @@ def test_direct_nodig_lowers_the_affordable_maximum(client, listing_provider, ll
     assert affordability["headroom"] == AFFORDABLE_MAXIMUM_AFTER_DAMP - 595_000
 
 
-def test_direct_nodig_comes_off_the_asking_price_basis_of_the_walk_away_maximum(
+def test_direct_nodig_comes_off_the_weak_expected_sale_price_of_the_walk_away_maximum(
     client, listing_provider, llm_client
 ):
     llm_client.observations = [PHOTO_DAMP]
@@ -370,14 +372,15 @@ def test_direct_nodig_comes_off_the_asking_price_basis_of_the_walk_away_maximum(
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    # (595_000 - 6_000) x 1.046, the average overbid for all homes
-    assert advice["walk_away_maximum"] == 616_094
+    # (589_691 - 6_000) x 1.05: the indexed WOZ value is the Expected Sale Price
+    assert advice["walk_away_maximum"] == 612_876
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM_AFTER_DAMP
     assert advice["derivation"]["renovation_direct"] == 6000
-    assert advice["derivation"]["basis"] == "asking_price"
+    assert advice["derivation"]["basis"] == "expected_sale_price"
+    assert advice["derivation"]["weakly_grounded"] is True
 
 
-def test_direct_nodig_comes_off_the_comparables_basis_of_the_walk_away_maximum(
+def test_direct_nodig_comes_off_the_strong_expected_sale_price_of_the_walk_away_maximum(
     client, listing_provider, llm_client, source_clients
 ):
     # Price per m² 4000, 4000, 4200, 3800, 4000 -> median 4000, so 152 m² is worth 608_000 by comparables.
@@ -399,9 +402,10 @@ def test_direct_nodig_comes_off_the_comparables_basis_of_the_walk_away_maximum(
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    # (608_000 - 6_000) x 1.10
-    assert advice["walk_away_maximum"] == 662_200
-    assert advice["derivation"]["basis"] == "comparables"
+    # (608_000 x 1.046 - 6_000) x 1.05: comparables plus the average overbid for all homes
+    assert advice["walk_away_maximum"] == 661_466
+    assert advice["derivation"]["basis"] == "expected_sale_price"
+    assert advice["derivation"]["weakly_grounded"] is False
     assert advice["derivation"]["renovation_direct"] == 6000
 
 
@@ -412,7 +416,7 @@ def test_without_direct_nodig_items_the_maxima_are_unchanged(client, listing_pro
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    assert advice["walk_away_maximum"] == 622_370
+    assert advice["walk_away_maximum"] == 619_176
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM
     assert advice["derivation"]["renovation_direct"] == 0
 

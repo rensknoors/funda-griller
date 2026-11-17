@@ -180,13 +180,6 @@ def build_case(
             }.items()
         },
         "affordability": affordability,
-        # The average overbid for the soort woning: the margin a weakly grounded Walk-away Maximum
-        # may sit above the asking price. A value from a versioned rule table.
-        "asking_price_margin": {
-            **bid_margins.for_category(category(snapshot.get("object_type"), snapshot.get("house_type"))),
-            "provenance": "rule",
-            "computed_at": computed_at,
-        },
         "renovation_estimate": renovation,
         "flags": flags,
         "hard_no": hard_no(flag_rules, profile.deal_breakers, flags) if profile else None,

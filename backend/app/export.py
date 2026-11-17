@@ -155,7 +155,7 @@ def _household_amounts(export: "ExportInput") -> dict[int, int]:
     amounts = {abs(a): AMOUNT_STEP for a in euros if a} | {abs(a): MONTHLY_STEP for a in monthly if a}
     if export.with_profile and advice:
         amounts.pop(advice["walk_away_maximum"], None)
-    elif advice and (advice.get("derivation") or {}).get("binding") == "affordability":
+    elif advice and advice["walk_away_maximum"] is not None and (advice.get("derivation") or {}).get("binding") == "affordability":
         amounts |= {advice["walk_away_maximum"]: AMOUNT_STEP, advice["opening_bid"]: AMOUNT_STEP}
     return amounts
 
@@ -767,13 +767,20 @@ def bid_advice(export: ExportInput) -> list[str]:
     lines = ["## Biedadvies", ""]
     if advice is None:
         return [*lines, "Geen Biedadvies bij dit Oordeel." if current else "Geen Biedadvies: er is nog geen Oordeel."]
+    bids = (
+        [
+            f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}",
+            f"- Maximumbod: {_bid(advice, 'walk_away_maximum', export.with_profile)}",
+        ]
+        if advice["walk_away_maximum"] is not None
+        else ["- Geen Maximumbod: haal vergelijkbare woningen op voor een Maximumbod."]
+    )
     lines += [
-        f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}",
-        f"- Maximumbod: {_bid(advice, 'walk_away_maximum', export.with_profile)}",
+        *bids,
         "- Voorwaarden:",
         *[f"  - {export.anonymiser.scrub_text(condition)}" for condition in advice["conditions"]],
     ]
-    return lines + (_derivation(advice) if export.with_profile else [])
+    return lines + (_derivation(advice) if export.with_profile and advice["walk_away_maximum"] is not None else [])
 
 
 def _bid(advice: dict, key: str, with_profile: bool) -> str:
@@ -788,6 +795,7 @@ def _bid(advice: dict, key: str, with_profile: bool) -> str:
 
 
 BASES = {
+    "expected_sale_price": "de verwachte verkoopprijs",
     "comparables": "wat de vergelijkbare woningen de woning waard maken",
     "asking_price": "de vraagprijs (vergelijkbare woningen dun of ontbrekend)",
     "affordability": "alleen de betaalbaarheid (geen vergelijkbare woningen en geen vraagprijs)",
@@ -810,19 +818,13 @@ def _derivation(advice: dict) -> list[str]:
         )
     else:
         lines.append(f"- Basis: {BASES[derivation['basis']]}")
-    if source := derivation.get("margin_source"):
-        house = LABELS.get(source["house_type"]) if source["house_type"] else None
-        lines.append(
-            f"- Marge: {_number(round(derivation['margin'] * 100, 1))}% is het gemiddelde overbod voor "
-            f"{f'een {house}' if house else 'alle woningen'} ({source['source']}, {source['period']})"
-        )
     lines.append(
         "- Het Maximumbod is **begrensd door betaalbaarheid**: wat het huishouden kan betalen ligt lager dan de basis."
         if derivation["binding"] == "affordability"
         else "- Het Maximumbod is begrensd door de basis; de betaalbaarheid ligt hoger."
     )
     if derivation["weakly_grounded"]:
-        lines.append("- **Zwak onderbouwd**: niet gebaseerd op voldoende vergelijkbare woningen.")
+        lines.append("- **Zwak onderbouwd**: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.")
     if advice.get("monthly_cost_at_walk_away_maximum") is not None:
         lines.append(
             "- Maandlasten bij het Maximumbod: "

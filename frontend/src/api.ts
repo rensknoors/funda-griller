@@ -585,7 +585,7 @@ export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
  * cost comes off the basis first.
  */
 export type WalkAwayDerivation = {
-  basis: "comparables" | "asking_price" | "affordability";
+  basis: "expected_sale_price" | "comparables" | "asking_price" | "affordability";
   /** Absent on Verdicts made before the Renovation Estimate. */
   renovation_direct?: number;
   margin: number | null;

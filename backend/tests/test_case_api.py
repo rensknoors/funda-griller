@@ -389,10 +389,7 @@ def test_no_nhg_energy_room_named_when_the_loan_goes_without_nhg(client, listing
     assert affordability["nhg_energy_measures"] == 0
 
 
-def test_the_asking_price_margin_is_a_rule_value_with_its_time(client, listing_provider):
+def test_the_case_no_longer_carries_an_asking_price_margin(client, listing_provider):
     capture(client, listing_provider)
 
-    margin = client.get("/api/listings/80907644/case").json()["asking_price_margin"]
-
-    assert margin["provenance"] == "rule"
-    assert margin["computed_at"] == "2026-10-24T12:00:00+00:00"
+    assert "asking_price_margin" not in client.get("/api/listings/80907644/case").json()

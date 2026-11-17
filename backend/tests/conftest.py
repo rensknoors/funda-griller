@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.ports import Ports
+from app.ports import Ports, SourceFact
 from app.settings import Settings
 from tests.fakes import (
     FakeClock,
@@ -37,6 +37,13 @@ def listing_provider():
 @pytest.fixture
 def source_clients():
     return {name: FakeSourceClient(name) for name in SOURCES}
+
+
+@pytest.fixture
+def woz_expected_sale_price(source_clients):
+    """A WOZ value, so the Case has a (weakly grounded) Expected Sale Price: 550.000 at peildatum
+    2025-01 is about 589.700 in today's prices."""
+    source_clients["woz"].facts = [SourceFact(name="woz_value", value=550_000, as_of="2025-01-01")]
 
 
 @pytest.fixture

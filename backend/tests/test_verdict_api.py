@@ -10,13 +10,15 @@ from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
+pytestmark = pytest.mark.usefixtures("woz_expected_sale_price")
+
 VERDICT = "/api/listings/80907644/verdict"
 
 # The typical household can pay at most 650_351 for the live Listing (asking 595_000, headroom 55_351).
 AFFORDABLE_MAXIMUM = 650_351
-# Without comparables the Walk-away Maximum is the asking price plus 4,6%, NVM's average overbid for
-# all homes (the live Listing's soort woning is unknown).
-WALK_AWAY_MAXIMUM = 622_370
+# Without comparables the Expected Sale Price is the indexed WOZ value (589.691 in the shared
+# fixture) and the Walk-away Maximum that plus 5%.
+WALK_AWAY_MAXIMUM = 619_176
 
 
 def model_says(tier="consider", **overrides):
@@ -315,7 +317,6 @@ def test_the_model_never_sees_the_household_debts(client, listing_provider, llm_
 def test_refetching_a_source_marks_the_verdict_out_of_date(
     client, listing_provider, source_clients, clock, llm_client
 ):
-    source_clients["woz"].facts = [SourceFact("woz_value", 500_000, "2025-01-01")]
     prepare(client, listing_provider)
     llm_client.verdict = model_says()
     client.post(VERDICT)

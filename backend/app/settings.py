@@ -65,10 +65,9 @@ class Settings(BaseSettings):
     # comparables than the minimum count as thin.
     comparables_max_fetches: int = 8
     comparables_min_count: int = 5
-    # The derived Walk-away Maximum sits this share above what sufficient comparables put the house
-    # at (never above what the household can afford). When comparables are thin or missing it sits
-    # the average overbid for the soort woning above the asking price (config/bid_margins.toml).
-    walk_away_comparables_premium: float = 0.10
+    # The derived Walk-away Maximum sits this share above the Expected Sale Price less Direct nodig
+    # (never above what the household can afford).
+    walk_away_premium: float = 0.05
 
     # Within this share of the Expected Sale Price an asking price is marktconform; beyond it the
     # seller priced the house hoog or laag ingezet (config/defaults.toml).
