@@ -19,3 +19,14 @@ verdict_model = "gemini-3.8-flash"
 # Case metrics. An asking price within this share of the Expected Sale Price is marktconform.
 [case]
 prijsstelling_band = 0.05
+
+# The Guide Bid (Richtbod, ADR-0005): the Expected Sale Price less a discount by Prijsstelling,
+# capped at the asking price and the Walk-away Maximum and rounded down. The model's opening bid
+# stays within `band` of it. Starting guesses (the spec's 5-7% for hoog ingezet takes the middle),
+# tuned against the regression set.
+[guide_bid]
+discount_hoog_ingezet = 0.06
+discount_marktconform = 0.025
+discount_laag_ingezet = 0.0
+band = 0.03
+rounding_step = 500

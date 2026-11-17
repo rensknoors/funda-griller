@@ -339,7 +339,7 @@ def test_an_opening_bid_above_the_derived_walk_away_maximum_is_rejected(
     rejected = client.post(VERDICT)
 
     assert rejected.status_code == 502
-    assert rejected.json()["problems"] == ["opening_bid_above_walk_away_maximum"]
+    assert "opening_bid_above_walk_away_maximum" in rejected.json()["problems"]
     assert client.get(VERDICT).json()["verdicts"] == []
 
 

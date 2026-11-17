@@ -11,7 +11,9 @@ above what the household can afford; without an Expected Sale Price there is non
 Expected Sale Price, and an opening bid needs a Walk-away Maximum.
 """
 
+import math
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from app.ports import LlmClient, LlmError
@@ -48,6 +50,37 @@ class WalkAwayDerivation(TypedDict):
     weakly_grounded: bool | None
 
 
+@dataclass(frozen=True)
+class GuideBidConfig:
+    """The Guide Bid's configured figures (config/defaults.toml, `[guide_bid]`): the discount per
+    Prijsstelling, the band the model's opening bid must stay within, and the rounding step."""
+
+    discount_hoog_ingezet: float
+    discount_marktconform: float
+    discount_laag_ingezet: float
+    band: float
+    rounding_step: int
+
+    def discount_for(self, prijsstelling: str) -> float:
+        return {
+            "hoog ingezet": self.discount_hoog_ingezet,
+            "laag ingezet": self.discount_laag_ingezet,
+        }.get(prijsstelling, self.discount_marktconform)
+
+
+class GuideBid(TypedDict):
+    """The Guide Bid and how it came about. `breakdown` holds one entry per discount component
+    (now only the Prijsstelling), each with its label and discount; `discount` is their total.
+    `capped_by` names the cap that lowered it, if any."""
+
+    value: int
+    discount: float
+    breakdown: dict[str, dict]
+    weakly_grounded: bool
+    capped_by: Literal["asking_price", "walk_away_maximum"] | None
+    band: float
+
+
 class MonthlyCosts(TypedDict):
     """Monthly cost of the mortgage needed at a price: gross, and net of hypotheekrenteaftrek."""
 
@@ -70,6 +103,7 @@ def judge(
     model: str | None,
     walk_away_premium: float,
     monthly_cost_at: Callable[[int], MonthlyCosts],
+    guide_bid_config: GuideBidConfig,
 ) -> dict:
     """A Verdict for the Case, without id, version or creation time (the store adds those)."""
     built_from = inputs_of(case, model)
@@ -80,11 +114,18 @@ def judge(
     derivation = derive_walk_away_maximum(case, walk_away_premium)
     maximum = derivation["walk_away_maximum"]
     walk_away = {**derivation, "monthly_cost": monthly_cost_at(maximum) if maximum is not None else None}
+    guide_bid = derive_guide_bid(case, maximum, guide_bid_config)
     response = llm_client.rate(
-        {**_for_llm(case), "provenance_legend": PROVENANCE_LEGEND, "walk_away": walk_away}, reduced_profile
+        {
+            **_for_llm(case),
+            "provenance_legend": PROVENANCE_LEGEND,
+            "walk_away": walk_away,
+            "guide_bid": guide_bid,
+        },
+        reduced_profile,
     )
     return {
-        **_validated(response, case, derivation, monthly_cost_at),
+        **_validated(response, case, derivation, monthly_cost_at, guide_bid),
         "deterministic": False,
         "built_from": built_from,
     }
@@ -126,6 +167,34 @@ def derive_walk_away_maximum(case: dict, premium: float) -> WalkAwayDerivation:
         "basis_maximum": basis_maximum,
         "binding": binding,
         "weakly_grounded": expected["weakly_grounded"],
+    }
+
+
+def derive_guide_bid(case: dict, walk_away_maximum: int | None, config: GuideBidConfig) -> GuideBid | None:
+    """The opening bid the Case derives before the model sees it: the Expected Sale Price less the
+    Prijsstelling's discount, never above the asking price or the Walk-away Maximum, rounded down to
+    the step. None without a Walk-away Maximum, an Expected Sale Price or an asking price (so no
+    Prijsstelling), and for a house sold under reservation."""
+    if walk_away_maximum is None or case["sold_under_reservation"]:
+        return None
+    expected = case["metrics"]["expected_sale_price"]
+    prijsstelling = case["metrics"]["asking_vs_expected"]
+    if expected["value"] is None or prijsstelling is None:
+        return None
+    discount = config.discount_for(prijsstelling["prijsstelling"])
+    value = round(expected["value"] * (1 - discount))
+    capped_by: Literal["asking_price", "walk_away_maximum"] | None = None
+    if prijsstelling["asking_price"] < value:
+        value, capped_by = prijsstelling["asking_price"], "asking_price"
+    if walk_away_maximum < value:
+        value, capped_by = walk_away_maximum, "walk_away_maximum"
+    return {
+        "value": math.floor(value / config.rounding_step) * config.rounding_step,
+        "discount": discount,
+        "breakdown": {"prijsstelling": {"label": prijsstelling["prijsstelling"], "discount": discount}},
+        "weakly_grounded": expected["weakly_grounded"],
+        "capped_by": capped_by,
+        "band": config.band,
     }
 
 
@@ -208,7 +277,11 @@ def _cited(flag: dict) -> dict:
 
 
 def _validated(
-    response: object, case: dict, derivation: WalkAwayDerivation, monthly_cost_at: Callable[[int], MonthlyCosts]
+    response: object,
+    case: dict,
+    derivation: WalkAwayDerivation,
+    monthly_cost_at: Callable[[int], MonthlyCosts],
+    guide_bid: GuideBid | None,
 ) -> dict:
     if not isinstance(response, dict):
         raise InvalidVerdict(["not_an_object"])
@@ -228,7 +301,9 @@ def _validated(
         cited_ids = []
     if tier == "must_buy" and case["metrics"]["expected_sale_price"]["value"] is None:
         problems.append("must_buy_without_expected_sale_price")
-    bid_advice, bid_problems = _bid_advice(response.get("bid_advice"), tier, case, derivation, monthly_cost_at)
+    bid_advice, bid_problems = _bid_advice(
+        response.get("bid_advice"), tier, case, derivation, monthly_cost_at, guide_bid
+    )
     problems += bid_problems
     if problems:
         raise InvalidVerdict(problems)
@@ -248,9 +323,10 @@ def _bid_advice(
     case: dict,
     derivation: WalkAwayDerivation,
     monthly_cost_at: Callable[[int], MonthlyCosts],
+    guide_bid: GuideBid | None,
 ) -> tuple[dict | None, list[str]]:
-    """The model supplies only the opening bid and conditions; any Walk-away Maximum it sends is
-    ignored in favour of the derived one."""
+    """The model supplies only the opening bid, conditions and, when it leaves the Guide Bid, its
+    reason; any Walk-away Maximum it sends is ignored in favour of the derived one."""
     if advice is None:
         return None, ["bid_advice_missing"] if tier in BIDDING_TIERS else []
     if tier == "hard_no":
@@ -259,13 +335,17 @@ def _bid_advice(
         return None, ["bid_advice_invalid"]
     opening, conditions = advice.get("opening_bid"), advice.get("conditions")
     walk_away_maximum = derivation["walk_away_maximum"]
-    if walk_away_maximum is None:
+    if walk_away_maximum is None or case["sold_under_reservation"]:
         return _conditions_only(opening, conditions, case)
     if not _is_amount(opening):
         return None, ["bid_advice_invalid"]
     if not isinstance(conditions, list) or not all(isinstance(c, str) and c.strip() for c in conditions):
         return None, ["conditions_invalid"]
     problems = ["opening_bid_above_walk_away_maximum"] if opening > walk_away_maximum else []
+    if guide_bid is not None and abs(opening - guide_bid["value"]) > guide_bid["value"] * guide_bid["band"]:
+        problems.append("opening_bid_outside_guide_bid_band")
+    reason = advice.get("deviation_reason")
+    deviates = guide_bid is not None and opening != guide_bid["value"]
     affordability = case["affordability"]
     comparables = case["metrics"]["asking_vs_comparables"]
     at_walk_away = monthly_cost_at(walk_away_maximum)
@@ -281,6 +361,9 @@ def _bid_advice(
             "maximum": None,
         },
         "derivation": {key: value for key, value in derivation.items() if key != "walk_away_maximum"},
+        "guide_bid": guide_bid,
+        "guide_bid_deviation_reason": reason.strip() if deviates and isinstance(reason, str) and reason.strip() else None,
+        "sold_under_reservation": False,
         "asking_price": _asking_price(case),
         "expected_sale_price": case["metrics"]["expected_sale_price"]["value"],
         "monthly_cost_at_expected_sale_price": affordability["monthly_cost"],
@@ -292,8 +375,9 @@ def _bid_advice(
 
 def _conditions_only(opening: object, conditions: object, case: dict) -> tuple[dict | None, list[str]]:
     """Bid Advice without an Expected Sale Price: no Walk-away Maximum, so no opening bid either."""
+    reserved = case["sold_under_reservation"]
     if opening is not None:
-        return None, ["opening_bid_without_walk_away_maximum"]
+        return None, ["opening_bid_when_sold_under_reservation" if reserved else "opening_bid_without_walk_away_maximum"]
     if not isinstance(conditions, list) or not all(isinstance(c, str) and c.strip() for c in conditions):
         return None, ["conditions_invalid"]
     return {
@@ -301,6 +385,8 @@ def _conditions_only(opening: object, conditions: object, case: dict) -> tuple[d
         "walk_away_maximum": None,
         "conditions": [condition.strip() for condition in conditions],
         "affordable_maximum": case["affordability"]["affordable_maximum"],
+        "guide_bid": None,
+        "sold_under_reservation": reserved,
         "asking_price": _asking_price(case),
         "expected_sale_price": None,
         "monthly_cost_at_expected_sale_price": None,

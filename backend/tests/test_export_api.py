@@ -287,7 +287,7 @@ def test_without_the_profile_no_profile_or_affordability_figures_are_exported(cl
 def test_an_affordability_bound_walk_away_maximum_is_said_in_words(client, listing_provider, llm_client):
     poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
     capture(client, listing_provider, poorer)
-    llm_client.verdict = lambda case, _: model_says(opening_bid=case["walk_away"]["walk_away_maximum"] - 10_000)
+    llm_client.verdict = lambda case, _: model_says(opening_bid=case["guide_bid"]["value"] - 1)
     verdict = client.post(VERDICT).json()
 
     markdown = client.get(EXPORT).text
@@ -358,6 +358,67 @@ triggers = [{ kind = "below", fact = "construction_year", threshold = 1994 }]
 
 def section(markdown, heading):
     return markdown.split(f"## {heading}\n")[1].split("\n## ")[0]
+
+
+def test_the_export_gives_the_richtbod_with_the_models_reason_and_the_discount_breakdown(
+    client, listing_provider, llm_client
+):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says() | {
+        "bid_advice": {
+            "opening_bid": 590_000,
+            "conditions": [],
+            "deviation_reason": "Vocht in de kelder.",
+        }
+    }
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Openingsbod: € 590.000" in bid
+    assert "- Richtbod: € 580.000 (afwijking: Vocht in de kelder.)" in bid
+    assert "### Hoe het Richtbod is berekend" in bid
+    assert "- Prijsstelling: marktconform, 2,5% korting op de verwachte verkoopprijs" in bid
+    assert "**Zwak onderbouwd**" in bid
+
+
+def test_the_export_leaves_out_the_richtbod_line_when_the_opening_bid_equals_it(
+    client, listing_provider, llm_client
+):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says(opening_bid=580_000)
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Richtbod:" not in bid
+    assert "- Prijsstelling: marktconform, 2,5% korting" in bid
+
+
+def test_a_house_sold_under_reservation_exports_conditions_and_the_note(client, listing_provider, llm_client):
+    capture(client, listing_provider, raw_status="Verkocht onder voorbehoud")
+    llm_client.verdict = model_says() | {"bid_advice": {"conditions": ["Reserveringslijst"]}}
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "Verkocht onder voorbehoud" in bid
+    assert "Reserveringslijst" in bid
+    assert "- Openingsbod:" not in bid and "- Richtbod:" not in bid
+    assert "haal vergelijkbare woningen op" not in bid
+
+
+def test_without_the_profile_an_affordability_bound_richtbod_is_rounded_down(client, listing_provider, llm_client):
+    poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
+    capture(client, listing_provider, poorer)
+    llm_client.verdict = lambda case, _: model_says(opening_bid=case["guide_bid"]["value"] - 1)
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    bid = section(client.get(f"{EXPORT}?profile=false").text, "Biedadvies")
+
+    assert guide["capped_by"] == "walk_away_maximum"
+    assert not mentions(bid, guide["value"])
+    assert f"- Richtbod: € {guide['value'] // 5000 * 5000:,} (afgerond)".replace(",", ".") in bid
 
 
 @pytest.fixture
@@ -481,7 +542,7 @@ def test_without_the_profile_affordability_bound_bids_are_rounded_down(client, l
     poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
     capture(client, listing_provider, poorer)
     def says(case, _):
-        opening = case["walk_away"]["walk_away_maximum"] - 10_001
+        opening = case["guide_bid"]["value"] - 1
         return model_says(opening_bid=opening) | {"reasoning": f"Open op {amount_forms(opening)[0]}."}
 
     llm_client.verdict = says

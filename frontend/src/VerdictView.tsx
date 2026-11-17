@@ -179,7 +179,8 @@ export function VerdictView(props: {
             )}
           </TierBlock>
           <Redenering verdict={latest} onShowFlag={props.onShowFlag} />
-          {latest.bid_advice && (
+          {latest.bid_advice?.sold_under_reservation && <VoorbehoudBiedadvies advice={latest.bid_advice} />}
+          {latest.bid_advice && !latest.bid_advice.sold_under_reservation && (
             <Biedadvies
               advice={latest.bid_advice}
               rulesYear={latest.built_from.rules_year}
@@ -292,6 +293,7 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
         <div className="figure">
           <p className="vak-label">Openingsbod</p>
           <p className="bid-amount num">{euro.format(advice.opening_bid)}</p>
+          <RichtbodNote advice={advice} />
         </div>
         <div className="figure">
           <p className="vak-label">Maximumbod</p>
@@ -375,6 +377,82 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
       </dl>
       <p className="muted rules-year">Regels {rulesYear}</p>
     </section>
+  );
+}
+
+/** Verkocht onder voorbehoud: no Openingsbod or Richtbod, the conditions and a note. */
+function VoorbehoudBiedadvies({ advice }: { advice: BidAdvice }) {
+  return (
+    <section aria-labelledby="biedadvies-title">
+      <h2 id="biedadvies-title">Biedadvies</h2>
+      <p role="status" className="status-banner">
+        <strong>Verkocht onder voorbehoud:</strong> geen Openingsbod of Richtbod, alleen voorwaarden.
+      </p>
+      {advice.conditions.length === 0 ? (
+        <p className="muted">Geen voorwaarden geadviseerd.</p>
+      ) : (
+        <ul className="conditions">
+          {advice.conditions.map((condition) => (
+            <li key={condition}>
+              <Square size={15} aria-hidden="true" className="inline-icon" />
+              {condition}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const CAPPED_BY_COPY = {
+  asking_price: "Begrensd door de vraagprijs: hoger bieden dan de vraagprijs is je eigen keuze.",
+  walk_away_maximum: "Begrensd door het Maximumbod.",
+};
+
+/** Labels of the Richtbod's discount components; a new component (the tempo signal) adds a line here. */
+const DISCOUNT_COMPONENT_LABELS: Record<string, string> = {
+  prijsstelling: "Prijsstelling",
+};
+
+/** The Richtbod under the Openingsbod when they differ, with the model's reason, and always how the
+ * Richtbod came about: one line per discount component. */
+function RichtbodNote({ advice }: { advice: BidAdvice }) {
+  const guide = advice.guide_bid;
+  if (!guide) return null;
+  const differs = guide.value !== advice.opening_bid;
+  return (
+    <>
+      {differs && (
+        <p className="richtbod">
+          Richtbod <span className="num">{euro.format(guide.value)}</span>
+          {advice.guide_bid_deviation_reason && (
+            <span className="muted">: {advice.guide_bid_deviation_reason}</span>
+          )}
+        </p>
+      )}
+      {guide.weakly_grounded && (
+        <p className="weak-grounding">
+          Zwak onderbouwd: het Richtbod rust op een verwachte verkoopprijs uit de WOZ-waarde.
+        </p>
+      )}
+      <details>
+        <summary>Hoe het Richtbod is berekend</summary>
+        <ul className="evidence">
+          <li>
+            Richtbod {euro.format(guide.value)} = verwachte verkoopprijs min {percent(guide.discount)} korting, naar
+            beneden afgerond.
+          </li>
+          {Object.entries(guide.breakdown).map(([key, component]) => (
+            <li key={key}>
+              {DISCOUNT_COMPONENT_LABELS[key] ?? key}
+              {component.label ? `: ${component.label}` : ""}, {percent(component.discount)}
+            </li>
+          ))}
+          {guide.capped_by && <li>{CAPPED_BY_COPY[guide.capped_by]}</li>}
+          <li>Het Openingsbod blijft binnen {percent(guide.band)} van het Richtbod.</li>
+        </ul>
+      </details>
+    </>
   );
 }
 

@@ -157,6 +157,8 @@ def _household_amounts(export: "ExportInput") -> dict[int, int]:
         amounts.pop(advice["walk_away_maximum"], None)
     elif advice and advice["walk_away_maximum"] is not None and (advice.get("derivation") or {}).get("binding") == "affordability":
         amounts |= {advice["walk_away_maximum"]: AMOUNT_STEP, advice["opening_bid"]: AMOUNT_STEP}
+        if advice.get("guide_bid"):
+            amounts[advice["guide_bid"]["value"]] = AMOUNT_STEP
     return amounts
 
 
@@ -400,7 +402,7 @@ def preamble(export: ExportInput) -> list[str]:
         "- Signaal = Flag (Pluspunt = pro, Minpunt = con, Risico = risk)",
         "- Vergelijkbare woning = Comparable (Dun = thin)",
         "- Oordeel = Verdict (Zeker kopen = Must buy, Overwegen = Consider, Overslaan = Skip, Harde afwijzing = Hard no)",
-        "- Biedadvies = Bid Advice (Openingsbod = opening bid, Maximumbod = Walk-away Maximum, Voorwaarden = conditions)",
+        "- Biedadvies = Bid Advice (Openingsbod = opening bid, Richtbod = Guide Bid, Maximumbod = Walk-away Maximum, Voorwaarden = conditions)",
         "- Verbouwingsraming = Renovation Estimate (Direct nodig, Binnen 5 jaar, Optioneel)",
         "- Koperprofiel = Buyer Profile",
         "- Verouderd = Stale (een feit); Achterhaald = Out of date (een Oordeel of Dossier)",
@@ -767,20 +769,64 @@ def bid_advice(export: ExportInput) -> list[str]:
     lines = ["## Biedadvies", ""]
     if advice is None:
         return [*lines, "Geen Biedadvies bij dit Oordeel." if current else "Geen Biedadvies: er is nog geen Oordeel."]
-    bids = (
-        [
+    if advice.get("sold_under_reservation"):
+        bids = ["- Verkocht onder voorbehoud: geen Openingsbod of Richtbod, alleen voorwaarden."]
+    elif advice["walk_away_maximum"] is not None:
+        bids = [
             f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}",
+            *_richtbod_line(advice, export),
             f"- Maximumbod: {_bid(advice, 'walk_away_maximum', export.with_profile)}",
         ]
-        if advice["walk_away_maximum"] is not None
-        else ["- Geen Maximumbod: haal vergelijkbare woningen op voor een Maximumbod."]
-    )
+    else:
+        bids = ["- Geen Maximumbod: haal vergelijkbare woningen op voor een Maximumbod."]
     lines += [
         *bids,
         "- Voorwaarden:",
         *[f"  - {export.anonymiser.scrub_text(condition)}" for condition in advice["conditions"]],
     ]
+    guide_bid = advice.get("guide_bid")
+    if guide_bid:
+        lines += _guide_bid_breakdown(guide_bid)
     return lines + (_derivation(advice) if export.with_profile and advice["walk_away_maximum"] is not None else [])
+
+
+def _richtbod_line(advice: dict, export: ExportInput) -> list[str]:
+    """The Richtbod, only when the Openingsbod differs from it, with the model's reason. Without the
+    profile it is rounded down like the bids when it is capped at an affordability-bound Maximumbod
+    (that cap is the household's affordable maximum)."""
+    guide_bid = advice.get("guide_bid")
+    if not guide_bid or guide_bid["value"] == advice["opening_bid"]:
+        return []
+    amount = guide_bid["value"]
+    binding = (advice.get("derivation") or {}).get("binding")
+    if export.with_profile or not (binding == "affordability" and guide_bid["capped_by"] == "walk_away_maximum"):
+        shown = euro(amount)
+    else:
+        shown = f"{euro(amount // AMOUNT_STEP * AMOUNT_STEP)} (afgerond)"
+    reason = advice.get("guide_bid_deviation_reason")
+    return [f"- Richtbod: {shown}" + (f" (afwijking: {export.anonymiser.scrub_text(reason)})" if reason else "")]
+
+
+DISCOUNT_COMPONENTS = {"prijsstelling": "Prijsstelling"}
+CAPS = {
+    "asking_price": "begrensd door de vraagprijs",
+    "walk_away_maximum": "begrensd door het Maximumbod",
+}
+
+
+def _guide_bid_breakdown(guide_bid: dict) -> list[str]:
+    """How the Richtbod came about: one line per discount component, so a new component only adds an entry."""
+    lines = ["", "### Hoe het Richtbod is berekend", ""]
+    for key, component in guide_bid["breakdown"].items():
+        label = DISCOUNT_COMPONENTS.get(key, key)
+        detail = f": {component['label']}" if component.get("label") else ""
+        lines.append(f"- {label}{detail}, {_number(round(component['discount'] * 100, 1))}% korting op de verwachte verkoopprijs")
+    lines.append(f"- Samen {_number(round(guide_bid['discount'] * 100, 1))}% korting, naar beneden afgerond")
+    if guide_bid["capped_by"]:
+        lines.append(f"- Richtbod {CAPS[guide_bid['capped_by']]}")
+    if guide_bid["weakly_grounded"]:
+        lines.append("- **Zwak onderbouwd**: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.")
+    return lines
 
 
 def _bid(advice: dict, key: str, with_profile: bool) -> str:

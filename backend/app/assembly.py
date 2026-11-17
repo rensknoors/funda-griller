@@ -19,7 +19,7 @@ from app.rules_loader import (
     load_rules,
 )
 from app.settings import Settings
-from app.verdict import judge
+from app.verdict import GuideBidConfig, judge
 
 
 def assemble_case(
@@ -75,6 +75,7 @@ def make_verdict(
         lambda price: _monthly_costs_at(
             compute(profile.profile, price, energy_label, rules, levering, rates, renovation_direct)
         ),
+        GuideBidConfig(**settings.guide_bid.model_dump()),
     )
     return {**verdict, "prompt_version": None if verdict["deterministic"] else VERDICT_PROMPT_VERSION}
 

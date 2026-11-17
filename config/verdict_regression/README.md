@@ -49,6 +49,8 @@ Listing or profile changes. `--expect` is one of `must_buy`, `consider`, `skip`,
 One JSON file per entry; the file name is its name.
 
 - `expected_tier`: the tier you would give it.
+- `expected_opening_bid` (optional): `[low, high]` in euros; the entry then also differs when the
+  model's opening bid falls outside it (the Guide Bid cases use the Guide Bid ±3%).
 - `note`: free text, why you expect that tier.
 - `as_of`: the moment the Case is built against (affordability rules year, Source staleness).
 - `snapshot`: the Listing snapshot as the app stores it (`fetched_at` required).

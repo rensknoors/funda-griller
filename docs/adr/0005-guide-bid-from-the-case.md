@@ -10,3 +10,6 @@ We rejected a fully model-driven bid, which is the anchoring pattern we are remo
 - Discounts, thresholds, the band and the rounding step are configured in `config/defaults.toml`. The values start as plausible guesses and are tuned against the regression set.
 - Time on the market is counted from the first `price_history` date to the snapshot's fetch date, so the Guide Bid is reproducible per snapshot.
 - The Guide Bid is only as good as the Expected Sale Price, which rests on asking prices until registered sale prices are available (ticket 06).
+- The discount per Prijsstelling is one configured figure each (hoog ingezet 6%, marktconform 2,5%, laag ingezet 0%: the middle of the 5-7% and 2-3% ranges), in `[guide_bid]`. The discount breakdown is a map of components (Prijsstelling now), so the tempo signal adds an entry.
+- The model's reason for a deviation is stored and shown but not required: a bid outside the band is a validation problem, a missing reason is not (it would turn a harmless omission into a failed Verdict).
+- No asking price means no Prijsstelling and so no Guide Bid; the opening bid is then bounded by the Walk-away Maximum only. A house sold under reservation (funda's raw status contains "voorbehoud") gets conditions only; an opening bid there is a validation problem.

@@ -339,13 +339,18 @@ AFFORDABLE_MAXIMUM_AFTER_DAMP = 703_292
 
 
 def bid():
-    return {
-        "tier": "consider",
-        "summary": "Prima woning.",
-        "reasoning": "Past bij de wensen.",
-        "cited_flags": [],
-        "bid_advice": {"opening_bid": 560_000, "conditions": ["Bouwkundige keuring"]},
-    }
+    """The model's answer: it opens at the Guide Bid."""
+
+    def rate(case, _profile):
+        return {
+            "tier": "consider",
+            "summary": "Prima woning.",
+            "reasoning": "Past bij de wensen.",
+            "cited_flags": [],
+            "bid_advice": {"opening_bid": case["guide_bid"]["value"], "conditions": ["Bouwkundige keuring"]},
+        }
+
+    return rate
 
 
 def test_direct_nodig_lowers_the_affordable_maximum(client, listing_provider, llm_client):

@@ -596,6 +596,19 @@ export type WalkAwayDerivation = {
   weakly_grounded: boolean;
 };
 
+/** One component of the Guide Bid's discount: its label (Prijsstelling) and discount. */
+export type GuideBidComponent = { label?: string; discount: number };
+
+/** The Guide Bid (Richtbod) the Case derived; `breakdown` has one entry per discount component. */
+export type GuideBid = {
+  value: number;
+  discount: number;
+  breakdown: Record<string, GuideBidComponent>;
+  weakly_grounded: boolean;
+  capped_by: "asking_price" | "walk_away_maximum" | null;
+  band: number;
+};
+
 export type BidAdvice = {
   opening_bid: number;
   walk_away_maximum: number;
@@ -610,6 +623,12 @@ export type BidAdvice = {
   };
   /** How the Walk-away Maximum was derived; absent on Verdicts whose model proposed it. */
   derivation?: WalkAwayDerivation;
+  /** Absent on Verdicts made before the Guide Bid; null without one (no Walk-away Maximum, or sold under reservation). */
+  guide_bid?: GuideBid | null;
+  /** The model's reason when its Openingsbod differs from the Richtbod. */
+  guide_bid_deviation_reason?: string | null;
+  /** Verkocht onder voorbehoud: conditions only. */
+  sold_under_reservation?: boolean;
   asking_price: number | null;
   /** The Expected Sale Price the advice rests on; absent on Verdicts made before it existed. */
   expected_sale_price?: number | null;

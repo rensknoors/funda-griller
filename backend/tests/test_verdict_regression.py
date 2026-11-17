@@ -74,6 +74,8 @@ def answer_per_case(tier):
         said = answer(tier)
         if said["bid_advice"] and case["walk_away"]["walk_away_maximum"] is None:
             said["bid_advice"] = {"conditions": said["bid_advice"]["conditions"]}
+        elif said["bid_advice"] and case["guide_bid"]:
+            said["bid_advice"]["opening_bid"] = case["guide_bid"]["value"]
         return said
 
     return rate
@@ -90,6 +92,30 @@ def test_prints_expected_versus_actual_per_listing_and_the_agreement(settings, l
     assert any("holtum-agrees" in line and "consider" in line and "OK" in line for line in lines)
     assert any("holtum-disagrees" in line and "must_buy" in line and "consider" in line and "DIFF" in line for line in lines)
     assert "1/2" in output
+    assert code == 1
+
+
+WOZ_RUN = {
+    "woz": {
+        "attempted_at": "2026-10-20T09:00:00+00:00",
+        "outcome": "succeeded",
+        "reason": None,
+        "facts": [{"name": "woz_value", "value": 595_000, "as_of": "2026-01-01"}],
+    }
+}
+
+
+def test_an_entry_can_expect_the_opening_bid_in_a_range(settings, llm_client, regression_set):
+    # The model opens at the Guide Bid (marktconform, WOZ basis).
+    regression_set("bid-inside", entry("consider", source_runs=WOZ_RUN, expected_opening_bid=[550_000, 650_000]))
+    regression_set("bid-outside", entry("consider", source_runs=WOZ_RUN, expected_opening_bid=[100_000, 200_000]))
+    llm_client.verdict = answer_per_case("consider")
+
+    code, output = run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
+
+    lines = output.splitlines()
+    assert any("OK" in line and "bid-inside" in line for line in lines)
+    assert any("DIFF" in line and "bid-outside" in line and "opening bid" in line for line in lines)
     assert code == 1
 
 

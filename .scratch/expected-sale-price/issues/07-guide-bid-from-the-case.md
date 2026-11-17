@@ -6,10 +6,15 @@
 
 **Status:** ready-for-agent
 
-- [ ] `guide_bid` derivation in the Case with its discount breakdown; unit tests per Prijsstelling band, the asking-price cap, the Walk-away Maximum cap, rounding, weakly grounded basis, none without a Walk-away Maximum, none when sold under reservation
-- [ ] Prompt: bid within ±3% of the Guide Bid, deviations explained; `VERDICT_PROMPT_VERSION` bumped
-- [ ] Validation: opening bid outside the band is a problem; the existing `opening_bid_above_walk_away_maximum` stays
-- [ ] Bid Advice carries `guide_bid` and its derivation; older Verdicts still render
-- [ ] UI (Dutch) and Markdown export: Openingsbod, Richtbod when different, discount breakdown, "Verkocht onder voorbehoud" note
-- [ ] Regression cases: Europalaan-26-like (marktconform), hoog ingezet (far below asking), laag ingezet (at asking); real-model run (user, costs money)
-- [ ] Glossary and ADR-0005 stay in line with the result
+- [x] `guide_bid` derivation in the Case with its discount breakdown; unit tests per Prijsstelling band, the asking-price cap, the Walk-away Maximum cap, rounding, weakly grounded basis, none without a Walk-away Maximum, none when sold under reservation
+- [x] Prompt: bid within ±3% of the Guide Bid, deviations explained; `VERDICT_PROMPT_VERSION` bumped
+- [x] Validation: opening bid outside the band is a problem; the existing `opening_bid_above_walk_away_maximum` stays
+- [x] Bid Advice carries `guide_bid` and its derivation; older Verdicts still render
+- [x] UI (Dutch) and Markdown export: Openingsbod, Richtbod when different, discount breakdown, "Verkocht onder voorbehoud" note
+- [x] Regression cases added with expected tier and opening-bid range: `example-guide-bid-marktconform`, `-hoog-ingezet`, `-laag-ingezet`
+- [ ] Real-model run of the regression set (user, costs money): not done by the agent
+- [x] Glossary and ADR-0005 stay in line with the result
+
+## Comments
+
+Built on `ticket/07-guide-bid`. Everything but the real-model regression run is done, so the Status stays open: the user runs `uv run python -m app.verdict_regression run --yes` (costs money) and tunes `[guide_bid]` in `config/defaults.toml` if the three new `example-guide-bid-*` entries disagree. Deviation: the model's `deviation_reason` is stored and shown but not required by validation.

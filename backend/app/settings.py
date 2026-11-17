@@ -2,7 +2,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -29,7 +29,19 @@ class _DefaultsFileSource(PydanticBaseSettingsSource):
             **data.get("llm", {}),
             **data.get("case", {}),
             "listing_status_map": data.get("listing_status_map", {}),
+            "guide_bid": data.get("guide_bid", {}),
         }
+
+
+class GuideBidSettings(BaseModel):
+    """The Guide Bid's figures (config/defaults.toml `[guide_bid]`, ADR-0005)."""
+
+    discount_hoog_ingezet: float = 0.06
+    discount_marktconform: float = 0.025
+    discount_laag_ingezet: float = 0.0
+    # The model's opening bid stays within this share of the Guide Bid.
+    band: float = 0.03
+    rounding_step: int = 500
 
 
 class Settings(BaseSettings):
@@ -72,6 +84,8 @@ class Settings(BaseSettings):
     # Within this share of the Expected Sale Price an asking price is marktconform; beyond it the
     # seller priced the house hoog or laag ingezet (config/defaults.toml).
     prijsstelling_band: float = 0.05
+
+    guide_bid: GuideBidSettings = Field(default_factory=GuideBidSettings)
 
     # Months from today to the expected levering at the notary: the affordability rules, the
     # starters' ages and the startersvrijstelling limit are taken at that date.

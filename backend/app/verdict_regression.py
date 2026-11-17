@@ -82,9 +82,12 @@ def _run(args: argparse.Namespace, settings: Settings, llm_client: LlmClient | N
     )
     results = []
     for name, data in entries:
-        actual, error, deterministic = _judge(name, data, settings, llm_client)
+        actual, error, deterministic, opening_bid = _judge(name, data, settings, llm_client)
         expected = data["expected_tier"]
         outcome = "ERROR" if error else "OK" if actual == expected else "DIFF"
+        bid_range = data.get("expected_opening_bid")
+        if outcome == "OK" and bid_range and not bid_range[0] <= (opening_bid or 0) <= bid_range[1]:
+            outcome, actual = "DIFF", f"{actual}, opening bid {opening_bid} outside {bid_range}"
         results.append(
             {
                 "name": name,
@@ -117,8 +120,10 @@ def _run(args: argparse.Namespace, settings: Settings, llm_client: LlmClient | N
     return 0 if agreed == len(results) else 1
 
 
-def _judge(name: str, data: dict, settings: Settings, llm_client: LlmClient) -> tuple[str | None, str | None, bool]:
-    """(actual tier, error, deterministic) for one entry, built exactly as the app builds a Case."""
+def _judge(
+    name: str, data: dict, settings: Settings, llm_client: LlmClient
+) -> tuple[str | None, str | None, bool, int | None]:
+    """(actual tier, error, deterministic, opening bid) for one entry, built exactly as the app builds a Case."""
     now = datetime.fromisoformat(data["as_of"])
     profile = VersionedProfile(0, BuyerProfile.model_validate(data["buyer_profile"]))
     observed = data.get("observation_run")
@@ -136,10 +141,10 @@ def _judge(name: str, data: dict, settings: Settings, llm_client: LlmClient) -> 
     try:
         verdict = make_verdict(settings, case, profile, llm_client, now)
     except InvalidVerdict as error:
-        return None, f"invalid_verdict: {error}", False
+        return None, f"invalid_verdict: {error}", False, None
     except LlmError as error:
-        return None, f"llm_unavailable: {error}", False
-    return verdict["tier"], None, verdict["deterministic"]
+        return None, f"llm_unavailable: {error}", False, None
+    return verdict["tier"], None, verdict["deterministic"], (verdict["bid_advice"] or {}).get("opening_bid")
 
 
 def _add(args: argparse.Namespace, settings: Settings, out: TextIO) -> int:

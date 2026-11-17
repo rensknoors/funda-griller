@@ -57,6 +57,18 @@ _listing_provider.listings[CHANGING_URL] = [
     live_listing(**_markt, raw_status="Verkocht"),
 ]
 
+# Its own woning for the Richtbod spec.
+GUIDE_BID_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-2/80907660/"
+_listing_provider.listings[GUIDE_BID_URL] = live_listing(
+    funda_id="80907660", provider_id="17270390", url=GUIDE_BID_URL, address="Kerkpad 2"
+)
+# Verkocht onder voorbehoud: its Oordeel gives conditions only (no Openingsbod or Richtbod).
+RESERVED_URL = "https://www.funda.nl/detail/koop/maastricht/appartement-molenstraat-7/55500002/"
+_listing_provider.listings[RESERVED_URL] = live_listing(
+    **{**_markt, "funda_id": "55500002", "provider_id": "55500002", "url": RESERVED_URL, "address": "Molenstraat 7"},
+    raw_status="Verkocht onder voorbehoud",
+)
+
 _source_clients = {name: FakeSourceClient(name) for name in SOURCES}
 _source_clients["energielabel"].facts = [SourceFact("energy_label", "A", "2021-06-14")]
 _source_clients["woz"].facts = [
@@ -108,16 +120,28 @@ def _rate(case: dict, _profile: dict) -> dict:
             "bid_advice": None,
         }
     walk_away = case["walk_away"]["walk_away_maximum"]
+    guide_bid = case["guide_bid"]
+    if case["sold_under_reservation"]:
+        advice = {"conditions": ["Reserveringslijst opvragen"]}
+    elif guide_bid:
+        # A little above the Guide Bid: inside the band, so the Richtbod shows next to the Openingsbod.
+        advice = {
+            "opening_bid": min(walk_away, guide_bid["value"] + 1_000),
+            "deviation_reason": "Vocht in de kelder.",
+            "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
+        }
+    else:
+        advice = {
+            "opening_bid": min(walk_away, asking - 15_000),
+            "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
+        }
     return {
         "tier": "consider",
         "summary": "Degelijke woning, de vraagprijs is aan de hoge kant.",
         "reasoning": "De woning past bij jullie wensen, maar de vraagprijs ligt ver boven de "
         "WOZ-waarde. Die WOZ komt van een derde partij en is onofficieel.",
         "cited_flags": cited,
-        "bid_advice": {
-            "opening_bid": min(walk_away, asking - 15_000),
-            "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
-        },
+        "bid_advice": advice,
     }
 
 

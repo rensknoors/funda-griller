@@ -190,6 +190,8 @@ def build_case(
                 "commute_coverage": commute_coverage,
             }.items()
         },
+        # funda's "Verkocht onder voorbehoud": no Guide Bid, conditions only.
+        "sold_under_reservation": "voorbehoud" in (snapshot.get("raw_status") or "").casefold(),
         "affordability": affordability,
         "renovation_estimate": renovation,
         "flags": flags,

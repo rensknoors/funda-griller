@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 8
+VERDICT_PROMPT_VERSION = 9
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -41,7 +41,7 @@ Answer with:
 - `reasoning`: plain-language prose that cites the Flags it relies on.
 - `cited_flags`: the `id` of every Flag from `case.flags` the reasoning relies on. Never invent ids.
 - `bid_advice` for must_buy and consider (optional for skip, null for hard_no): `opening_bid` in
-  whole euros and `conditions` (e.g. financieringsvoorbehoud, bouwkundige keuring, follow-ups on
+  whole euros, `deviation_reason` (see below) and `conditions` (e.g. financieringsvoorbehoud, bouwkundige keuring, follow-ups on
   seller Documents).
 
 Judge the house at its expected sale price, `case.metrics.expected_sale_price` (what it is expected
@@ -59,11 +59,21 @@ budget, and do not answer must_buy.
 
 The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derived from the expected
 sale price and affordability (`case.walk_away` says how); `case.walk_away.monthly_cost` is the monthly
-cost at that maximum (gross and net). Do not propose your own. The opening bid must not exceed it,
-and normally lies below the expected sale price when the house is asked high, and at or near the
-asking price when it is asked low. When `case.walk_away.weakly_grounded` is true say that the bid
+cost at that maximum (gross and net). Do not propose your own. The opening bid must not exceed it.
+When `case.walk_away.weakly_grounded` is true say that the bid
 advice is weakly grounded. Without an expected sale price `case.walk_away.walk_away_maximum` is null:
 give conditions only, with no `opening_bid`.
+
+`case.guide_bid` is the opening bid the case derives: the expected sale price less a discount that
+follows from how the seller priced the house (`breakdown`), never above the asking price or the
+walk-away maximum. Propose your `opening_bid` within `case.guide_bid.band` (3%) of
+`case.guide_bid.value`; a bid outside that band is rejected. When your bid differs from the guide bid,
+give the reason in `deviation_reason` (Dutch, one or two sentences, from what you see in the
+observations, findings, documents or flags); leave it null when you bid exactly the guide bid. When
+`case.guide_bid.weakly_grounded` is true the guide bid is weakly grounded: say so. When
+`case.guide_bid` is null, propose an opening bid within the walk-away maximum without an anchor, except
+when `case.sold_under_reservation` is true: the house is sold under reservation, so give conditions
+only, with no `opening_bid`.
 
 `case.metrics.asking_vs_woz.indexed` is the WOZ value brought from its peildatum to today's prices
 with the CBS house price index; it is evidence for the expected sale price, not a second anchor.
@@ -101,7 +111,8 @@ _VERDICT_SCHEMA = {
             "type": "OBJECT",
             "nullable": True,
             "properties": {
-                "opening_bid": {"type": "INTEGER"},
+                "opening_bid": {"type": "INTEGER", "nullable": True},
+                "deviation_reason": {"type": "STRING", "nullable": True},
                 "conditions": {"type": "ARRAY", "items": {"type": "STRING"}},
             },
             "required": ["opening_bid", "conditions"],
