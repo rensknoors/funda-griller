@@ -20,6 +20,7 @@ node_modules/
 dist/
 test-results/
 playwright-report/
+*.tsbuildinfo
 
 PROTOTYPE_out/
 PROTOTYPE_out_live/
