@@ -88,7 +88,7 @@ class GuideBidConfig(BaseModel):
 class GuideBid(TypedDict):
     """The Guide Bid and how it came about. `breakdown` holds one entry per discount component
     (Prijsstelling, and with a price history days on the market and the price reduction), each with
-    its label and discount; `discount` is their total, capped (`discount_capped`). `tempo_known` is
+    its values and discount (older Verdicts carry a Dutch `label` instead); `discount` is their total, capped (`discount_capped`). `tempo_known` is
     false without a price history, so the tempo did not count. `capped_by` names the cap that lowered
     the value, if any."""
 
@@ -205,7 +205,7 @@ def derive_guide_bid(case: dict, walk_away_maximum: int | None, config: GuideBid
     tempo = case["metrics"].get("market_tempo")
     breakdown: dict[str, dict] = {
         "prijsstelling": {
-            "label": prijsstelling["prijsstelling"],
+            "prijsstelling": prijsstelling["prijsstelling"],
             "discount": config.discount_for(prijsstelling["prijsstelling"]),
         },
         **(_tempo_components(tempo, config) if tempo else {}),
@@ -232,22 +232,20 @@ def derive_guide_bid(case: dict, walk_away_maximum: int | None, config: GuideBid
 
 def _tempo_components(tempo: dict, config: GuideBidConfig) -> dict[str, dict]:
     """The Guide Bid's discount for time on the market and for a price reduction (Case metric
-    `market_tempo`), labelled for the Biedadvies."""
-    days = tempo["days_on_market"]
-    first, asking = tempo["first_asking_price"], tempo["asking_price"]
+    `market_tempo`), as values; the Biedadvies and the export word them."""
+    reduced = tempo["price_reduction"]
     return {
-        "days_on_market": {"label": f"{days} dagen", "days": days, "discount": config.discount_for_days(days)},
+        "days_on_market": {
+            "days": tempo["days_on_market"],
+            "discount": config.discount_for_days(tempo["days_on_market"]),
+        },
         "price_reduction": {
-            "label": f"van {_euro(first)} naar {_euro(asking)}" if tempo["price_reduction"] else "geen",
-            "first_asking_price": first,
-            "asking_price": asking,
-            "discount": config.discount_price_reduction if tempo["price_reduction"] else 0.0,
+            "reduced": reduced,
+            "first_asking_price": tempo["first_asking_price"],
+            "asking_price": tempo["asking_price"],
+            "discount": config.discount_price_reduction if reduced else 0.0,
         },
     }
-
-
-def _euro(amount: int) -> str:
-    return f"€ {amount:,}".replace(",", ".")
 
 
 def _asking_price(case: dict) -> int | None:

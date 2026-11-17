@@ -20,7 +20,7 @@ from datetime import datetime
 
 from app.affordability import RouteRates
 from app.buyer_profile import reduce_profile
-from app.case import VersionedProfile
+from app.case import Prijsstelling, VersionedProfile
 from app.house_type import LABELS
 
 # Dutch names of the kinds of debt in the Buyer Profile.
@@ -856,7 +856,8 @@ def _guide_bid_breakdown(guide_bid: dict) -> list[str]:
     lines = ["", "### Hoe het Richtbod is berekend", ""]
     for key, component in guide_bid["breakdown"].items():
         label = DISCOUNT_COMPONENTS.get(key, key)
-        detail = f": {component['label']}" if component.get("label") else ""
+        detail = _component_detail(key, component)
+        detail = f": {detail}" if detail else ""
         lines.append(f"- {label}{detail}, {_number(round(component['discount'] * 100, 1))}% korting op de verwachte verkoopprijs")
     # Absent on Verdicts made before the tempo signal.
     if guide_bid.get("tempo_known") is False:
@@ -868,6 +869,22 @@ def _guide_bid_breakdown(guide_bid: dict) -> list[str]:
     if guide_bid["weakly_grounded"]:
         lines.append("- **Zwak onderbouwd**: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.")
     return lines
+
+
+def _component_detail(key: str, component: dict) -> str | None:
+    """A discount component in words: "hoog ingezet", "130 dagen", "van € 625.000 naar € 595.000".
+    Older Verdicts stored the words as `label`."""
+    if "label" in component:
+        return component["label"]
+    if key == "prijsstelling":
+        return Prijsstelling(component["prijsstelling"]).value
+    if key == "days_on_market":
+        return f"{component['days']} dagen"
+    if key == "price_reduction":
+        if not component["reduced"]:
+            return "geen"
+        return f"van {euro(component['first_asking_price'])} naar {euro(component['asking_price'])}"
+    return None
 
 
 def _bid(advice: dict, key: str, with_profile: bool) -> str:

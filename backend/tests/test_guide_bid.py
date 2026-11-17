@@ -57,7 +57,7 @@ def test_marktconform_takes_the_marktconform_discount_off_the_expected_sale_pric
 
     assert guide["discount"] == 0.025
     assert guide["value"] == 585_000  # 600.000 * 0,975
-    assert guide["breakdown"]["prijsstelling"] == {"label": "marktconform", "discount": 0.025}
+    assert guide["breakdown"]["prijsstelling"] == {"prijsstelling": "marktconform", "discount": 0.025}
     assert guide["capped_by"] is None
     assert guide["weakly_grounded"] is False
 
@@ -118,7 +118,7 @@ def test_there_is_no_guide_bid_without_a_walk_away_maximum():
 def test_time_on_the_market_adds_to_the_discount_over_60_and_over_120_days(days, discount):
     guide = _guide(_case(expected=600_000, asking=600_000, tempo=_tempo(days=days)))
 
-    assert guide["breakdown"]["days_on_market"] == {"label": f"{days} dagen", "days": days, "discount": discount}
+    assert guide["breakdown"]["days_on_market"] == {"days": days, "discount": discount}
     assert guide["discount"] == pytest.approx(0.025 + discount)
 
 
@@ -127,7 +127,7 @@ def test_a_price_reduction_adds_a_point():
     guide = _guide(_case(expected=600_000, asking=610_000, tempo=tempo))
 
     assert guide["breakdown"]["price_reduction"] == {
-        "label": "van € 640.000 naar € 610.000",
+        "reduced": True,
         "first_asking_price": 640_000,
         "asking_price": 610_000,
         "discount": 0.01,
@@ -140,7 +140,7 @@ def test_no_price_reduction_adds_nothing_and_says_so():
     guide = _guide(_case(tempo=_tempo(days=30)))
 
     assert guide["breakdown"]["price_reduction"] == {
-        "label": "geen",
+        "reduced": False,
         "first_asking_price": 600_000,
         "asking_price": 600_000,
         "discount": 0.0,

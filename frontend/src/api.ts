@@ -632,8 +632,16 @@ export type WalkAwayDerivation = {
 };
 
 /** One component of the Guide Bid's discount (Prijsstelling, days on the market, price reduction):
- * its label ("hoog ingezet", "130 dagen", "van € 625.000 naar € 595.000") and discount. */
-export type GuideBidComponent = { label?: string; discount: number };
+ * its values and discount. Older Verdicts carry the words as `label` ("130 dagen") instead. */
+export type GuideBidComponent = {
+  discount: number;
+  label?: string;
+  prijsstelling?: Prijsstelling;
+  days?: number;
+  reduced?: boolean;
+  first_asking_price?: number | null;
+  asking_price?: number | null;
+};
 
 /** The Guide Bid (Richtbod) the Case derived; `breakdown` has one entry per discount component. */
 export type GuideBid = {

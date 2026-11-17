@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   type BidAdvice,
+  type GuideBidComponent,
   type Listing,
   type RouteRates,
   type Verdict,
@@ -436,6 +437,20 @@ const DISCOUNT_COMPONENT_LABELS: Record<string, string> = {
   price_reduction: "Prijsverlaging",
 };
 
+/** A discount component in words: "hoog ingezet", "130 dagen", "van € 625.000 naar € 595.000".
+ * Older Verdicts stored the words as `label`. */
+function componentDetail(key: string, component: GuideBidComponent): string | null {
+  if (component.label !== undefined) return component.label;
+  if (key === "prijsstelling") return component.prijsstelling ?? null;
+  if (key === "days_on_market" && component.days !== undefined) return `${component.days} dagen`;
+  if (key === "price_reduction") {
+    if (!component.reduced) return "geen";
+    if (component.first_asking_price == null || component.asking_price == null) return null;
+    return `van ${euro.format(component.first_asking_price)} naar ${euro.format(component.asking_price)}`;
+  }
+  return null;
+}
+
 /** The Richtbod under the Openingsbod when they differ, with the model's reason, and always how the
  * Richtbod came about: one line per discount component. */
 function RichtbodNote({ advice }: { advice: BidAdvice }) {
@@ -467,7 +482,8 @@ function RichtbodNote({ advice }: { advice: BidAdvice }) {
           {Object.entries(guide.breakdown).map(([key, component]) => (
             <li key={key}>
               {DISCOUNT_COMPONENT_LABELS[key] ?? key}
-              {component.label ? `: ${component.label}` : ""}, {percent(component.discount)}
+              {componentDetail(key, component) ? `: ${componentDetail(key, component)}` : ""},{" "}
+              {percent(component.discount)}
             </li>
           ))}
           {guide.tempo_known === false && (

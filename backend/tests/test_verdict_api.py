@@ -435,7 +435,7 @@ def test_the_guide_bid_goes_into_the_models_input_and_into_the_bid_advice(client
     assert sent["guide_bid"]["value"] == GUIDE_BID
     assert advice["guide_bid"]["value"] == GUIDE_BID
     assert advice["guide_bid"]["discount"] == 0.025
-    assert advice["guide_bid"]["breakdown"]["prijsstelling"] == {"label": "marktconform", "discount": 0.025}
+    assert advice["guide_bid"]["breakdown"]["prijsstelling"] == {"prijsstelling": "marktconform", "discount": 0.025}
     assert advice["guide_bid"]["weakly_grounded"] is True
     assert advice["guide_bid_deviation_reason"] is None
     assert advice["sold_under_reservation"] is False
@@ -567,7 +567,7 @@ def test_a_long_time_on_the_market_and_a_price_reduction_deepen_the_guide_bids_d
     assert sent["guide_bid"] == guide
     assert guide["value"] == 562_000  # 595.000 * 0,945 = 562.275
     assert guide["discount"] == 0.055
-    assert guide["breakdown"]["days_on_market"] == {"label": "150 dagen", "days": 150, "discount": 0.02}
+    assert guide["breakdown"]["days_on_market"] == {"days": 150, "discount": 0.02}
     assert guide["breakdown"]["price_reduction"]["discount"] == 0.01
     assert guide["tempo_known"] is True
 
