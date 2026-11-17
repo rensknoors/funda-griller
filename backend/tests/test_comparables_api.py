@@ -167,12 +167,10 @@ def test_sufficient_comparables_derive_the_walk_away_maximum(client, listing_pro
         "coverage": "sufficient",
         "count": 5,
         "comparables_value": 608_000,
-        "maximum": None,
     }
     assert advice["derivation"] == {
-        "basis": "expected_sale_price",
         "renovation_direct": 0,
-        "margin": 0.05,
+        "premium": 0.05,
         "basis_maximum": 667_766,
         "binding": "basis",
         "weakly_grounded": False,
@@ -194,7 +192,6 @@ def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_
     advice = client.post(VERDICT).json()["bid_advice"]
 
     assert advice["walk_away_maximum"] == AFFORDABLE_MAXIMUM
-    assert advice["derivation"]["basis"] == "expected_sale_price"
     assert advice["derivation"]["binding"] == "affordability"
     assert advice["derivation"]["basis_maximum"] > AFFORDABLE_MAXIMUM
 
@@ -220,9 +217,8 @@ def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_th
     assert advice["walk_away_maximum"] == 624_750
     assert advice["comparables"]["coverage"] == coverage
     assert advice["derivation"] == {
-        "basis": "expected_sale_price",
         "renovation_direct": 0,
-        "margin": 0.05,
+        "premium": 0.05,
         "basis_maximum": 624_750,
         "binding": "basis",
         "weakly_grounded": True,

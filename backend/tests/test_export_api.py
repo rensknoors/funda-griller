@@ -634,6 +634,31 @@ def test_an_older_verdict_without_a_prompt_version_prints_onbekend(client, listi
     assert "Promptversie Oordeel: onbekend" in client.get(EXPORT).text
 
 
+def test_an_older_verdict_with_a_margin_basis_and_worded_breakdown_still_exports(
+    client, listing_provider, llm_client, settings
+):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says()
+    verdict = client.post(VERDICT).json()
+    # Stored before the premium was named so: a stored basis, the premium as `margin`, the
+    # comparables' always-empty `maximum`, and the breakdown worded by the Verdict service.
+    advice = verdict["bid_advice"]
+    derivation = {k: v for k, v in advice["derivation"].items() if k != "premium"}
+    older_advice = advice | {
+        "derivation": derivation | {"basis": "asking_price", "margin": 0.046},
+        "comparables": advice["comparables"] | {"maximum": None},
+        "guide_bid": advice["guide_bid"]
+        | {"breakdown": {"prijsstelling": {"label": "hoog ingezet", "discount": 0.06}}},
+    }
+    older = {k: v for k, v in verdict.items() if k not in ("id", "version", "created_at")}
+    store.add_verdict(settings.database_path, "80907644", verdict["created_at"], older | {"bid_advice": older_advice})
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Basis: de vraagprijs (vergelijkbare woningen dun of ontbrekend), plus 4,6% = " in bid
+    assert "- Prijsstelling: hoog ingezet, 6% korting op de verwachte verkoopprijs" in bid
+
+
 def test_the_header_names_the_cost_table_version_and_the_legend_the_renovation_estimate(
     client, listing_provider, renovation
 ):

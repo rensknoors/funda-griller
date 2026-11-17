@@ -913,15 +913,18 @@ def _derivation(advice: dict) -> list[str]:
     lines = ["", "### Hoe het Maximumbod is berekend", ""]
     if derivation is None:
         return [*lines, "Afleiding niet bewaard bij dit oudere Oordeel."]
+    # Older Verdicts stored their basis and called the premium `margin`.
+    basis = BASES[derivation.get("basis", "expected_sale_price")]
+    premium = derivation.get("premium", derivation.get("margin"))
     if derivation["basis_maximum"] is not None:
         renovation_direct = derivation.get("renovation_direct") or 0
         less = f", min {euro(renovation_direct)} Direct nodig" if renovation_direct else ""
         lines.append(
-            f"- Basis: {BASES[derivation['basis']]}{less}, plus {_number(round(derivation['margin'] * 100, 1))}% "
+            f"- Basis: {basis}{less}, plus {_number(round(premium * 100, 1))}% "
             f"= {euro(derivation['basis_maximum'])}"
         )
     else:
-        lines.append(f"- Basis: {BASES[derivation['basis']]}")
+        lines.append(f"- Basis: {basis}")
     lines.append(
         "- Het Maximumbod is **begrensd door betaalbaarheid**: wat het huishouden kan betalen ligt lager dan de basis."
         if derivation["binding"] == "affordability"

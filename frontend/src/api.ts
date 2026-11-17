@@ -613,17 +613,21 @@ export async function rerunObservations(fundaId: string): Promise<Case> {
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
 export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
 
+export type WalkAwayBasis = "expected_sale_price" | "comparables" | "asking_price" | "affordability";
+
 /**
- * The Walk-away Maximum is the lower of the betaalruimte and its basis plus a margin. The basis is
- * the comparables value when they are sufficient, else the asking price; with neither, the
- * betaalruimte alone. Anything but comparables is weakly grounded. The Direct nodig renovation
- * cost comes off the basis first.
+ * The Walk-away Maximum is the lower of the betaalruimte and the Expected Sale Price less the
+ * Direct nodig renovation cost, plus a premium. Older Verdicts stored their basis (comparables,
+ * asking price or the betaalruimte alone) and called the premium `margin`.
  */
 export type WalkAwayDerivation = {
-  basis: "expected_sale_price" | "comparables" | "asking_price" | "affordability";
+  /** Only on older Verdicts; absent means the Expected Sale Price. */
+  basis?: WalkAwayBasis;
   /** Absent on Verdicts made before the Renovation Estimate. */
   renovation_direct?: number;
-  margin: number | null;
+  premium?: number | null;
+  /** The premium on older Verdicts. */
+  margin?: number | null;
   /** Where an asking price margin comes from; absent on Verdicts made before it was sourced. */
   margin_source?: { house_type: string | null; source: string; period: string } | null;
   basis_maximum: number | null;
@@ -668,7 +672,8 @@ export type BidAdvice = {
     coverage: ComparablesCoverage;
     count: number;
     comparables_value: number | null;
-    maximum: number | null;
+    /** Only on older Verdicts whose model proposed the Maximumbod. */
+    maximum?: number | null;
   };
   /** How the Walk-away Maximum was derived; absent on Verdicts whose model proposed it. */
   derivation?: WalkAwayDerivation;

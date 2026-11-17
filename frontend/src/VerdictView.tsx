@@ -10,6 +10,7 @@ import {
   type VerdictError,
   type VerdictInput,
   type VerdictState,
+  type WalkAwayBasis,
   type WalkAwayDerivation,
   fetchVerdicts,
   isVerdictError,
@@ -509,7 +510,13 @@ type BasisLabels = {
   weak: string;
 };
 
-const BASIS_LABELS: Record<WalkAwayDerivation["basis"], BasisLabels> = {
+/** The basis of the Walk-away Maximum: stored on older Verdicts only, else the Expected Sale Price. */
+const basisOf = (derivation: WalkAwayDerivation): WalkAwayBasis => derivation.basis ?? "expected_sale_price";
+
+/** The premium over the basis; older Verdicts called it `margin`. */
+const premiumOf = (derivation: WalkAwayDerivation): number | null => derivation.premium ?? derivation.margin ?? null;
+
+const BASIS_LABELS: Record<WalkAwayBasis, BasisLabels> = {
   expected_sale_price: {
     line: "Verwachte verkoopprijs",
     noun: "verwachte verkoopprijs",
@@ -538,20 +545,21 @@ const BASIS_LABELS: Record<WalkAwayDerivation["basis"], BasisLabels> = {
 
 /** Said next to the Maximumbod, not tucked into "Hoe berekend": without comparables it is a guess. */
 function weakGroundingNote(derivation: WalkAwayDerivation): string {
-  return BASIS_LABELS[derivation.basis].weak;
+  return BASIS_LABELS[basisOf(derivation)].weak;
 }
 
-/** "Vraagprijs € 595.000 − € 6.000 Direct nodig + 5%: € 618.450": the basis, the Direct nodig
- * renovation cost taken off it, and its margin. */
+/** "Verwachte verkoopprijs € 595.000 − € 6.000 Direct nodig + 5%: € 618.450": the basis, the
+ * Direct nodig renovation cost taken off it, and its premium. */
 function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | null {
-  if (derivation.basis_maximum === null || derivation.margin === null) return null;
-  const basis = BASIS_LABELS[derivation.basis];
+  const premium = premiumOf(derivation);
+  if (derivation.basis_maximum === null || premium === null) return null;
+  const basis = BASIS_LABELS[basisOf(derivation)];
   const value = basis.value(advice);
   if (value == null) return null;
   const renovation = derivation.renovation_direct
     ? ` − ${euro.format(derivation.renovation_direct)} Direct nodig`
     : "";
-  return `${basis.line} ${euro.format(value)}${renovation} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
+  return `${basis.line} ${euro.format(value)}${renovation} + ${percent(premium)}:${euro.format(derivation.basis_maximum)}`;
 }
 
 const HOUSE_LABELS: Record<string, string> = {
@@ -565,16 +573,17 @@ const HOUSE_LABELS: Record<string, string> = {
 /** "Marge: gemiddeld overbod voor een tussenwoning (NVM …, 2e kwartaal 2026)". */
 function marginSourceLine(derivation: WalkAwayDerivation): string | null {
   const source = derivation.margin_source;
-  if (!source || derivation.margin === null) return null;
+  const premium = premiumOf(derivation);
+  if (!source || premium === null) return null;
   const house = source.house_type ? (HOUSE_LABELS[source.house_type] ?? source.house_type) : "alle woningen";
-  return `Marge ${percent(derivation.margin)}: gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
+  return `Marge ${percent(premium)}:gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
 }
 
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */
 function bindingLine(walkAwayMaximum: number, derivation: WalkAwayDerivation): string {
   const maximum = euro.format(walkAwayMaximum);
-  if (derivation.basis === "affordability") return `Maximumbod: de betaalruimte, ${maximum}.`;
-  const basis = BASIS_LABELS[derivation.basis].noun;
+  if (basisOf(derivation) === "affordability") return `Maximumbod: de betaalruimte, ${maximum}.`;
+  const basis = BASIS_LABELS[basisOf(derivation)].noun;
   return derivation.binding === "basis"
     ? `Maximumbod: de ${basis} plus marge, ${maximum}, onder de betaalruimte.`
     : `Maximumbod: de betaalruimte, ${maximum}, lager dan de ${basis} plus marge.`;

@@ -38,15 +38,15 @@ PROVENANCE_LEGEND = {
 
 
 class WalkAwayDerivation(TypedDict):
-    """The derived Walk-away Maximum and how: its basis (the Expected Sale Price), the Direct nodig
-    renovation cost taken off it, the premium over the rest and what that came to, which of basis
-    and affordability bound it, and whether it is weakly grounded. Without an Expected Sale Price
-    there is no maximum and everything else but the renovation cost is None."""
+    """The derived Walk-away Maximum and how: the Direct nodig renovation cost taken off the Expected
+    Sale Price, the premium over the rest and what that came to (`basis_maximum`), which of that and
+    affordability bound it, and whether it is weakly grounded. Without an Expected Sale Price there
+    is no maximum and everything else but the renovation cost is None. Older Verdicts stored a
+    `basis` (comparables, asking price or affordability) and called the premium `margin`."""
 
     walk_away_maximum: int | None
-    basis: Literal["expected_sale_price"] | None
     renovation_direct: int
-    margin: float | None
+    premium: float | None
     basis_maximum: int | None
     binding: Literal["basis", "affordability"] | None
     weakly_grounded: bool | None
@@ -170,9 +170,8 @@ def derive_walk_away_maximum(case: dict, premium: float) -> WalkAwayDerivation:
     if expected["value"] is None:
         return {
             "walk_away_maximum": None,
-            "basis": None,
             "renovation_direct": renovation_direct,
-            "margin": None,
+            "premium": None,
             "basis_maximum": None,
             "binding": None,
             "weakly_grounded": None,
@@ -182,9 +181,8 @@ def derive_walk_away_maximum(case: dict, premium: float) -> WalkAwayDerivation:
     binding: Literal["basis", "affordability"] = "basis" if basis_maximum < affordable else "affordability"
     return {
         "walk_away_maximum": basis_maximum if binding == "basis" else affordable,
-        "basis": "expected_sale_price",
         "renovation_direct": renovation_direct,
-        "margin": premium,
+        "premium": premium,
         "basis_maximum": basis_maximum,
         "binding": binding,
         "weakly_grounded": expected["weakly_grounded"],
@@ -423,7 +421,6 @@ def _bid_advice(
             "coverage": comparables["coverage"],
             "count": comparables["count"],
             "comparables_value": comparables["comparables_value"],
-            "maximum": None,
         },
         "derivation": {key: value for key, value in derivation.items() if key != "walk_away_maximum"},
         "guide_bid": guide_bid,

@@ -381,7 +381,6 @@ def test_direct_nodig_comes_off_the_weak_expected_sale_price_of_the_walk_away_ma
     assert advice["walk_away_maximum"] == 618_450
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM_AFTER_DAMP
     assert advice["derivation"]["renovation_direct"] == 6000
-    assert advice["derivation"]["basis"] == "expected_sale_price"
     assert advice["derivation"]["weakly_grounded"] is True
 
 
@@ -409,7 +408,6 @@ def test_direct_nodig_comes_off_the_strong_expected_sale_price_of_the_walk_away_
 
     # (608_000 x 1.046 - 6_000) x 1.05: comparables plus the average overbid for all homes
     assert advice["walk_away_maximum"] == 661_466
-    assert advice["derivation"]["basis"] == "expected_sale_price"
     assert advice["derivation"]["weakly_grounded"] is False
     assert advice["derivation"]["renovation_direct"] == 6000
 
