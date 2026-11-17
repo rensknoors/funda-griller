@@ -10,15 +10,15 @@ from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
-pytestmark = pytest.mark.usefixtures("woz_expected_sale_price")
+pytestmark = pytest.mark.usefixtures("price_at_asking")
 
 VERDICT = "/api/listings/80907644/verdict"
 
 # The typical household can pay at most 650_351 for the live Listing (asking 595_000, headroom 55_351).
 AFFORDABLE_MAXIMUM = 650_351
-# Without comparables the Expected Sale Price is the indexed WOZ value (589.691 in the shared
+# Without comparables the Expected Sale Price is the WOZ value (the asking price in the shared
 # fixture) and the Walk-away Maximum that plus 5%.
-WALK_AWAY_MAXIMUM = 619_176
+WALK_AWAY_MAXIMUM = 624_750
 
 
 def model_says(tier="consider", **overrides):

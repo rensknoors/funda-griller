@@ -40,10 +40,10 @@ def source_clients():
 
 
 @pytest.fixture
-def woz_expected_sale_price(source_clients):
-    """A WOZ value, so the Case has a (weakly grounded) Expected Sale Price: 550.000 at peildatum
-    2025-01 is about 589.700 in today's prices."""
-    source_clients["woz"].facts = [SourceFact(name="woz_value", value=550_000, as_of="2025-01-01")]
+def price_at_asking(source_clients):
+    """The Expected Sale Price (from the WOZ value) equals the asking price, so affordability,
+    headroom and monthly costs read as if assessed at the asking price."""
+    source_clients["woz"].at_asking_price = True
 
 
 @pytest.fixture

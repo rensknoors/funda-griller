@@ -13,7 +13,7 @@ from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
-pytestmark = pytest.mark.usefixtures("woz_expected_sale_price")
+pytestmark = pytest.mark.usefixtures("price_at_asking")
 
 EXPORT = "/api/listings/80907644/export.md"
 VERDICT = "/api/listings/80907644/verdict"
@@ -83,7 +83,7 @@ def test_a_full_case_with_a_verdict_exports_every_section_in_order(client, listi
     assert "Overwegen" in markdown
     assert "De woning past bij jullie wensen" in markdown
     assert "Openingsbod: € 585.000" in markdown
-    assert "Maximumbod: € 619.176" in markdown
+    assert "Maximumbod: € 624.750" in markdown
     assert "- Bouwkundige keuring" in markdown
     assert "2026-10-24T12:00:00+00:00" in markdown
     assert f"Promptversie Oordeel: {VERDICT_PROMPT_VERSION}" in markdown
@@ -216,7 +216,7 @@ def test_the_buyer_profile_part_is_anonymised(client, listing_provider, llm_clie
         assert f"  - {preference}" in markdown
     # The bids stay exact; the Walk-away Maximum here rests on the asking price, not affordability.
     assert "Openingsbod: € 585.000" in markdown
-    assert "Maximumbod: € 619.176" in markdown
+    assert "Maximumbod: € 624.750" in markdown
     assert "begrensd door de basis" in markdown
 
 
@@ -281,7 +281,7 @@ def test_without_the_profile_no_profile_or_affordability_figures_are_exported(cl
     assert "Reistijd naar Bestemming 1: 52 min met de auto" in markdown
     assert "maximum 30 min" not in markdown
     bid = markdown.split("## Biedadvies")[1]
-    assert "Openingsbod: € 585.000" in bid and "Maximumbod: € 619.176" in bid and "Financieringsvoorbehoud" in bid
+    assert "Openingsbod: € 585.000" in bid and "Maximumbod: € 624.750" in bid and "Financieringsvoorbehoud" in bid
 
 
 def test_an_affordability_bound_walk_away_maximum_is_said_in_words(client, listing_provider, llm_client):
@@ -410,8 +410,8 @@ def test_with_the_profile_the_direct_nodig_subtraction_shows_in_affordability_an
     assert "de verwachte verkoopprijs, min € 4.000 Direct nodig, plus 5%" in markdown
     assert "**Zwak onderbouwd**: de verwachte verkoopprijs rust op de WOZ-waarde" in markdown
     assert "Marge:" not in markdown
-    # (589_691 - 4_000) x 1.05
-    assert "Maximumbod: € 614.976" in markdown
+    # (595_000 - 4_000) x 1.05
+    assert "Maximumbod: € 620.550" in markdown
 
 
 def test_a_high_direct_nodig_flag_cites_its_midpoint_in_euros(client, listing_provider, settings, renovation):

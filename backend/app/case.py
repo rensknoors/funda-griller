@@ -128,7 +128,8 @@ def build_case(
             **asdict(
                 compute(
                     profile,
-                    snapshot.get("asking_price"),
+                    # The price the household is advised on, not the seller's asking price.
+                    expected_sale_price["value"],
                     energy_label,
                     rules,
                     levering,
@@ -146,9 +147,19 @@ def build_case(
         if profile
         else None
     )
-    flags = evaluate(
-        flag_rules, _rule_inputs(snapshot, facts, affordability, vs_comparables, renovation, profile, vs_woz), computed_at
-    )
+    inputs = _rule_inputs(snapshot, facts, affordability, vs_comparables, renovation, profile, vs_woz)
+    if expected_sale_price["value"] is not None:
+        inputs["expected_sale_price"] = {
+            "key": "expected_sale_price",
+            "value": expected_sale_price["value"],
+            "provenance": "computed",
+        }
+        inputs["expected_sale_price.strong"] = {
+            "key": "expected_sale_price_strong",
+            "value": not expected_sale_price["weakly_grounded"],
+            "provenance": "computed",
+        }
+    flags = evaluate(flag_rules, inputs, computed_at)
     return {
         "funda_id": funda_id,
         "built_from": {
@@ -182,7 +193,7 @@ def build_case(
         "affordability": affordability,
         "renovation_estimate": renovation,
         "flags": flags,
-        "hard_no": hard_no(flag_rules, profile.deal_breakers, flags) if profile else None,
+        "hard_no": hard_no(flag_rules, profile.deal_breakers, flags, inputs) if profile else None,
         "rules": rules_summary(rules, levering, rates, computed_at),
     }
 

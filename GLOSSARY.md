@@ -55,7 +55,7 @@ _Dutch UI_: **Oordeel**; the tiers are **Zeker kopen**, **Overwegen**, **Oversla
 _Avoid_: Score, grade, recommendation
 
 **Hard no**:
-The Verdict tier forced deterministically when the Case hits a deal-breaker from the Buyer Profile, before the LLM rates.
+The Verdict tier forced deterministically when the Case hits a deal-breaker from the Buyer Profile, before the LLM rates. A price deal-breaker ("te duur", "boven budget") only forces it when the Expected Sale Price is strongly grounded (comparables), not on a WOZ estimate; there the Flag stays a con for the model to weigh.
 _Dutch UI_: **Harde afwijzing**
 _Avoid_: Reject, blocked
 

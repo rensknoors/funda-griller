@@ -10,7 +10,7 @@ from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.pdf_fixtures import make_pdf
 from tests.profile_fixtures import typical_profile, well_off_profile
 
-pytestmark = pytest.mark.usefixtures("woz_expected_sale_price")
+pytestmark = pytest.mark.usefixtures("price_at_asking")
 
 CASE = "/api/listings/80907644/case"
 
@@ -372,8 +372,8 @@ def test_direct_nodig_comes_off_the_weak_expected_sale_price_of_the_walk_away_ma
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    # (589_691 - 6_000) x 1.05: the indexed WOZ value is the Expected Sale Price
-    assert advice["walk_away_maximum"] == 612_876
+    # (595_000 - 6_000) x 1.05: the WOZ value is the Expected Sale Price
+    assert advice["walk_away_maximum"] == 618_450
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM_AFTER_DAMP
     assert advice["derivation"]["renovation_direct"] == 6000
     assert advice["derivation"]["basis"] == "expected_sale_price"
@@ -416,7 +416,7 @@ def test_without_direct_nodig_items_the_maxima_are_unchanged(client, listing_pro
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    assert advice["walk_away_maximum"] == 619_176
+    assert advice["walk_away_maximum"] == 624_750
     assert advice["affordable_maximum"] == AFFORDABLE_MAXIMUM
     assert advice["derivation"]["renovation_direct"] == 0
 

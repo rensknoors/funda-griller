@@ -488,20 +488,21 @@ def consequences(draft: FinanceDraft, rules: Rules, levering: date, rates: Route
 
 def compute(
     profile: BuyerProfile,
-    asking_price: int | None,
+    price: int | None,
     energy_label: str | None,
     rules: Rules,
     levering: date,
     rates: RouteRates,
     renovation_direct: int = 0,
 ) -> Affordability:
-    """`rates` is `route_rates` for the profile, worked out once per Case. `renovation_direct` (the
+    """`price` is the price assessed (the Expected Sale Price in the Case, a bid in the Walk-away
+    Maximum's monthly costs); without one only the affordable maximum is worked out. `rates` is `route_rates` for the profile, worked out once per Case. `renovation_direct` (the
     Direct nodig midpoint of the house's Renovation Estimate) is set aside from the available funds
     before the affordable maximum is worked out."""
     capacity = _capacity(profile, energy_label, rules, rates)
     equity = home_equity(profile)
     affordable_maximum = _highest_price(profile, rules, levering, renovation_direct, capacity)
-    if asking_price is None:
+    if price is None:
         return Affordability(
             max_mortgage=capacity.maximum,
             energy_label_bonus=capacity.label_bonus,
@@ -517,13 +518,13 @@ def compute(
             single_bonus=capacity.single_bonus,
             debts=_debt_costs(profile, energy_label, rules, rates, capacity),
         )
-    share = _taxed_share(profile, asking_price, rules, levering)
+    share = _taxed_share(profile, price, rules, levering)
     # The route a lender would take; when none works, the cheapest one shows how far off it is.
-    purchase = _financed(profile, asking_price, rules, renovation_direct, share, capacity) or _routes(
-        profile, asking_price, rules, renovation_direct, share, capacity
+    purchase = _financed(profile, price, rules, renovation_direct, share, capacity) or _routes(
+        profile, price, rules, renovation_direct, share, capacity
     )[0][0]
     rate = rates.of(purchase.nhg).rate
-    gross, net = _monthly_costs(purchase.mortgage, rate, asking_price, rules)
+    gross, net = _monthly_costs(purchase.mortgage, rate, price, rules)
     return Affordability(
         max_mortgage=capacity.maximum,
         energy_label_bonus=capacity.label_bonus,
@@ -533,7 +534,7 @@ def compute(
         own_funds_shortfall=purchase.shortfall,
         monthly_cost=gross,
         monthly_cost_net=net,
-        headroom=affordable_maximum - asking_price,
+        headroom=affordable_maximum - price,
         affordable_maximum=affordable_maximum,
         renovation_direct=renovation_direct,
         nhg=purchase.nhg,

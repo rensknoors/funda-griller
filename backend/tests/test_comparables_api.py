@@ -199,7 +199,7 @@ def test_affordability_binds_the_walk_away_maximum_when_comparables_would_allow_
     [([comparable("101", 500_000, 125)], "thin"), ([], "none"), (None, "not_fetched")],
 )
 def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_the_woz_value(
-    client, listing_provider, source_clients, llm_client, woz_expected_sale_price, facts, coverage
+    client, listing_provider, source_clients, llm_client, price_at_asking, facts, coverage
 ):
     if facts is None:
         capture(client, listing_provider)
@@ -210,15 +210,15 @@ def test_without_sufficient_comparables_the_walk_away_maximum_rests_weakly_on_th
 
     advice = client.post(VERDICT).json()["bid_advice"]
 
-    # The Expected Sale Price is the indexed WOZ value, 589_691; 5% above that is 619_176. The thin
+    # The Expected Sale Price is the WOZ value, 595_000; 5% above that is 624_750. The thin
     # comparables value is not used.
-    assert advice["walk_away_maximum"] == 619_176
+    assert advice["walk_away_maximum"] == 624_750
     assert advice["comparables"]["coverage"] == coverage
     assert advice["derivation"] == {
         "basis": "expected_sale_price",
         "renovation_direct": 0,
         "margin": 0.05,
-        "basis_maximum": 619_176,
+        "basis_maximum": 624_750,
         "binding": "basis",
         "weakly_grounded": True,
     }
@@ -271,7 +271,7 @@ def test_a_walk_away_maximum_from_the_model_is_ignored(client, listing_provider,
 
 
 def test_an_opening_bid_above_the_derived_walk_away_maximum_is_rejected(
-    client, listing_provider, source_clients, llm_client, woz_expected_sale_price
+    client, listing_provider, source_clients, llm_client, price_at_asking
 ):
     with_comparables(client, listing_provider, source_clients, [comparable("101", 500_000, 125)])
     client.put("/api/buyer-profile", json=well_off_profile())
@@ -285,7 +285,7 @@ def test_an_opening_bid_above_the_derived_walk_away_maximum_is_rejected(
 
 
 def test_fetching_comparables_makes_an_earlier_verdict_out_of_date(
-    client, listing_provider, source_clients, llm_client, woz_expected_sale_price
+    client, listing_provider, source_clients, llm_client, price_at_asking
 ):
     capture(client, listing_provider)
     client.put("/api/buyer-profile", json=well_off_profile())
@@ -308,34 +308,6 @@ CHEAPER = [
     comparable("204", 330_000, 110),
     comparable("205", 390_000, 130),
 ]
-
-
-def flags_by_rule(case):
-    return {flag["rule_id"]: flag for flag in case["flags"]}
-
-
-def test_asking_far_above_sufficient_comparables_is_a_con(client, listing_provider, source_clients):
-    case = with_comparables(client, listing_provider, source_clients, CHEAPER).json()
-
-    flag = flags_by_rule(case)["ask_far_above_comparables"]
-    assert flag["class"] == "con"
-    assert {item["key"]: item["value"] for item in flag["evidence"]} == {
-        "asking_vs_comparables_percent": 30.5,
-        "threshold": 15,
-        "asking_price": 595_000,
-    }
-
-
-def test_thin_comparables_raise_no_overpricing_flag(client, listing_provider, source_clients):
-    case = with_comparables(client, listing_provider, source_clients, CHEAPER[:2]).json()
-
-    assert "ask_far_above_comparables" not in flags_by_rule(case)
-
-
-def test_asking_in_line_with_comparables_raises_no_overpricing_flag(client, listing_provider, source_clients):
-    case = with_comparables(client, listing_provider, source_clients, SEVERAL).json()
-
-    assert "ask_far_above_comparables" not in flags_by_rule(case)
 
 
 def houses(category_word, prices_per_m2, first_id=301):
