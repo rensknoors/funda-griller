@@ -279,15 +279,23 @@ def holds(condition: dict, facts: dict[str, dict]) -> list[list[dict]]:
     return [found for _, found in _CONDITIONS[condition["kind"]](condition, facts, _NO_RULES)]
 
 
+def _requirement_met(rule: dict, facts: dict[str, dict]) -> bool:
+    required = rule.get("hard_no_requires")
+    return required is None or bool(facts.get(required, {}).get("value"))
+
+
 # Condition kinds that raise one Flag per Buyer Profile deal-breaker they find hit.
 _DEAL_BREAKER_KINDS = frozenset({"deal_breaker_mentioned", "deal_breaker_energy_label"})
 
 
-def hard_no(rule_set: RuleSet, deal_breakers: list[str], flags: list[dict]) -> dict | None:
+def hard_no(
+    rule_set: RuleSet, deal_breakers: list[str], flags: list[dict], facts: dict[str, dict]
+) -> dict | None:
     """The first Buyer Profile deal-breaker a raised Flag hits, as a deterministic Hard no.
 
     A deal-breaker is hit by a Flag raised about it (a feature the Listing has, an energielabel it
-    names), or by any Flag from a rule one of whose `deal_breaker_aliases` it names as whole words.
+    names), or by any Flag from a rule one of whose `deal_breaker_aliases` it names as whole words. A rule with `hard_no_requires` forces a Hard no only while that fact is
+    true (a price deal-breaker needs a strongly grounded Expected Sale Price).
     """
     for deal_breaker in deal_breakers:
         about_it = {
@@ -297,6 +305,7 @@ def hard_no(rule_set: RuleSet, deal_breakers: list[str], flags: list[dict]) -> d
             rule["id"]
             for rule in rule_set.rules
             if any(names(deal_breaker, alias) for alias in rule.get("deal_breaker_aliases", ()))
+            and _requirement_met(rule, facts)
         }
         for flag in flags:
             if flag["id"] in about_it or flag["rule_id"] in named_rules:

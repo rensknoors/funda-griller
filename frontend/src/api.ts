@@ -35,6 +35,11 @@ export type Comparison = {
   energy_label: { value: string; official: boolean } | null;
   asking_vs_woz_percent: number | null;
   asking_vs_comparables_percent: number | null;
+  /** The Prijsstelling as a percentage: the asking price against the Expected Sale Price. */
+  asking_vs_expected_percent: number | null;
+  /** What the house is expected to sell for; null when it cannot be judged. */
+  expected_sale_price: number | null;
+  /** Betaalruimte above (+) or short of (−) the Expected Sale Price. */
   headroom: number | null;
   /** The Renovation Estimate's Direct nodig total. */
   renovation_direct: RenovationTotal;
@@ -340,9 +345,38 @@ export type Metrics = {
     provenance: "computed";
   } | null;
   asking_vs_comparables: AskingVsComparables;
+  expected_sale_price: ExpectedSalePrice;
+  /** Prijsstelling; null without an asking price or an Expected Sale Price. */
+  asking_vs_expected: AskingVsExpected | null;
   /** Koperprofiel commute destinations with no travel time for their current address (added, or
    * address changed since the last fetch): not judged until the commute Source is fetched again. */
   commute_coverage: { not_fetched: string[]; provenance: "computed" } | null;
+};
+
+/** What the house is expected to sell for, from evidence independent of its asking price: the
+ * comparables plus the average overbid (strong), else the indexed WOZ value (weak), else nothing. */
+export type ExpectedSalePrice = {
+  value: number | null;
+  basis: "comparables" | "woz" | null;
+  weakly_grounded: boolean | null;
+  overbid: { value: number; house_type: string | null; source: string; period: string } | null;
+  /** Interquartile range of the comparables; null on the WOZ basis. */
+  low: number | null;
+  high: number | null;
+  provenance: "computed";
+};
+
+export type Prijsstelling = "hoog ingezet" | "marktconform" | "laag ingezet";
+
+/** How the seller priced the house against its Expected Sale Price. Information only. */
+export type AskingVsExpected = {
+  asking_price: number;
+  expected_sale_price: number;
+  difference: number;
+  percent: number;
+  prijsstelling: Prijsstelling;
+  band: number;
+  provenance: "computed";
 };
 
 /** Coverage says plainly whether comparables were fetched and whether there are enough to lean on. */
@@ -376,7 +410,7 @@ export type Affordability = {
    * not counted in the other figures. */
   nhg_energy_measures: number;
   kosten_koper: { transfer_tax: number; fixed_costs: number; nhg_fee: number; total: number } | null;
-  /** What the lender lends at the asking price: at most the price itself. */
+  /** What the lender lends at the Expected Sale Price: at most the price itself. */
   mortgage_needed: number | null;
   /** What own funds lack for kosten koper and renovation, since the mortgage stops at the price. */
   own_funds_shortfall: number | null;
@@ -384,10 +418,11 @@ export type Affordability = {
   nhg: boolean | null;
   /** Where that rate came from: the Case's `rules.rates`. */
   mortgage_rate: number | null;
-  /** Gross annuity of the mortgage needed at the asking price. */
+  /** Gross annuity of the mortgage needed at the Expected Sale Price. */
   monthly_cost: number | null;
   /** The same, net of hypotheekrenteaftrek and eigenwoningforfait in the first year. */
   monthly_cost_net: number | null;
+  /** Affordable maximum minus the Expected Sale Price; null without one. */
   headroom: number | null;
   /** Highest purchase price the household can pay, kosten koper included, after setting aside
    * `renovation_direct`. */
@@ -578,17 +613,21 @@ export async function rerunObservations(fundaId: string): Promise<Case> {
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
 export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
 
+export type WalkAwayBasis = "expected_sale_price" | "comparables" | "asking_price" | "affordability";
+
 /**
- * The Walk-away Maximum is the lower of the betaalruimte and its basis plus a margin. The basis is
- * the comparables value when they are sufficient, else the asking price; with neither, the
- * betaalruimte alone. Anything but comparables is weakly grounded. The Direct nodig renovation
- * cost comes off the basis first.
+ * The Walk-away Maximum is the lower of the betaalruimte and the Expected Sale Price less the
+ * Direct nodig renovation cost, plus a premium. Older Verdicts stored their basis (comparables,
+ * asking price or the betaalruimte alone) and called the premium `margin`.
  */
 export type WalkAwayDerivation = {
-  basis: "comparables" | "asking_price" | "affordability";
+  /** Only on older Verdicts; absent means the Expected Sale Price. */
+  basis?: WalkAwayBasis;
   /** Absent on Verdicts made before the Renovation Estimate. */
   renovation_direct?: number;
-  margin: number | null;
+  premium?: number | null;
+  /** The premium on older Verdicts. */
+  margin?: number | null;
   /** Where an asking price margin comes from; absent on Verdicts made before it was sourced. */
   margin_source?: { house_type: string | null; source: string; period: string } | null;
   basis_maximum: number | null;
@@ -596,9 +635,36 @@ export type WalkAwayDerivation = {
   weakly_grounded: boolean;
 };
 
+/** One component of the Guide Bid's discount (Prijsstelling, days on the market, price reduction):
+ * its values and discount. Older Verdicts carry the words as `label` ("130 dagen") instead. */
+export type GuideBidComponent = {
+  discount: number;
+  label?: string;
+  prijsstelling?: Prijsstelling;
+  days?: number;
+  reduced?: boolean;
+  first_asking_price?: number | null;
+  asking_price?: number | null;
+};
+
+/** The Guide Bid (Richtbod) the Case derived; `breakdown` has one entry per discount component. */
+export type GuideBid = {
+  value: number;
+  discount: number;
+  /** The components add up to more than the configured maximum; absent on older Verdicts. */
+  discount_capped?: boolean;
+  /** False without a price history: the tempo did not count. Absent on Verdicts made before the tempo signal. */
+  tempo_known?: boolean;
+  breakdown: Record<string, GuideBidComponent>;
+  weakly_grounded: boolean;
+  capped_by: "asking_price" | "walk_away_maximum" | null;
+  band: number;
+};
+
 export type BidAdvice = {
-  opening_bid: number;
-  walk_away_maximum: number;
+  /** Null (with the Walk-away Maximum) when there is no Expected Sale Price: conditions only. */
+  opening_bid: number | null;
+  walk_away_maximum: number | null;
   conditions: string[];
   affordable_maximum: number;
   /** Absent on Verdicts made before comparables existed. */
@@ -606,12 +672,24 @@ export type BidAdvice = {
     coverage: ComparablesCoverage;
     count: number;
     comparables_value: number | null;
-    maximum: number | null;
+    /** Only on older Verdicts whose model proposed the Maximumbod. */
+    maximum?: number | null;
   };
   /** How the Walk-away Maximum was derived; absent on Verdicts whose model proposed it. */
   derivation?: WalkAwayDerivation;
+  /** Absent on Verdicts made before the Guide Bid; null without one (no Walk-away Maximum, or sold under reservation). */
+  guide_bid?: GuideBid | null;
+  /** The model's reason when its Openingsbod differs from the Richtbod. */
+  guide_bid_deviation_reason?: string | null;
+  /** Verkocht onder voorbehoud: conditions only. */
+  sold_under_reservation?: boolean;
   asking_price: number | null;
-  monthly_cost_at_asking_price: number | null;
+  /** The Expected Sale Price the advice rests on; absent on Verdicts made before it existed. */
+  expected_sale_price?: number | null;
+  monthly_cost_at_expected_sale_price?: number | null;
+  monthly_cost_net_at_expected_sale_price?: number | null;
+  /** Older Verdicts: at the asking price, replaced by the Expected Sale Price figures. */
+  monthly_cost_at_asking_price?: number | null;
   monthly_cost_at_walk_away_maximum: number | null;
   /** Net of hypotheekrenteaftrek; absent on Verdicts made before net costs existed. */
   monthly_cost_net_at_asking_price?: number | null;

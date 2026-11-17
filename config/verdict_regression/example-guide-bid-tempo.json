@@ -1,0 +1,84 @@
+{
+  "expected_tier": "consider",
+  "expected_opening_bid": [
+    485000,
+    515000
+  ],
+  "note": "PLACEHOLDER: fictional Listing and expected tier. On the market for 137 days (since 10 jun 2026) with a price reduction from 565.000 to 535.000, marktconform against the expected sale price (weak WOZ basis). The Guide Bid takes 2,5% for the Prijsstelling, 2% for over 120 days and 1% for the price reduction off the expected sale price: Richtbod 500.000, opening bid within 3% of it. Replace with a real Listing you have judged yourself.",
+  "as_of": "2026-10-25T12:00:00+00:00",
+  "snapshot": {
+    "funda_id": "example-guide-bid-tempo",
+    "url": "https://www.funda.nl/detail/koop/voorbeeld/example-guide-bid-tempo/0/",
+    "raw_status": "Beschikbaar",
+    "status": "available",
+    "entry": "manual",
+    "fetched_at": "2026-10-25T09:00:00+00:00",
+    "address": "Voorbeeldstraat 2",
+    "city": "Voorbeeld",
+    "asking_price": 535000,
+    "living_area": 118,
+    "plot_area": 150,
+    "rooms": 4,
+    "bedrooms": 3,
+    "construction_year": 1965,
+    "energy_label": "C",
+    "description": "Gerenoveerde jaren-zestigwoning met tuin.",
+    "price_history": [
+      {
+        "date": "10 jun 2026",
+        "price": 565000
+      },
+      {
+        "date": "4 jan 2019",
+        "price": 345000
+      }
+    ]
+  },
+  "source_runs": {
+    "woz": {
+      "attempted_at": "2026-10-25T09:00:00+00:00",
+      "outcome": "succeeded",
+      "reason": null,
+      "facts": [
+        {
+          "name": "woz_value",
+          "value": 520000,
+          "as_of": "2026-01-01"
+        }
+      ]
+    }
+  },
+  "buyer_profile": {
+    "household": [
+      {
+        "role": "adult",
+        "birth_date": "1988-04-12"
+      },
+      {
+        "role": "adult",
+        "birth_date": "1990-09-30"
+      },
+      {
+        "role": "child",
+        "birth_date": "2020-01-15"
+      }
+    ],
+    "gross_annual_income": 95000,
+    "assets": {
+      "savings": 40000,
+      "investments": 15000
+    },
+    "current_home": {
+      "value": 400000,
+      "outstanding_mortgage": 220000,
+      "selling_costs": 8000
+    },
+    "must_haves": [
+      "tuin"
+    ],
+    "nice_to_haves": [],
+    "deal_breakers": [],
+    "commute_destinations": [],
+    "renovation_tolerance": 3
+  }
+}

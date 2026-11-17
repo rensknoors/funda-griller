@@ -66,10 +66,25 @@ def answer(tier):
     }
 
 
+def answer_per_case(tier):
+    """The model's answer, with conditions only when the Case has no Expected Sale Price (and so no
+    Walk-away Maximum): the snapshots in these sets carry no WOZ value or comparables."""
+
+    def rate(case, _profile):
+        said = answer(tier)
+        if said["bid_advice"] and case["walk_away"]["walk_away_maximum"] is None:
+            said["bid_advice"] = {"conditions": said["bid_advice"]["conditions"]}
+        elif said["bid_advice"] and case["guide_bid"]:
+            said["bid_advice"]["opening_bid"] = case["guide_bid"]["value"]
+        return said
+
+    return rate
+
+
 def test_prints_expected_versus_actual_per_listing_and_the_agreement(settings, llm_client, regression_set):
     regression_set("holtum-agrees", entry("consider"))
     regression_set("holtum-disagrees", entry("must_buy"))
-    llm_client.verdict = answer("consider")
+    llm_client.verdict = answer_per_case("consider")
 
     code, output = run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
 
@@ -77,6 +92,30 @@ def test_prints_expected_versus_actual_per_listing_and_the_agreement(settings, l
     assert any("holtum-agrees" in line and "consider" in line and "OK" in line for line in lines)
     assert any("holtum-disagrees" in line and "must_buy" in line and "consider" in line and "DIFF" in line for line in lines)
     assert "1/2" in output
+    assert code == 1
+
+
+WOZ_RUN = {
+    "woz": {
+        "attempted_at": "2026-10-20T09:00:00+00:00",
+        "outcome": "succeeded",
+        "reason": None,
+        "facts": [{"name": "woz_value", "value": 595_000, "as_of": "2026-01-01"}],
+    }
+}
+
+
+def test_an_entry_can_expect_the_opening_bid_in_a_range(settings, llm_client, regression_set):
+    # The model opens at the Guide Bid (marktconform, WOZ basis).
+    regression_set("bid-inside", entry("consider", source_runs=WOZ_RUN, expected_opening_bid=[550_000, 650_000]))
+    regression_set("bid-outside", entry("consider", source_runs=WOZ_RUN, expected_opening_bid=[100_000, 200_000]))
+    llm_client.verdict = answer_per_case("consider")
+
+    code, output = run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
+
+    lines = output.splitlines()
+    assert any("OK" in line and "bid-inside" in line for line in lines)
+    assert any("DIFF" in line and "bid-outside" in line and "opening bid" in line for line in lines)
     assert code == 1
 
 
@@ -95,7 +134,7 @@ def test_results_record_the_model_rule_version_and_prompt_version(tmp_path, sett
     rules.write_text("version = 7\n")
     settings = settings.model_copy(update={"flag_rules_path": rules, "verdict_model": "gemini-test-model"})
     regression_set("holtum", entry("consider"))
-    llm_client.verdict = answer("consider")
+    llm_client.verdict = answer_per_case("consider")
 
     code, output = run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
 
@@ -188,13 +227,39 @@ def test_adding_an_unknown_listing_fails(settings, llm_client, regression_set):
 
 
 def test_the_shipped_set_is_well_formed(settings, llm_client):
-    llm_client.verdict = answer("consider")
+    llm_client.verdict = answer_per_case("consider")
 
     code, output = run(settings, llm_client, "run", "--yes")
 
     assert "ERROR" not in output
     total = int(output.split("Agreement: ")[1].split("/")[1].split()[0])
     assert total >= 3
+
+
+def test_the_shipped_tempo_entry_counts_its_time_on_the_market_and_price_reduction(settings, llm_client):
+    llm_client.verdict = answer_per_case("consider")
+
+    _, output = run(settings, llm_client, "run", "--yes")
+
+    sent = next(case for case, _ in llm_client.rate_calls if case["funda_id"] == "example-guide-bid-tempo")
+    breakdown = sent["guide_bid"]["breakdown"]
+    assert breakdown["days_on_market"]["days"] > 120
+    assert breakdown["days_on_market"]["discount"] == 0.02
+    assert breakdown["price_reduction"]["discount"] == 0.01
+    # The model opens at the Guide Bid, so the entry's expected opening-bid range holds it.
+    assert next(line for line in output.splitlines() if "example-guide-bid-tempo" in line).count("OK") == 1
+
+
+def test_the_shipped_laag_ingezet_entry_opens_above_the_asking_price(settings, llm_client):
+    llm_client.verdict = answer_per_case("consider")
+
+    _, output = run(settings, llm_client, "run", "--yes")
+
+    sent = next(case for case, _ in llm_client.rate_calls if case["funda_id"] == "example-guide-bid-laag-ingezet")
+    assert sent["guide_bid"]["value"] > sent["metrics"]["asking_vs_expected"]["asking_price"]
+    assert sent["guide_bid"]["capped_by"] is None
+    # The model opens at the Guide Bid, so the entry's expected opening-bid range holds it.
+    assert next(line for line in output.splitlines() if "example-guide-bid-laag-ingezet" in line).count("OK") == 1
 
 
 ERFPACHT_DOCUMENT = {

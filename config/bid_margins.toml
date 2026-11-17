@@ -1,6 +1,7 @@
-# How far above the asking price the Walk-away Maximum may go when it rests on the asking price
-# (too few comparables): the average overbid for the house's soort woning. Bump `version` on any
-# change: the Case records it, so Verdicts built on the old table become Achterhaald.
+# The asking-to-sale correction for comparables: comparables carry asking prices, so the average
+# overbid for the house's soort woning is added to their value to give the Expected Sale Price. It
+# is not a margin above the house's own asking price. Bump `version` on any change: the Case
+# records it, so Verdicts built on the old table become Achterhaald.
 #
 # Source: NVM, Marktoverzicht Nederland 2e kwartaal 2026, gemiddeld percentage boven de vraagprijs
 # per woningtype, as tabled by openwoning.nl (checked 2026-11-09). SECONDARY: NVM's own quarterly

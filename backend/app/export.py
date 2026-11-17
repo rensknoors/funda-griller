@@ -20,7 +20,7 @@ from datetime import datetime
 
 from app.affordability import RouteRates
 from app.buyer_profile import reduce_profile
-from app.case import VersionedProfile
+from app.case import Prijsstelling, VersionedProfile
 from app.house_type import LABELS
 
 # Dutch names of the kinds of debt in the Buyer Profile.
@@ -155,8 +155,10 @@ def _household_amounts(export: "ExportInput") -> dict[int, int]:
     amounts = {abs(a): AMOUNT_STEP for a in euros if a} | {abs(a): MONTHLY_STEP for a in monthly if a}
     if export.with_profile and advice:
         amounts.pop(advice["walk_away_maximum"], None)
-    elif advice and (advice.get("derivation") or {}).get("binding") == "affordability":
+    elif advice and advice["walk_away_maximum"] is not None and (advice.get("derivation") or {}).get("binding") == "affordability":
         amounts |= {advice["walk_away_maximum"]: AMOUNT_STEP, advice["opening_bid"]: AMOUNT_STEP}
+        if advice.get("guide_bid"):
+            amounts[advice["guide_bid"]["value"]] = AMOUNT_STEP
     return amounts
 
 
@@ -208,7 +210,12 @@ def _yes_no(value: object) -> str:
     return "ja" if value else "nee"
 
 
-STATUS_LABELS = {"available": "Beschikbaar", "negotiations": "Onder bod", "sold": "Verkocht"}
+STATUS_LABELS = {
+    "available": "Beschikbaar",
+    "negotiations": "Onder bod",
+    "sold_under_reservation": "Verkocht onder voorbehoud",
+    "sold": "Verkocht",
+}
 TIER_LABELS = {
     "must_buy": "Zeker kopen",
     "consider": "Overwegen",
@@ -400,7 +407,7 @@ def preamble(export: ExportInput) -> list[str]:
         "- Signaal = Flag (Pluspunt = pro, Minpunt = con, Risico = risk)",
         "- Vergelijkbare woning = Comparable (Dun = thin)",
         "- Oordeel = Verdict (Zeker kopen = Must buy, Overwegen = Consider, Overslaan = Skip, Harde afwijzing = Hard no)",
-        "- Biedadvies = Bid Advice (Openingsbod = opening bid, Maximumbod = Walk-away Maximum, Voorwaarden = conditions)",
+        "- Biedadvies = Bid Advice (Openingsbod = opening bid, Richtbod = Guide Bid, Maximumbod = Walk-away Maximum, Voorwaarden = conditions)",
         "- Verbouwingsraming = Renovation Estimate (Direct nodig, Binnen 5 jaar, Optioneel)",
         "- Koperprofiel = Buyer Profile",
         "- Verouderd = Stale (een feit); Achterhaald = Out of date (een Oordeel of Dossier)",
@@ -542,6 +549,7 @@ def metrics(export: ExportInput) -> list[str]:
         f"- Vraagprijs t.o.v. vergelijkbaar: {percent} ({vs['count']} vergelijkbare woningen, "
         f"dekking {COVERAGE_LABELS.get(vs['coverage'], vs['coverage'])}{detail})"
     )
+    lines += _expected_sale_price_lines(case["metrics"])
     check = case["metrics"]["energy_label_check"]
     if check:
         lines.append(
@@ -551,6 +559,33 @@ def metrics(export: ExportInput) -> list[str]:
     lines += _commute_lines(export, anonymiser)
     if export.with_profile and case["affordability"]:
         lines += _affordability_lines(case["affordability"])
+    return lines
+
+
+def _expected_sale_price_lines(metrics: dict) -> list[str]:
+    """What the house is expected to sell for, how that was reached, and how the seller priced it
+    against it (Prijsstelling). House figures, so exact."""
+    expected = metrics["expected_sale_price"]
+    if expected["value"] is None:
+        return ["- Verwachte verkoopprijs: onbekend (haal vergelijkbare woningen op)"]
+    if expected["basis"] == "comparables":
+        spread = f"bandbreedte {_range(expected['low'], expected['high'])}; "
+        count = metrics["asking_vs_comparables"]["count"]
+        basis = f"op basis van {count} vergelijkbare woningen, incl. {_number(round(expected['overbid']['value'] * 100, 1))}% gemiddeld overbod"
+    else:
+        woz = metrics["asking_vs_woz"]
+        spread = ""
+        basis = "op basis van de WOZ-waarde" + (" naar vandaag" if woz and woz["indexed"] else "") + "; zwak onderbouwd"
+    lines = [f"- Verwachte verkoopprijs: {euro(expected['value'])} ({spread}{basis})"]
+    prijsstelling = metrics["asking_vs_expected"]
+    if prijsstelling:
+        percent = prijsstelling["percent"]
+        gap = (
+            "gelijk aan"
+            if percent == 0
+            else f"{_number(abs(percent))}% {'boven' if percent > 0 else 'onder'}"
+        )
+        lines.append(f"- Prijsstelling: vraagprijs {gap} verwachte verkoopprijs: {prijsstelling['prijsstelling']}")
     return lines
 
 
@@ -584,15 +619,15 @@ def _affordability_lines(affordability: dict) -> list[str]:
         + _after_renovation(affordability.get("renovation_direct", 0)),
     ]
     if affordability["headroom"] is not None:
-        lines.append(f"  - Ruimte onder het betaalbare maximum bij de vraagprijs: {rounded_euro(affordability['headroom'])}")
+        lines.append(f"  - Ruimte onder het betaalbare maximum bij de verwachte verkoopprijs: {rounded_euro(affordability['headroom'])}")
     if affordability["mortgage_needed"] is not None:
-        lines.append(f"  - Benodigde hypotheek bij de vraagprijs: {rounded_euro(affordability['mortgage_needed'])}")
+        lines.append(f"  - Benodigde hypotheek bij de verwachte verkoopprijs: {rounded_euro(affordability['mortgage_needed'])}")
     if affordability["monthly_cost"] is not None:
         lines.append(
-            f"  - Maandlasten bij de vraagprijs: {_net_and_gross(affordability.get('monthly_cost_net'), affordability['monthly_cost'])}"
+            f"  - Maandlasten bij de verwachte verkoopprijs: {_net_and_gross(affordability.get('monthly_cost_net'), affordability['monthly_cost'])}"
         )
     if affordability["kosten_koper"]:
-        lines.append(f"  - Kosten koper bij de vraagprijs: {rounded_euro(affordability['kosten_koper']['total'])}")
+        lines.append(f"  - Kosten koper bij de verwachte verkoopprijs: {rounded_euro(affordability['kosten_koper']['total'])}")
     if affordability.get("debts"):
         lines.append("  - Schulden (toetslast, en wat ze aan leenruimte kosten):")
         lines += [
@@ -767,27 +802,135 @@ def bid_advice(export: ExportInput) -> list[str]:
     lines = ["## Biedadvies", ""]
     if advice is None:
         return [*lines, "Geen Biedadvies bij dit Oordeel." if current else "Geen Biedadvies: er is nog geen Oordeel."]
+    if advice.get("sold_under_reservation"):
+        bids = ["- Verkocht onder voorbehoud: geen Openingsbod of Richtbod, alleen voorwaarden."]
+    elif advice["walk_away_maximum"] is not None:
+        bids = [
+            f"- Verwachte verkoopprijs: {euro(advice['expected_sale_price'])}",
+            f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}"
+            + _above_asking(advice, _shown_amount(advice, "opening_bid", export.with_profile)),
+            *_richtbod_line(advice, export),
+            f"- Maximumbod: {_bid(advice, 'walk_away_maximum', export.with_profile)}",
+        ]
+    else:
+        bids = ["- Geen Maximumbod: haal vergelijkbare woningen op voor een Maximumbod."]
     lines += [
-        f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}",
-        f"- Maximumbod: {_bid(advice, 'walk_away_maximum', export.with_profile)}",
+        *bids,
         "- Voorwaarden:",
         *[f"  - {export.anonymiser.scrub_text(condition)}" for condition in advice["conditions"]],
     ]
-    return lines + (_derivation(advice) if export.with_profile else [])
+    guide_bid = advice.get("guide_bid")
+    if guide_bid:
+        lines += _guide_bid_breakdown(guide_bid)
+    return lines + (_derivation(advice) if export.with_profile and advice["walk_away_maximum"] is not None else [])
+
+
+def _richtbod_line(advice: dict, export: ExportInput) -> list[str]:
+    """The Richtbod, only when the Openingsbod differs from it, with the model's reason. Without the
+    profile it is rounded down like the bids when it is capped at an affordability-bound Maximumbod
+    (that cap is the household's affordable maximum)."""
+    guide_bid = advice.get("guide_bid")
+    if not guide_bid or guide_bid["value"] == advice["opening_bid"]:
+        return []
+    amount = guide_bid["value"]
+    binding = (advice.get("derivation") or {}).get("binding")
+    if export.with_profile or not (binding == "affordability" and guide_bid["capped_by"] == "walk_away_maximum"):
+        shown = euro(amount)
+    else:
+        amount = amount // AMOUNT_STEP * AMOUNT_STEP
+        shown = f"{euro(amount)} (afgerond)"
+    reason = advice.get("guide_bid_deviation_reason")
+    return [
+        f"- Richtbod: {shown}"
+        + _above_asking(advice, amount)
+        + (f" (afwijking: {export.anonymiser.scrub_text(reason)})" if reason else "")
+    ]
+
+
+def _above_asking(advice: dict, amount: int) -> str:
+    """" (4,2% boven de vraagprijs: laag ingezet, reken op overbieden)" when a bid lies above the
+    asking price, so the buyer sees it plainly; empty otherwise."""
+    asking_price = advice.get("asking_price")
+    if not asking_price or amount <= asking_price:
+        return ""
+    percent = _number(round((amount - asking_price) / asking_price * 100, 1))
+    laag = _prijsstelling(advice) == Prijsstelling.LAAG_INGEZET
+    return f" ({percent}% boven de vraagprijs" + (": laag ingezet, reken op overbieden)" if laag else ")")
+
+
+def _prijsstelling(advice: dict) -> Prijsstelling | None:
+    """The Prijsstelling the Guide Bid was derived from; older Verdicts stored it as a `label`."""
+    component = ((advice.get("guide_bid") or {}).get("breakdown") or {}).get("prijsstelling") or {}
+    value = component.get("prijsstelling", component.get("label"))
+    return Prijsstelling(value) if value in {p.value for p in Prijsstelling} else None
+
+
+DISCOUNT_COMPONENTS = {
+    "prijsstelling": "Prijsstelling",
+    "days_on_market": "Dagen te koop",
+    "price_reduction": "Prijsverlaging",
+}
+CAPS = {
+    "asking_price": "begrensd door de vraagprijs",
+    "walk_away_maximum": "begrensd door het Maximumbod",
+}
+
+
+def _guide_bid_breakdown(guide_bid: dict) -> list[str]:
+    """How the Richtbod came about: one line per discount component, so a new component only adds an entry."""
+    lines = ["", "### Hoe het Richtbod is berekend", ""]
+    for key, component in guide_bid["breakdown"].items():
+        label = DISCOUNT_COMPONENTS.get(key, key)
+        detail = _component_detail(key, component)
+        detail = f": {detail}" if detail else ""
+        lines.append(f"- {label}{detail}, {_number(round(component['discount'] * 100, 1))}% korting op de verwachte verkoopprijs")
+    # Absent on Verdicts made before the tempo signal.
+    if guide_bid.get("tempo_known") is False:
+        lines.append("- Tempo onbekend: geen prijshistorie, dus geen korting voor dagen te koop of prijsverlaging")
+    capped = " (begrensd op het maximum)" if guide_bid.get("discount_capped") else ""
+    lines.append(f"- Samen {_number(round(guide_bid['discount'] * 100, 1))}% korting{capped}, naar beneden afgerond")
+    if guide_bid["capped_by"]:
+        lines.append(f"- Richtbod {CAPS[guide_bid['capped_by']]}")
+    if guide_bid["weakly_grounded"]:
+        lines.append("- **Zwak onderbouwd**: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.")
+    return lines
+
+
+def _component_detail(key: str, component: dict) -> str | None:
+    """A discount component in words: "hoog ingezet", "130 dagen", "van € 625.000 naar € 595.000".
+    Older Verdicts stored the words as `label`."""
+    if "label" in component:
+        return component["label"]
+    if key == "prijsstelling":
+        return Prijsstelling(component["prijsstelling"]).value
+    if key == "days_on_market":
+        return f"{component['days']} dagen"
+    if key == "price_reduction":
+        if not component["reduced"]:
+            return "geen"
+        return f"van {euro(component['first_asking_price'])} naar {euro(component['asking_price'])}"
+    return None
+
+
+def _shown_amount(advice: dict, key: str, with_profile: bool) -> int:
+    """The amount `_bid` shows, so a percentage off it gives nothing more away."""
+    amount = advice[key]
+    if with_profile or (advice.get("derivation") or {}).get("binding") != "affordability":
+        return amount
+    return amount // AMOUNT_STEP * AMOUNT_STEP
 
 
 def _bid(advice: dict, key: str, with_profile: bool) -> str:
     """Exact, except without the profile when affordability binds: the Maximumbod is then the
     household's affordable maximum, and the Openingsbod often sits a fixed step below it, so both
     are rounded down."""
-    amount = advice[key]
-    binding = (advice.get("derivation") or {}).get("binding")
-    if with_profile or binding != "affordability":
-        return euro(amount)
-    return f"{euro(amount // AMOUNT_STEP * AMOUNT_STEP)} (afgerond)"
+    if with_profile or (advice.get("derivation") or {}).get("binding") != "affordability":
+        return euro(advice[key])
+    return f"{euro(_shown_amount(advice, key, with_profile))} (afgerond)"
 
 
 BASES = {
+    "expected_sale_price": "de verwachte verkoopprijs",
     "comparables": "wat de vergelijkbare woningen de woning waard maken",
     "asking_price": "de vraagprijs (vergelijkbare woningen dun of ontbrekend)",
     "affordability": "alleen de betaalbaarheid (geen vergelijkbare woningen en geen vraagprijs)",
@@ -801,28 +944,25 @@ def _derivation(advice: dict) -> list[str]:
     lines = ["", "### Hoe het Maximumbod is berekend", ""]
     if derivation is None:
         return [*lines, "Afleiding niet bewaard bij dit oudere Oordeel."]
+    # Older Verdicts stored their basis and called the premium `margin`.
+    basis = BASES[derivation.get("basis", "expected_sale_price")]
+    premium = derivation.get("premium", derivation.get("margin"))
     if derivation["basis_maximum"] is not None:
         renovation_direct = derivation.get("renovation_direct") or 0
         less = f", min {euro(renovation_direct)} Direct nodig" if renovation_direct else ""
         lines.append(
-            f"- Basis: {BASES[derivation['basis']]}{less}, plus {_number(round(derivation['margin'] * 100, 1))}% "
+            f"- Basis: {basis}{less}, plus {_number(round(premium * 100, 1))}% "
             f"= {euro(derivation['basis_maximum'])}"
         )
     else:
-        lines.append(f"- Basis: {BASES[derivation['basis']]}")
-    if source := derivation.get("margin_source"):
-        house = LABELS.get(source["house_type"]) if source["house_type"] else None
-        lines.append(
-            f"- Marge: {_number(round(derivation['margin'] * 100, 1))}% is het gemiddelde overbod voor "
-            f"{f'een {house}' if house else 'alle woningen'} ({source['source']}, {source['period']})"
-        )
+        lines.append(f"- Basis: {basis}")
     lines.append(
         "- Het Maximumbod is **begrensd door betaalbaarheid**: wat het huishouden kan betalen ligt lager dan de basis."
         if derivation["binding"] == "affordability"
         else "- Het Maximumbod is begrensd door de basis; de betaalbaarheid ligt hoger."
     )
     if derivation["weakly_grounded"]:
-        lines.append("- **Zwak onderbouwd**: niet gebaseerd op voldoende vergelijkbare woningen.")
+        lines.append("- **Zwak onderbouwd**: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.")
     if advice.get("monthly_cost_at_walk_away_maximum") is not None:
         lines.append(
             "- Maandlasten bij het Maximumbod: "

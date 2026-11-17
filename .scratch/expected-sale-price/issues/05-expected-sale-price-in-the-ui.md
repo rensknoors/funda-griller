@@ -4,10 +4,10 @@
 
 **Blocked by:** 02, 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Dossier block per spec
-- [ ] List, cards and sort key renamed and fed by the new headroom
-- [ ] Biedadvies monthly costs at the Expected Sale Price; conditions-only state without one
-- [ ] Markdown export carries Verwachte verkoopprijs and Prijsstelling
-- [ ] e2e: Dossier shows the block; list sorts by the new headroom; conditions-only Biedadvies
+- [x] Dossier block per spec
+- [x] List, cards and sort key renamed and fed by the new headroom
+- [x] Biedadvies monthly costs at the Expected Sale Price; conditions-only state without one
+- [x] Markdown export carries Verwachte verkoopprijs and Prijsstelling
+- [x] e2e: Dossier shows the block; list sorts by the new headroom; conditions-only Biedadvies

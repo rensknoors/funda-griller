@@ -30,22 +30,26 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   await expect(tier.getByText("Overwegen", { exact: true })).toBeVisible();
   const advies = page.getByRole("region", { name: "Biedadvies" });
   const bedragen = advies.getByRole("group", { name: "Bedragen" });
-  await expect(bedragen.getByText("Openingsbod")).toBeVisible();
-  await expect(bedragen.getByText("€ 580.000")).toBeVisible();
-  // No vergelijkbare woningen fetched: the Maximumbod is the vraagprijs plus NVM's 4,6% average overbid,
-  // and says it is weak.
-  await expect(bedragen.getByText("€ 622.370", { exact: true })).toBeVisible();
+  await expect(bedragen.getByText("Openingsbod", { exact: true })).toBeVisible();
+  // No vergelijkbare woningen fetched: the verwachte verkoopprijs is the WOZ-waarde in today's prices
+  // (€ 420.289) and the Maximumbod that plus 5%, and says it is weak. The fake model opens € 1.000 above the
+  // Richtbod (hoog ingezet: 6% off), so the Richtbod shows with the model's reason.
+  await expect(bedragen.getByText("€ 441.303", { exact: true })).toBeVisible();
+  await expect(bedragen.getByText("€ 396.000", { exact: true })).toBeVisible();
+  await expect(bedragen.getByText(/Richtbod\s€\s395\.000: Vocht in de kelder\./)).toBeVisible();
   // The scale above draws the same bid as one stretch.
-  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 580.000, Maximumbod € 622.370", { exact: false })).toBeAttached();
-  await expect(advies.getByText(/Zwak onderbouwd: te weinig vergelijkbare woningen/)).toBeVisible();
+  await expect(advies.getByRole("figure").getByText("Biedruimte: Openingsbod € 396.000, Maximumbod € 441.303", { exact: false })).toBeAttached();
+  await expect(advies.getByRole("figure").getByText("Verwachte verkoopprijs € 420.289", { exact: false })).toBeAttached();
+  await expect(advies.getByText(/Zwak onderbouwd: de verwachte verkoopprijs rust op de WOZ-waarde/)).toBeVisible();
+  // Monthly costs are at the verwachte verkoopprijs.
+  await expect(advies.getByText("Netto maandlasten bij verwachte verkoopprijs")).toBeVisible();
   await expect(advies.getByText("Bouwkundige keuring")).toBeVisible();
   await advies.getByText("Hoe berekend").click();
   await expect(advies.getByText("Betaalruimte: tot € 667.928")).toBeVisible();
   await expect(advies.getByText("Hypotheekrente: met NHG marktrente 4,4% (2 november 2026); zonder NHG marktrente 4,78% (2 november 2026)")).toBeVisible();
-  await expect(advies.getByText("Vraagprijs € 595.000 + 4,6%: € 622.370")).toBeVisible();
-  await expect(advies.getByText(/^Marge 4,6%: gemiddeld overbod voor alle woningen \(NVM/)).toBeVisible();
+  await expect(advies.getByText("Verwachte verkoopprijs € 420.289 + 5%: € 441.303")).toBeVisible();
   const redenering = page.getByRole("region", { name: "Redenering" });
-  await expect(redenering.getByRole("button", { name: /Vraagprijs ver boven de WOZ-waarde/ })).toBeVisible();
+  await expect(redenering.getByRole("button", { name: /Overstromingsrisico/ })).toBeVisible();
   await expect(page.getByText(/Koperprofiel versie \d+/).first()).toBeVisible();
 
   await request.put("/api/buyer-profile", { data: { ...PROFILE, renovation_tolerance: 2 } });
@@ -58,7 +62,7 @@ test("profile, URL, dossier and oordeel with biedadvies; a profile edit makes it
   await expect(page.getByText("Dit oordeel is gebaseerd op een oudere versie")).toBeHidden();
   await expect(page.getByText("Eerdere oordelen (1)")).toBeVisible();
 
-  await redenering.getByRole("button", { name: /Vraagprijs ver boven de WOZ-waarde/ }).click();
+  await redenering.getByRole("button", { name: /Overstromingsrisico/ }).click();
   await expect(page.getByRole("heading", { name: "Dossier: Buchterweg 15" })).toBeVisible();
 
   // The list shows the Oordeel tier; saving the koperprofiel says how many Oordelen it changes.

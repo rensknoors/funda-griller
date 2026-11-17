@@ -4,19 +4,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.ports import LlmError, Ports, SourceFact
+from app.ports import LlmError, Ports, PricePoint, SourceFact
 
 from tests.flag_rules import FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
 
+pytestmark = pytest.mark.usefixtures("price_at_asking")
+
 VERDICT = "/api/listings/80907644/verdict"
 
 # The typical household can pay at most 650_351 for the live Listing (asking 595_000, headroom 55_351).
 AFFORDABLE_MAXIMUM = 650_351
-# Without comparables the Walk-away Maximum is the asking price plus 4,6%, NVM's average overbid for
-# all homes (the live Listing's soort woning is unknown).
-WALK_AWAY_MAXIMUM = 622_370
+# Without comparables the Expected Sale Price is the WOZ value (the asking price in the shared
+# fixture) and the Walk-away Maximum that plus 5%.
+WALK_AWAY_MAXIMUM = 624_750
 
 
 def model_says(tier="consider", **overrides):
@@ -27,6 +29,7 @@ def model_says(tier="consider", **overrides):
         "cited_flags": [],
         "bid_advice": {
             "opening_bid": 585_000,
+            "deviation_reason": "Ruimte om te onderhandelen.",
             "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
         },
         **overrides,
@@ -90,11 +93,14 @@ def test_an_invalid_model_answer_is_rejected_and_reported(
     assert client.get(VERDICT).json()["verdicts"] == []
 
 
-def test_an_opening_bid_exactly_at_the_walk_away_maximum_is_accepted(client, listing_provider, llm_client):
+def test_an_opening_bid_at_the_walk_away_maximum_is_rejected_for_the_band(client, listing_provider, llm_client):
     prepare(client, listing_provider)
-    llm_client.verdict = model_says(bid_advice={"opening_bid": WALK_AWAY_MAXIMUM, "conditions": []})
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": WALK_AWAY_MAXIMUM, "conditions": [], "deviation_reason": "Gewilde straat."}
+    )
 
-    assert client.post(VERDICT).status_code == 201
+    # The walk-away maximum (624.750) lies outside the Guide Bid band, not above itself.
+    assert client.post(VERDICT).json()["problems"] == ["opening_bid_outside_guide_bid_band"]
 
 
 def test_a_skip_needs_no_bid_advice(client, listing_provider, llm_client):
@@ -205,9 +211,9 @@ def test_cited_flags_are_named_and_bid_advice_shows_monthly_costs(client, listin
     ]
     advice = verdict["bid_advice"]
     assert advice["asking_price"] == 595_000
-    assert advice["monthly_cost_at_asking_price"] == 1_935
-    assert advice["monthly_cost_net_at_asking_price"] == 1_461
-    assert advice["monthly_cost_at_walk_away_maximum"] > advice["monthly_cost_at_asking_price"]
+    assert advice["monthly_cost_at_expected_sale_price"] == 1_935
+    assert advice["monthly_cost_net_at_expected_sale_price"] == 1_461
+    assert advice["monthly_cost_at_walk_away_maximum"] > advice["monthly_cost_at_expected_sale_price"]
     assert advice["monthly_cost_net_at_walk_away_maximum"] < advice["monthly_cost_at_walk_away_maximum"]
 
 
@@ -315,7 +321,6 @@ def test_the_model_never_sees_the_household_debts(client, listing_provider, llm_
 def test_refetching_a_source_marks_the_verdict_out_of_date(
     client, listing_provider, source_clients, clock, llm_client
 ):
-    source_clients["woz"].facts = [SourceFact("woz_value", 500_000, "2025-01-01")]
     prepare(client, listing_provider)
     llm_client.verdict = model_says()
     client.post(VERDICT)
@@ -409,3 +414,167 @@ def test_a_new_affordability_rule_table_marks_the_verdict_out_of_date(
     settings.affordability_rules_path = table
 
     assert client.get(VERDICT).json()["changed"] == ["rules"]
+
+
+# Asking and Expected Sale Price are both 595.000: marktconform, so 2,5% off, rounded down to 500.
+GUIDE_BID = 580_000
+
+
+def test_the_guide_bid_goes_into_the_models_input_and_into_the_bid_advice(client, listing_provider, llm_client):
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(bid_advice={"opening_bid": GUIDE_BID, "conditions": []})
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    [(sent, _)] = llm_client.rate_calls
+    assert sent["guide_bid"]["value"] == GUIDE_BID
+    assert advice["guide_bid"]["value"] == GUIDE_BID
+    assert advice["guide_bid"]["discount"] == 0.025
+    assert advice["guide_bid"]["breakdown"]["prijsstelling"] == {"prijsstelling": "marktconform", "discount": 0.025}
+    assert advice["guide_bid"]["weakly_grounded"] is True
+    assert advice["guide_bid_deviation_reason"] is None
+    assert advice["sold_under_reservation"] is False
+
+
+def test_a_deviation_inside_the_band_keeps_the_models_reason(client, listing_provider, llm_client):
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": 590_000, "conditions": [], "deviation_reason": " Vocht in de kelder. "}
+    )
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["opening_bid"] == 590_000
+    assert advice["guide_bid"]["value"] == GUIDE_BID
+    assert advice["guide_bid_deviation_reason"] == "Vocht in de kelder."
+
+
+def test_an_opening_bid_above_the_asking_price_inside_the_band_is_accepted(client, listing_provider, llm_client):
+    # The band around the Guide Bid (580.000) reaches 597.400, above the asking price of 595.000.
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": 597_000, "conditions": [], "deviation_reason": "Veel belangstelling."}
+    )
+
+    response = client.post(VERDICT)
+
+    assert response.status_code == 201
+    assert response.json()["bid_advice"]["opening_bid"] == 597_000
+
+
+@pytest.mark.parametrize("reason", [None, "", "   "])
+def test_an_opening_bid_off_the_guide_bid_without_a_reason_is_rejected(client, listing_provider, llm_client, reason):
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": 585_000, "conditions": [], "deviation_reason": reason}
+    )
+
+    response = client.post(VERDICT)
+
+    assert response.status_code == 502
+    assert response.json()["problems"] == ["deviation_reason_missing"]
+
+
+# With a 5% discount the Guide Bid is 565.000 and its 3% band runs from 548.050 to 581.950, below
+# the asking price of 595.000.
+@pytest.mark.parametrize("opening_bid", [548_049, 581_951])
+def test_an_opening_bid_outside_the_band_is_rejected(client, listing_provider, llm_client, settings, opening_bid):
+    settings.guide_bid.discount_marktconform = 0.05
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": opening_bid, "conditions": [], "deviation_reason": "Gebreken."}
+    )
+
+    response = client.post(VERDICT)
+
+    assert response.status_code == 502
+    assert response.json()["problems"] == ["opening_bid_outside_guide_bid_band"]
+
+
+@pytest.mark.parametrize("opening_bid", [548_050, 581_950])
+def test_an_opening_bid_at_the_edge_of_the_band_is_accepted(client, listing_provider, llm_client, settings, opening_bid):
+    settings.guide_bid.discount_marktconform = 0.05
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(
+        bid_advice={"opening_bid": opening_bid, "conditions": [], "deviation_reason": "Gebreken."}
+    )
+
+    assert client.post(VERDICT).status_code == 201
+
+
+def test_the_guide_bid_figures_come_from_configuration(client, listing_provider, llm_client, settings):
+    settings.guide_bid.discount_marktconform = 0.05
+    prepare(client, listing_provider)
+    llm_client.verdict = model_says(bid_advice={"opening_bid": 565_000, "conditions": []})
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert advice["guide_bid"]["value"] == 565_000  # 595.000 * 0,95 = 565.250
+
+
+def test_a_house_sold_under_reservation_gets_conditions_and_a_note_but_no_guide_bid(
+    client, listing_provider, llm_client
+):
+    prepare(client, listing_provider, raw_status="Verkocht onder voorbehoud")
+    llm_client.verdict = model_says(bid_advice={"conditions": ["Reserveringslijst"]})
+
+    advice = client.post(VERDICT).json()["bid_advice"]
+
+    assert client.get("/api/listings").json()[0]["comparison"]["status"] == "sold_under_reservation"
+    [(sent, _)] = llm_client.rate_calls
+    assert sent["guide_bid"] is None
+    assert sent["sold_under_reservation"] is True
+    assert advice["opening_bid"] is None
+    assert advice["guide_bid"] is None
+    assert advice["sold_under_reservation"] is True
+    assert advice["conditions"] == ["Reserveringslijst"]
+
+
+def test_an_opening_bid_on_a_house_sold_under_reservation_is_rejected(client, listing_provider, llm_client):
+    prepare(client, listing_provider, raw_status="Verkocht onder voorbehoud")
+    llm_client.verdict = model_says(bid_advice={"opening_bid": GUIDE_BID, "conditions": []})
+
+    response = client.post(VERDICT)
+
+    assert response.status_code == 502
+    assert response.json()["problems"] == ["opening_bid_when_sold_under_reservation"]
+
+
+def test_a_long_time_on_the_market_and_a_price_reduction_deepen_the_guide_bids_discount(
+    client, listing_provider, llm_client
+):
+    # Listed at 625.000 on 27 May, 150 days before the fetch, now asking 595.000: 2,5% + 2% + 1%.
+    prepare(client, listing_provider, price_history=(PricePoint(date="27 mei 2026", price=625_000),))
+    llm_client.verdict = model_says(bid_advice={"opening_bid": 562_000, "conditions": []})
+
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    [(sent, _)] = llm_client.rate_calls
+    assert sent["guide_bid"] == guide
+    assert guide["value"] == 562_000  # 595.000 * 0,945 = 562.275
+    assert guide["discount"] == 0.055
+    assert guide["breakdown"]["days_on_market"] == {"days": 150, "discount": 0.02}
+    assert guide["breakdown"]["price_reduction"]["discount"] == 0.01
+    assert guide["tempo_known"] is True
+
+
+def test_without_a_price_history_the_guide_bid_says_the_tempo_is_unknown(client, listing_provider, llm_client):
+    prepare(client, listing_provider, price_history=())
+    llm_client.verdict = model_says(bid_advice={"opening_bid": GUIDE_BID, "conditions": []})
+
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    assert guide["value"] == GUIDE_BID
+    assert guide["tempo_known"] is False
+    assert list(guide["breakdown"]) == ["prijsstelling"]
+
+
+def test_the_tempo_figures_come_from_configuration(client, listing_provider, llm_client, settings):
+    settings.guide_bid.long_on_market_days = 2
+    prepare(client, listing_provider)  # listed three days before the fetch
+    llm_client.verdict = model_says(bid_advice={"opening_bid": 574_000, "conditions": []})
+
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    assert guide["breakdown"]["days_on_market"]["discount"] == 0.01
+    assert guide["value"] == 574_000  # 595.000 * 0,965 = 574.175

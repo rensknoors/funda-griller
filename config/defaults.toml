@@ -12,6 +12,33 @@ verdict_model = "gemini-3.8-flash"
 "beschikbaar" = "available"
 "onder bod" = "negotiations"
 "verkocht" = "sold"
+# Sold, but the sale may still fall through: no Guide Bid, conditions only (ADR-0005).
+"verkocht onder voorbehoud" = "sold_under_reservation"
 "sold" = "sold"
 "negotiations" = "negotiations"
 "available" = "available"
+
+# Case metrics. An asking price within this share of the Expected Sale Price is marktconform.
+[case]
+prijsstelling_band = 0.05
+
+# The Guide Bid (Richtbod, ADR-0005): the Expected Sale Price less a discount by Prijsstelling and
+# time on the market, capped at the asking price and the Walk-away Maximum and rounded down. The
+# model's opening bid stays within `band` of it. Starting guesses (the spec's 5-7% for hoog ingezet
+# takes the middle), tuned against the regression set.
+[guide_bid]
+discount_hoog_ingezet = 0.06
+discount_marktconform = 0.025
+discount_laag_ingezet = 0.0
+band = 0.03
+rounding_step = 500
+# Days on the market (first price_history date to the snapshot's fetch date): over the long
+# threshold adds the first discount, over the very long one the second instead (not cumulative).
+long_on_market_days = 60
+discount_long_on_market = 0.01
+very_long_on_market_days = 120
+discount_very_long_on_market = 0.02
+# A first asking price above the current one.
+discount_price_reduction = 0.01
+# Cap on the total discount.
+max_discount = 0.10

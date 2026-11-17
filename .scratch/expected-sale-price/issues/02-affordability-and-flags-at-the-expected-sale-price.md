@@ -4,13 +4,13 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `affordability.headroom` = affordable maximum − Expected Sale Price; null without one
-- [ ] `monthly_cost`/`monthly_cost_net` at the Expected Sale Price
-- [ ] `expected_price_beyond_headroom` raises at headroom < 0 on either basis, silent without an Expected Sale Price
-- [ ] Deal-breaker Hard no via its aliases only when the Expected Sale Price is strongly grounded
-- [ ] The two asking-price Flags removed; rule set `version` bumped; earlier Verdicts show as Achterhaald
-- [ ] Scenario tests: over-asked house within reach (no Flag, no Hard no); under-asked house beyond reach (Flag; Hard no on a strong basis only)
-- [ ] Comparison payload (`comparison.py`) carries headroom at the Expected Sale Price and `asking_vs_expected_percent`
-- [ ] GLOSSARY: Hard no notes the strong-basis condition for price deal-breakers
+- [x] `affordability.headroom` = affordable maximum − Expected Sale Price; null without one
+- [x] `monthly_cost`/`monthly_cost_net` at the Expected Sale Price
+- [x] `expected_price_beyond_headroom` raises at headroom < 0 on either basis, silent without an Expected Sale Price
+- [x] Deal-breaker Hard no via its aliases only when the Expected Sale Price is strongly grounded
+- [x] The two asking-price Flags removed; rule set `version` bumped; earlier Verdicts show as Achterhaald
+- [x] Scenario tests: over-asked house within reach (no Flag, no Hard no); under-asked house beyond reach (Flag; Hard no on a strong basis only)
+- [x] Comparison payload (`comparison.py`) carries headroom at the Expected Sale Price and `asking_vs_expected_percent`
+- [x] GLOSSARY: Hard no notes the strong-basis condition for price deal-breakers

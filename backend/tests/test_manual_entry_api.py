@@ -1,6 +1,10 @@
+import pytest
+
 from tests.flag_rules import COST_TABLE_VERSION, FLAG_RULES_VERSION
 from tests.listing_fixtures import LIVE_URL, live_listing
 from tests.profile_fixtures import typical_profile
+
+pytestmark = pytest.mark.usefixtures("price_at_asking")
 
 FORM = {
     "url": LIVE_URL,
@@ -129,7 +133,8 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
     }
     facts = {fact["key"]: fact for fact in case["facts"]}
     assert facts["asking_price"]["value"] == 595000
-    assert {fact["provenance"] for fact in facts.values()} == {"listing"}
+    # The price-at-asking WOZ Source fact is the only one that is not the entered Listing's own.
+    assert {fact["provenance"] for fact in facts.values()} == {"listing", "source"}
     assert case["affordability"]["headroom"] == 55_351
 
 

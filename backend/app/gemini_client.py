@@ -24,7 +24,7 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 7
+VERDICT_PROMPT_VERSION = 12
 
 VERDICT_INSTRUCTION = """\
 You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
@@ -41,19 +41,50 @@ Answer with:
 - `reasoning`: plain-language prose that cites the Flags it relies on.
 - `cited_flags`: the `id` of every Flag from `case.flags` the reasoning relies on. Never invent ids.
 - `bid_advice` for must_buy and consider (optional for skip, null for hard_no): `opening_bid` in
-  whole euros and `conditions` (e.g. financieringsvoorbehoud, bouwkundige keuring, follow-ups on
+  whole euros, `deviation_reason` (see below) and `conditions` (e.g. financieringsvoorbehoud, bouwkundige keuring, follow-ups on
   seller Documents).
 
-The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derived from comparables
-and affordability (`case.walk_away` says how). Do not propose your own. The opening bid must not
-exceed it. When `case.walk_away.weakly_grounded` is true there are too few comparables and it rests
-on the asking price (or affordability alone); say in the reasoning that the bid advice is weakly
-grounded. On the asking price its margin is the average overbid for the soort woning
-(`case.walk_away.margin_source`); name it.
+Judge the house at its expected sale price, `case.metrics.expected_sale_price` (what it is expected
+to sell for, from comparables plus the average overbid, or from the indexed WOZ value), not at the
+asking price, which the seller sets strategically. Headroom, `case.affordability.monthly_cost` and
+the price Flags are all measured at the expected sale price. `basis` says where it comes from and
+`weakly_grounded` is true when it rests on the WOZ value alone; then say in the reasoning that the
+judgement of the price is weakly grounded. `case.metrics.asking_vs_expected` only says how the seller
+priced the house against it (hoog ingezet, marktconform, laag ingezet): use it for the opening bid,
+never as a reason to like or dislike the house.
+
+When `case.metrics.expected_sale_price.value` is null the price cannot be judged: say so plainly in
+the reasoning and that comparables should be fetched. Do not fall back on the asking price or on the
+budget, and do not answer must_buy.
+
+The walk-away maximum is already set: `case.walk_away.walk_away_maximum`, derived from the expected
+sale price and affordability (`case.walk_away` says how); `case.walk_away.monthly_cost` is the monthly
+cost at that maximum (gross and net). Do not propose your own. The opening bid must not exceed it.
+When `case.walk_away.weakly_grounded` is true say that the bid
+advice is weakly grounded. Without an expected sale price `case.walk_away.walk_away_maximum` is null:
+give conditions only, with no `opening_bid`.
+
+`case.guide_bid` is the opening bid the case derives: the expected sale price less a discount that
+follows from how the seller priced the house and how long it has been on the market (`breakdown`:
+prijsstelling, days_on_market, price_reduction; the total is capped), never above the walk-away
+maximum. It may lie above the asking price: a house that is laag ingezet draws several bidders, often
+in a one-round bidding procedure, so a bid at the asking price is hopeless there; the asking price is
+the seller's marketing, not an anchor. When your opening bid lies above the asking price, say so in
+the reasoning and why. When `case.guide_bid.tempo_known` is false there is no price history, so the
+time on the market is unknown and did not count: do not guess it. Propose your `opening_bid` within
+`case.guide_bid.band` (a share) of `case.guide_bid.value`, and never above the walk-away maximum; a
+bid outside those bounds is rejected. When your bid differs from the guide bid,
+you must give the reason in `deviation_reason` (Dutch, one or two sentences, from what you see in the
+observations, findings, documents or flags); a different bid without one is rejected. Leave it null
+when you bid exactly the guide bid. When
+`case.guide_bid.weakly_grounded` is true the guide bid is weakly grounded: say so. When
+`case.guide_bid` is null, propose an opening bid within the walk-away maximum without an anchor, except
+when `case.sold_under_reservation` is true: the house is sold under reservation, so give conditions
+only, with no `opening_bid`.
 
 `case.metrics.asking_vs_woz.indexed` is the WOZ value brought from its peildatum to today's prices
-with the CBS house price index; weigh the asking price against that, not the raw WOZ value, which
-lags the market. Comparables count only when of the same kind as the house (`matched_on`).
+with the CBS house price index; it is evidence for the expected sale price, not a second anchor.
+Comparables count only when of the same kind as the house (`matched_on`).
 
 `case.renovation_estimate` is what the house may cost to renovate, from a versioned cost table:
 items in three classes (`direct`: Direct nodig, `within_5_years`: Binnen 5 jaar, `optional`:
@@ -66,7 +97,7 @@ subtract it again. Weigh the estimate against `buyer_profile.renovation_toleranc
 `case.affordability` follows the Dutch lending norms for the year of the expected levering
 (`case.rules.year`, `case.rules.levering_on`). The mortgage may not exceed the price, so kosten koper
 and the Direct nodig renovation come from own funds and equity. `monthly_cost` is the gross annuity
-of the mortgage needed at the asking price; `monthly_cost_net` is what the household pays after
+of the mortgage needed at the expected sale price; `monthly_cost_net` is what the household pays after
 hypotheekrenteaftrek, the figure to weigh affordability by. `nhg` says whether that mortgage fits
 under the NHG limit. When `case.rules.is_current_year` is false the norms are from an earlier year;
 say so. `buyer_profile.mortgage_rates` gives the rate per loan route (`nhg`, `no_nhg`) and its
@@ -87,7 +118,8 @@ _VERDICT_SCHEMA = {
             "type": "OBJECT",
             "nullable": True,
             "properties": {
-                "opening_bid": {"type": "INTEGER"},
+                "opening_bid": {"type": "INTEGER", "nullable": True},
+                "deviation_reason": {"type": "STRING", "nullable": True},
                 "conditions": {"type": "ARRAY", "items": {"type": "STRING"}},
             },
             "required": ["opening_bid", "conditions"],

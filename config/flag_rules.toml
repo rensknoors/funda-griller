@@ -4,7 +4,7 @@
 #
 # Facts are read by key from the Case: Listing facts (`energy_label`, `asking_price`, ...), Source
 # facts as `<source>.<key>` (e.g. `woz.woz_value`; the latest `as_of` wins), `headroom` (computed
-# affordability), `renovation_tolerance` and `commute_destinations` (Buyer Profile labels and
+# affordability, at the Expected Sale Price), `expected_sale_price`, `expected_sale_price.strong`, `renovation_tolerance` and `commute_destinations` (Buyer Profile labels and
 # `max_minutes`, never addresses), commute travel times as `commute.travel_minutes:<label>`,
 # Observations from the Listing photos as `observation.<key>` (estimated by the vision model; keys in app/observations.py) and Findings
 # from Documents as `finding.<topic>` (true when the seller states it applies; a disclosure wins
@@ -16,7 +16,7 @@
 # A threshold is a literal, or `{ name, from_profile, table }` to look it up by a derived Buyer
 # Profile value. `deal_breaker_aliases`: a Buyer Profile deal-breaker naming one of these as whole
 # words ("dak" in "Slecht dak", not in "Geen dakterras") is hit when the rule raises a Flag.
-version = 13
+version = 14
 
 [[rules]]
 id = "energy_label_below_tolerance"
@@ -36,42 +36,20 @@ kind = "label_at_least"
 fact = ["energielabel.energy_label", "energy_label"]
 threshold = "A"
 
+# Headroom is measured at the Expected Sale Price (what the house is expected to sell for), not the
+# asking price. Silent without one. The Flag is raised on either basis; a deal-breaker Hard no needs
+# a strongly grounded Expected Sale Price (`hard_no_requires`, a fact read by app/flags.py).
 [[rules]]
-id = "ask_beyond_headroom"
+id = "expected_price_beyond_headroom"
 version = 1
 class = "con"
-title = "Vraagprijs boven je betaalruimte"
+title = "Verwachte verkoopprijs boven je betaalruimte"
 kind = "below"
 fact = "headroom"
 threshold = 0
-cite = ["asking_price"]
+cite = ["expected_sale_price"]
 deal_breaker_aliases = ["te duur", "boven budget", "betaalruimte"]
-
-# Against the WOZ value brought from its peildatum to today with the CBS price index
-# (config/price_index.toml): the raw WOZ lags the market by up to two years. When the peildatum
-# falls outside the index series, the raw WOZ value is used.
-[[rules]]
-id = "ask_far_above_woz"
-version = 3
-class = "con"
-title = "Vraagprijs ver boven de WOZ-waarde (naar vandaag)"
-kind = "ratio_above"
-fact = "asking_price"
-of = ["indexed_woz_value", "woz.woz_value"]
-ratio_name = "asking_vs_woz"
-threshold = 1.15
-
-# Asking price per m² against the median of the comparables, only when there are enough of them
-# (coverage "sufficient"); thin comparables raise nothing.
-[[rules]]
-id = "ask_far_above_comparables"
-version = 1
-class = "con"
-title = "Vraagprijs per m² ver boven vergelijkbare woningen"
-kind = "above"
-fact = "asking_vs_comparables_percent"
-threshold = 15
-cite = ["asking_price"]
+hard_no_requires = "expected_sale_price.strong"
 
 # Klimaateffectatlas flood depth, small-chance scenario (LIWO, about 1 in 1,000 a year): more
 # than 0.5 m of water at the address.

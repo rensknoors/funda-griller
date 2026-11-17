@@ -4,10 +4,10 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `basis` is `expected_sale_price`; `weakly_grounded` follows it
-- [ ] No asking price basis and no affordability-only fallback; `asking_price_margin` leaves the Case
-- [ ] Setting renamed, default 0.05
-- [ ] Unit tests: strong and weak basis, affordability binding, no Expected Sale Price → none
-- [ ] GLOSSARY: Walk-away Maximum rewritten
+- [x] `basis` is `expected_sale_price`; `weakly_grounded` follows it
+- [x] No asking price basis and no affordability-only fallback; `asking_price_margin` leaves the Case
+- [x] Setting renamed, default 0.05
+- [x] Unit tests: strong and weak basis, affordability binding, no Expected Sale Price → none
+- [x] GLOSSARY: Walk-away Maximum rewritten

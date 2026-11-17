@@ -9,6 +9,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from app.verdict import GuideBidConfig
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "config"
 # Absolute, so the backend finds them whatever directory it runs from; the later file wins.
@@ -27,7 +29,9 @@ class _DefaultsFileSource(PydanticBaseSettingsSource):
             data = tomllib.load(f)
         return {
             **data.get("llm", {}),
+            **data.get("case", {}),
             "listing_status_map": data.get("listing_status_map", {}),
+            "guide_bid": data.get("guide_bid", {}),
         }
 
 
@@ -64,10 +68,16 @@ class Settings(BaseSettings):
     # comparables than the minimum count as thin.
     comparables_max_fetches: int = 8
     comparables_min_count: int = 5
-    # The derived Walk-away Maximum sits this share above what sufficient comparables put the house
-    # at (never above what the household can afford). When comparables are thin or missing it sits
-    # the average overbid for the soort woning above the asking price (config/bid_margins.toml).
-    walk_away_comparables_premium: float = 0.10
+    # The derived Walk-away Maximum sits this share above the Expected Sale Price less Direct nodig
+    # (never above what the household can afford).
+    walk_away_premium: float = 0.05
+
+    # Within this share of the Expected Sale Price an asking price is marktconform; beyond it the
+    # seller priced the house hoog or laag ingezet. Set only in config/defaults.toml `[case]`.
+    prijsstelling_band: float
+
+    # Set only in config/defaults.toml `[guide_bid]`.
+    guide_bid: GuideBidConfig
 
     # Months from today to the expected levering at the notary: the affordability rules, the
     # starters' ages and the startersvrijstelling limit are taken at that date.

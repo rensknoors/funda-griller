@@ -123,8 +123,13 @@ function ListingCard(props: {
             </span>
           )}
           {row.headroom != null && (
-            <span className={`card-headroom num tone-${headroomTone(row.headroom) ?? "none"}`} title="Betaalruimte boven (+) of tekort onder (−) de vraagprijs">
+            <span className={`card-headroom num tone-${headroomTone(row.headroom) ?? "none"}`} title="Betaalruimte boven (+) of tekort onder (−) de verwachte verkoopprijs">
               {signedEuro(row.headroom)} ruimte
+            </span>
+          )}
+          {row.expected_sale_price === null && (
+            <span className="card-headroom muted" title="Zonder verwachte verkoopprijs is er geen ruimte te berekenen">
+              – Haal vergelijkbare woningen op
             </span>
           )}
         </p>

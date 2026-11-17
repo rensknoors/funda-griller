@@ -19,7 +19,7 @@ from app.rules_loader import (
     load_rules,
 )
 from app.settings import Settings
-from app.verdict import WalkAwayMargins, judge
+from app.verdict import judge
 
 
 def assemble_case(
@@ -49,6 +49,7 @@ def assemble_case(
         sources,
         observation_runs,
         documents,
+        prijsstelling_band=settings.prijsstelling_band,
     )
 
 
@@ -70,10 +71,11 @@ def make_verdict(
         reduce_profile(profile.version, profile.profile, rates),
         llm_client,
         settings.verdict_model,
-        WalkAwayMargins(settings.walk_away_comparables_premium),
+        settings.walk_away_premium,
         lambda price: _monthly_costs_at(
             compute(profile.profile, price, energy_label, rules, levering, rates, renovation_direct)
         ),
+        settings.guide_bid,
     )
     return {**verdict, "prompt_version": None if verdict["deterministic"] else VERDICT_PROMPT_VERSION}
 

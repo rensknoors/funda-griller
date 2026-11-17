@@ -8,10 +8,13 @@ import pytest
 
 from app import store
 from app.gemini_client import VERDICT_PROMPT_VERSION
-from app.ports import SourceFact
+from app.ports import PricePoint, SourceFact
 from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
 from tests.listing_fixtures import LIVE_URL, live_listing
-from tests.profile_fixtures import typical_profile
+from tests.profile_fixtures import typical_profile, well_off_profile
+from tests.test_comparables_api import FETCH_COMPARABLES, SEVERAL
+
+pytestmark = pytest.mark.usefixtures("price_at_asking")
 
 EXPORT = "/api/listings/80907644/export.md"
 VERDICT = "/api/listings/80907644/verdict"
@@ -38,13 +41,17 @@ def test_an_unknown_listing_has_no_export(client):
     assert client.get("/api/listings/404/export.md").status_code == 404
 
 
-def model_says(tier="consider", opening_bid=585_000):
+def model_says(tier="consider", opening_bid=585_000, deviation_reason="Ruimte om te onderhandelen."):
     return {
         "tier": tier,
         "summary": "Degelijke woning, prijs aan de hoge kant.",
         "reasoning": "De woning past bij jullie wensen; de vraagprijs ligt ruim boven de WOZ.",
         "cited_flags": [],
-        "bid_advice": {"opening_bid": opening_bid, "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"]},
+        "bid_advice": {
+            "opening_bid": opening_bid,
+            "deviation_reason": deviation_reason,
+            "conditions": ["Financieringsvoorbehoud", "Bouwkundige keuring"],
+        },
     }
 
 
@@ -81,7 +88,7 @@ def test_a_full_case_with_a_verdict_exports_every_section_in_order(client, listi
     assert "Overwegen" in markdown
     assert "De woning past bij jullie wensen" in markdown
     assert "Openingsbod: € 585.000" in markdown
-    assert "Maximumbod: € 622.370" in markdown
+    assert "Maximumbod: € 624.750" in markdown
     assert "- Bouwkundige keuring" in markdown
     assert "2026-10-24T12:00:00+00:00" in markdown
     assert f"Promptversie Oordeel: {VERDICT_PROMPT_VERSION}" in markdown
@@ -214,7 +221,7 @@ def test_the_buyer_profile_part_is_anonymised(client, listing_provider, llm_clie
         assert f"  - {preference}" in markdown
     # The bids stay exact; the Walk-away Maximum here rests on the asking price, not affordability.
     assert "Openingsbod: € 585.000" in markdown
-    assert "Maximumbod: € 622.370" in markdown
+    assert "Maximumbod: € 624.750" in markdown
     assert "begrensd door de basis" in markdown
 
 
@@ -279,13 +286,13 @@ def test_without_the_profile_no_profile_or_affordability_figures_are_exported(cl
     assert "Reistijd naar Bestemming 1: 52 min met de auto" in markdown
     assert "maximum 30 min" not in markdown
     bid = markdown.split("## Biedadvies")[1]
-    assert "Openingsbod: € 585.000" in bid and "Maximumbod: € 622.370" in bid and "Financieringsvoorbehoud" in bid
+    assert "Openingsbod: € 585.000" in bid and "Maximumbod: € 624.750" in bid and "Financieringsvoorbehoud" in bid
 
 
 def test_an_affordability_bound_walk_away_maximum_is_said_in_words(client, listing_provider, llm_client):
     poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
     capture(client, listing_provider, poorer)
-    llm_client.verdict = lambda case, _: model_says(opening_bid=case["walk_away"]["walk_away_maximum"] - 10_000)
+    llm_client.verdict = lambda case, _: model_says(opening_bid=case["guide_bid"]["value"] - 1)
     verdict = client.post(VERDICT).json()
 
     markdown = client.get(EXPORT).text
@@ -358,6 +365,135 @@ def section(markdown, heading):
     return markdown.split(f"## {heading}\n")[1].split("\n## ")[0]
 
 
+def test_the_export_gives_the_richtbod_with_the_models_reason_and_the_discount_breakdown(
+    client, listing_provider, llm_client
+):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says() | {
+        "bid_advice": {
+            "opening_bid": 590_000,
+            "conditions": [],
+            "deviation_reason": "Vocht in de kelder.",
+        }
+    }
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Openingsbod: € 590.000" in bid
+    assert "- Richtbod: € 580.000 (afwijking: Vocht in de kelder.)" in bid
+    assert "### Hoe het Richtbod is berekend" in bid
+    assert "- Prijsstelling: marktconform, 2,5% korting op de verwachte verkoopprijs" in bid
+    assert "**Zwak onderbouwd**" in bid
+
+
+def test_the_export_gives_the_expected_sale_price_right_above_the_opening_bid(client, listing_provider, llm_client):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says()
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Verwachte verkoopprijs: € 595.000\n- Openingsbod: € 585.000\n" in bid
+    assert "boven de vraagprijs" not in bid
+
+
+def test_a_laag_ingezet_opening_bid_above_the_asking_price_says_so(client, listing_provider, source_clients, llm_client):
+    capture(client, listing_provider, well_off_profile())
+    source_clients["comparables"].facts = SEVERAL
+    client.post(FETCH_COMPARABLES)
+    llm_client.verdict = lambda case, _: model_says(opening_bid=case["guide_bid"]["value"])
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    # Expected 635.968, asking 595.000: laag ingezet, the Guide Bid takes no discount.
+    assert "- Verwachte verkoopprijs: € 635.968\n" in bid
+    assert "- Openingsbod: € 635.500 (6,8% boven de vraagprijs: laag ingezet, reken op overbieden)\n" in bid
+
+
+def test_a_richtbod_above_the_asking_price_says_so_too(client, listing_provider, source_clients, llm_client):
+    capture(client, listing_provider, well_off_profile())
+    source_clients["comparables"].facts = SEVERAL
+    client.post(FETCH_COMPARABLES)
+    llm_client.verdict = model_says(opening_bid=620_000, deviation_reason="Achterstallig onderhoud.")
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Openingsbod: € 620.000 (4,2% boven de vraagprijs: laag ingezet, reken op overbieden)\n" in bid
+    assert (
+        "- Richtbod: € 635.500 (6,8% boven de vraagprijs: laag ingezet, reken op overbieden)"
+        " (afwijking: Achterstallig onderhoud.)\n"
+    ) in bid
+
+
+def test_the_export_leaves_out_the_richtbod_line_when_the_opening_bid_equals_it(
+    client, listing_provider, llm_client
+):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says(opening_bid=580_000)
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Richtbod:" not in bid
+    assert "- Prijsstelling: marktconform, 2,5% korting" in bid
+
+
+def test_a_house_sold_under_reservation_exports_conditions_and_the_note(client, listing_provider, llm_client):
+    capture(client, listing_provider, raw_status="Verkocht onder voorbehoud")
+    llm_client.verdict = model_says() | {"bid_advice": {"conditions": ["Reserveringslijst"]}}
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "Verkocht onder voorbehoud" in bid
+    assert "Reserveringslijst" in bid
+    assert "- Openingsbod:" not in bid and "- Richtbod:" not in bid
+    assert "haal vergelijkbare woningen op" not in bid
+
+
+def test_without_the_profile_an_affordability_bound_richtbod_is_rounded_down(client, listing_provider, llm_client):
+    poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
+    capture(client, listing_provider, poorer)
+    llm_client.verdict = lambda case, _: model_says(opening_bid=case["guide_bid"]["value"] - 1)
+    guide = client.post(VERDICT).json()["bid_advice"]["guide_bid"]
+
+    bid = section(client.get(f"{EXPORT}?profile=false").text, "Biedadvies")
+
+    assert guide["capped_by"] == "walk_away_maximum"
+    assert not mentions(bid, guide["value"])
+    assert f"- Richtbod: € {guide['value'] // 5000 * 5000:,} (afgerond)".replace(",", ".") in bid
+
+
+def test_the_export_gives_days_on_the_market_and_the_price_reduction_in_the_breakdown(
+    client, listing_provider, llm_client
+):
+    # Listed at 625.000 150 days before the fetch, now asking 595.000.
+    capture(client, listing_provider, price_history=(PricePoint(date="27 mei 2026", price=625_000),))
+    llm_client.verdict = model_says(opening_bid=562_000)
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Dagen te koop: 150 dagen, 2% korting op de verwachte verkoopprijs" in bid
+    assert "- Prijsverlaging: van € 625.000 naar € 595.000, 1% korting op de verwachte verkoopprijs" in bid
+    assert "- Samen 5,5% korting, naar beneden afgerond" in bid
+    assert "Tempo onbekend" not in bid
+
+
+def test_without_a_price_history_the_export_says_the_tempo_is_unknown(client, listing_provider, llm_client):
+    capture(client, listing_provider, price_history=())
+    llm_client.verdict = model_says(opening_bid=580_000)
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Tempo onbekend: geen prijshistorie, dus geen korting voor dagen te koop of prijsverlaging" in bid
+    assert "Dagen te koop" not in bid
+
+
 @pytest.fixture
 def renovation(settings, tmp_path, llm_client):
     cost_table = tmp_path / "renovation_costs.toml"
@@ -405,12 +541,11 @@ def test_with_the_profile_the_direct_nodig_subtraction_shows_in_affordability_an
     markdown = client.get(EXPORT).text
 
     assert "na aftrek van € 4.000 Direct nodig (Verbouwingsraming)" in section(markdown, "Kengetallen")
-    assert "de vraagprijs (vergelijkbare woningen dun of ontbrekend), min € 4.000 Direct nodig, plus 4,6%" in markdown
-    assert (
-        "- Marge: 4,6% is het gemiddelde overbod voor alle woningen "
-        "(NVM, Marktoverzicht Nederland 2e kwartaal 2026 (via openwoning.nl), 2e kwartaal 2026)"
-    ) in markdown
-    assert "Maximumbod: € 618.186" in markdown
+    assert "de verwachte verkoopprijs, min € 4.000 Direct nodig, plus 5%" in markdown
+    assert "**Zwak onderbouwd**: de verwachte verkoopprijs rust op de WOZ-waarde" in markdown
+    assert "Marge:" not in markdown
+    # (595_000 - 4_000) x 1.05
+    assert "Maximumbod: € 620.550" in markdown
 
 
 def test_a_high_direct_nodig_flag_cites_its_midpoint_in_euros(client, listing_provider, settings, renovation):
@@ -456,7 +591,11 @@ def test_household_amounts_in_the_verdict_text_are_rounded_or_left_out(client, l
     llm_client.verdict = model_says() | {
         "summary": f"Betaalbaar tot {forms}.",
         "reasoning": f"Maandlasten {amount_forms(monthly)[0]} per maand, overwaarde {amount_forms(equity)[1]}.",
-        "bid_advice": {"opening_bid": 585_000, "conditions": [f"Niet boven {amount_forms(maximum)[0]}"]},
+        "bid_advice": {
+            "opening_bid": 585_000,
+            "deviation_reason": "Ruimte om te onderhandelen.",
+            "conditions": [f"Niet boven {amount_forms(maximum)[0]}"],
+        },
     }
     client.post(VERDICT)
 
@@ -480,7 +619,7 @@ def test_without_the_profile_affordability_bound_bids_are_rounded_down(client, l
     poorer = typical_profile() | {"gross_annual_income": 30_000, "assets": {"savings": 5_000, "investments": 0}}
     capture(client, listing_provider, poorer)
     def says(case, _):
-        opening = case["walk_away"]["walk_away_maximum"] - 10_001
+        opening = case["guide_bid"]["value"] - 1
         return model_says(opening_bid=opening) | {"reasoning": f"Open op {amount_forms(opening)[0]}."}
 
     llm_client.verdict = says
@@ -508,7 +647,7 @@ def test_kosten_koper_is_rounded(client, listing_provider):
     markdown = client.get(EXPORT).text
 
     assert not mentions(markdown, total)
-    assert f"Kosten koper bij de vraagprijs: ≈ € {round(total / 5000) * 5000:,}".replace(",", ".") in markdown
+    assert f"Kosten koper bij de verwachte verkoopprijs: ≈ € {round(total / 5000) * 5000:,}".replace(",", ".") in markdown
 
 
 def test_the_header_prints_the_prompt_version_the_verdict_was_made_with(
@@ -534,6 +673,31 @@ def test_an_older_verdict_without_a_prompt_version_prints_onbekend(client, listi
     store.add_verdict(settings.database_path, "80907644", verdict["created_at"], older)
 
     assert "Promptversie Oordeel: onbekend" in client.get(EXPORT).text
+
+
+def test_an_older_verdict_with_a_margin_basis_and_worded_breakdown_still_exports(
+    client, listing_provider, llm_client, settings
+):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says()
+    verdict = client.post(VERDICT).json()
+    # Stored before the premium was named so: a stored basis, the premium as `margin`, the
+    # comparables' always-empty `maximum`, and the breakdown worded by the Verdict service.
+    advice = verdict["bid_advice"]
+    derivation = {k: v for k, v in advice["derivation"].items() if k != "premium"}
+    older_advice = advice | {
+        "derivation": derivation | {"basis": "asking_price", "margin": 0.046},
+        "comparables": advice["comparables"] | {"maximum": None},
+        "guide_bid": advice["guide_bid"]
+        | {"breakdown": {"prijsstelling": {"label": "hoog ingezet", "discount": 0.06}}},
+    }
+    older = {k: v for k, v in verdict.items() if k not in ("id", "version", "created_at")}
+    store.add_verdict(settings.database_path, "80907644", verdict["created_at"], older | {"bid_advice": older_advice})
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Basis: de vraagprijs (vergelijkbare woningen dun of ontbrekend), plus 4,6% = " in bid
+    assert "- Prijsstelling: hoog ingezet, 6% korting op de verwachte verkoopprijs" in bid
 
 
 def test_the_header_names_the_cost_table_version_and_the_legend_the_renovation_estimate(
@@ -568,7 +732,46 @@ def test_monthly_costs_are_exported_net_with_gross_beside_them(client, listing_p
 
     markdown = client.get(EXPORT).text
 
-    assert "Maandlasten bij de vraagprijs: ≈ € 1.450 per maand netto (≈ € 1.950 per maand bruto)" in markdown
+    assert "Maandlasten bij de verwachte verkoopprijs: ≈ € 1.450 per maand netto (≈ € 1.950 per maand bruto)" in markdown
+
+
+def kengetallen(markdown: str) -> str:
+    return markdown.split("## Kengetallen")[1].split("\n## ")[0]
+
+
+def test_the_expected_sale_price_and_prijsstelling_are_exported_with_their_basis(
+    client, listing_provider, source_clients
+):
+    capture(client, listing_provider)
+    source_clients["comparables"].facts = SEVERAL
+    client.post(FETCH_COMPARABLES)
+
+    section = kengetallen(client.get(EXPORT).text)
+
+    # 608.000 by comparables plus NVM's 4,6% average overbid; the asking price is 595.000.
+    assert "- Verwachte verkoopprijs: € 635.968 (bandbreedte € " in section
+    assert "op basis van 5 vergelijkbare woningen, incl. 4,6% gemiddeld overbod" in section
+    assert "- Prijsstelling: vraagprijs 6,4% onder verwachte verkoopprijs: laag ingezet" in section
+    assert "Zwak onderbouwd" not in section
+
+
+def test_a_weakly_grounded_expected_sale_price_says_so(client, listing_provider):
+    capture(client, listing_provider)
+
+    section = kengetallen(client.get(EXPORT).text)
+
+    assert "- Verwachte verkoopprijs: € 595.000 (op basis van de WOZ-waarde; zwak onderbouwd)" in section
+    assert "- Prijsstelling: vraagprijs gelijk aan verwachte verkoopprijs: marktconform" in section
+
+
+def test_without_an_expected_sale_price_the_export_says_how_to_get_one(client, listing_provider, source_clients):
+    source_clients["woz"].at_asking_price = False
+    capture(client, listing_provider)
+
+    section = kengetallen(client.get(EXPORT).text)
+
+    assert "- Verwachte verkoopprijs: onbekend (haal vergelijkbare woningen op)" in section
+    assert "Prijsstelling" not in section
 
 
 def dotted(amount: int) -> str:

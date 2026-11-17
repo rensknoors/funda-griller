@@ -72,7 +72,7 @@ def test_the_verdict_model_is_not_asked_for_a_walk_away_maximum():
 
     [(_, _, body)] = transport.requests
     bid_advice = body["generationConfig"]["responseSchema"]["properties"]["bid_advice"]
-    assert set(bid_advice["properties"]) == {"opening_bid", "conditions"}
+    assert set(bid_advice["properties"]) == {"opening_bid", "deviation_reason", "conditions"}
 
 
 def test_an_unparseable_reply_is_an_llm_error():

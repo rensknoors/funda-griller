@@ -55,17 +55,22 @@ _Dutch UI_: **Oordeel**; the tiers are **Zeker kopen**, **Overwegen**, **Oversla
 _Avoid_: Score, grade, recommendation
 
 **Hard no**:
-The Verdict tier forced deterministically when the Case hits a deal-breaker from the Buyer Profile, before the LLM rates.
+The Verdict tier forced deterministically when the Case hits a deal-breaker from the Buyer Profile, before the LLM rates. A price deal-breaker ("te duur", "boven budget") only forces it when the Expected Sale Price is strongly grounded (comparables), not on a WOZ estimate; there the Flag stays a con for the model to weigh.
 _Dutch UI_: **Harde afwijzing**
 _Avoid_: Reject, blocked
 
 **Bid Advice**:
-Guidance accompanying a Verdict on how to bid: an opening bid, a walk-away maximum, and suggested conditions.
+Guidance accompanying a Verdict on how to bid: an opening bid, a walk-away maximum, and suggested conditions. The opening bid is the model's, kept within a narrow band around the Guide Bid.
 _Dutch UI_: **Biedadvies**; its parts are **Openingsbod**, **Maximumbod** and **Voorwaarden**
 _Avoid_: Bid strategy, offer
 
+**Guide Bid**:
+The opening bid derived deterministically before the model rates the house: the Expected Sale Price less a discount that follows from how the seller priced the house and how long it has been on the market, never above the Walk-away Maximum, rounded down. When the house is asked low it lies above the asking price, since such a house draws several bidders; the Bid Advice then says so plainly. The model may adjust it within a band and must explain any deviation. Absent when there is no Walk-away Maximum or no asking price (so no Prijsstelling), and for a house sold under reservation, which gets conditions only. Its discount breakdown (Prijsstelling, days on the market and a price reduction, from the Listing's price history) is shown with it; without a price history the tempo is unknown and adds nothing.
+_Dutch UI_: **Richtbod**; shown next to the Openingsbod only when they differ
+_Avoid_: Calculated bid, baseline bid, target bid
+
 **Walk-away Maximum**:
-The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and what sufficient comparables put the house at, less the Renovation Estimate's Direct nodig midpoint, plus a configured premium. The affordable maximum is the highest price a lender would finance under the Dutch lending norms for the year of the expected levering: the mortgage may not exceed the price, so kosten koper and the same Direct nodig midpoint come from the household's own funds and home equity. With thin or missing comparables it rests on the asking price (less Direct nodig) plus the average overbid for the house's soort woning (a dated market figure) instead, and the Bid Advice says plainly that it is weakly grounded. With neither sufficient comparables nor an asking price it is the affordable maximum alone, also weakly grounded.
+The highest price at which the house still makes sense, derived by the Verdict service (never proposed by the model): the lower of the household's affordable maximum and the Expected Sale Price less the Renovation Estimate's Direct nodig midpoint, plus a configured premium (5%). The affordable maximum is the highest price a lender would finance under the Dutch lending norms for the year of the expected levering: the mortgage may not exceed the price, so kosten koper and the same Direct nodig midpoint come from the household's own funds and home equity. The Expected Sale Price is its only price basis, so it is weakly grounded exactly when the Expected Sale Price is (the Bid Advice says so plainly); without an Expected Sale Price there is no Walk-away Maximum, not even an affordability-only one, and no opening bid.
 _Dutch UI_: **Maximumbod**
 _Avoid_: Max price, ceiling
 
@@ -75,9 +80,19 @@ _Dutch UI_: **Verbouwingsraming** (shown as **Verbouwingskosten**); the classes 
 _Avoid_: Renovation budget, quote, cost to fix
 
 **Comparable**:
-A nearby Listing that funda offers as recently sold or recently listed next to a house, fetched only on the user's request and capped in number. Its price is its (last) asking price, not a registered sale price. Only comparables of the same kind count (an apartment is no comparable for a house), and only those of the same soort woning when there are enough of them. Too few comparables are **thin** and do not ground the Walk-away Maximum.
+A nearby Listing that funda offers as recently sold or recently listed next to a house, fetched only on the user's request and capped in number. Its price is its (last) asking price, not a registered sale price: the average overbid for the soort woning is added to it before it feeds the Expected Sale Price. Only comparables of the same kind count (an apartment is no comparable for a house), and only those of the same soort woning when there are enough of them. Too few comparables are **thin** and do not ground the Expected Sale Price (or the Walk-away Maximum).
 _Dutch UI_: **Vergelijkbare woning**; the metric is **t.o.v. vergelijkbaar**; thin is **Dun**
 _Avoid_: Comps, similar listing, reference house
+
+**Expected Sale Price**:
+What the house is expected to sell for, derived in the Case from evidence independent of its own asking price: sufficient comparables plus the average overbid for the soort woning (strongly grounded), else the WOZ value brought to today's prices (weakly grounded), else none. Never the asking price. Carries a low-high range (the interquartile range of the comparables) on the comparables basis.
+_Dutch UI_: **Verwachte verkoopprijs**; weak is **Zwak onderbouwd**
+_Avoid_: Market value, valuation, taxatie, realistic price
+
+**Prijsstelling**:
+How the seller priced the house against its Expected Sale Price: **hoog ingezet** (asking price more than the configured band, default 5%, above), **marktconform** (within the band) or **laag ingezet** (below it). Information only: not a Flag, never counted against the house. Absent when there is no asking price or no Expected Sale Price.
+_Dutch UI_: **Prijsstelling**
+_Avoid_: Overpriced, underpriced
 
 **Expected levering**:
 The date a bid made today is expected to transfer at the notary (today plus a configured number of months). The year's lending norms, the starters' ages and the startersvrijstelling limit are taken at this date, not today.

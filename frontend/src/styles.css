@@ -171,7 +171,8 @@ input[type="file"] { border-style: dashed; padding: 7px; }
 
 .chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 999px; background: var(--band); color: var(--ink-2); font-size: 12.5px; font-weight: 550; white-space: nowrap; }
 .chip.status-sold { background: var(--ink); color: #fff; }
-.chip.status-negotiations { background: var(--band-strong); color: var(--ink); }
+.chip.status-negotiations,
+.chip.status-sold_under_reservation { background: var(--band-strong); color: var(--ink); }
 .status-chip { background: var(--ink); color: #fff; }
 .stale-chip { background: var(--hatch); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
 
@@ -526,6 +527,9 @@ button.signaal-chip { min-height: 34px; padding: 0 12px 0 8px; border-radius: 99
 .bid-vakken > .figure { padding: 0 24px; margin: 0; border-right: 1px solid var(--line-strong); }
 .bid-vakken > .figure:last-child { border-right: 0; }
 .bid-vakken .bid-amount { font-size: 48px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.05; font-stretch: 80%; margin: 2px 0 8px; text-align: left; }
+.bid-vakken .above-asking { margin: 0 0 8px; padding: 6px 10px; background: var(--ochre-tint); color: var(--ochre); border-radius: var(--radius-s); font-size: 14px; font-weight: 600; }
+.bid-vakken .beside-bid { margin: 0 0 8px; color: var(--ink-2); font-size: 15px; }
+.bid-vakken .beside-bid .num { color: var(--ink); font-size: 20px; font-weight: 700; margin-left: 4px; }
 .bid-vakken details { margin-top: 6px; }
 .bid-vakken details summary { cursor: pointer; color: var(--cobalt); font-weight: 550; }
 .bid-vakken .evidence { margin-top: 8px; font-size: 14px; }

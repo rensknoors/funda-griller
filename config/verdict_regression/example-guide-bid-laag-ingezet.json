@@ -1,17 +1,21 @@
 {
-  "expected_tier": "skip",
-  "note": "PLACEHOLDER: fictional Listing and expected tier. Replace with a real Listing you have judged yourself.",
+  "expected_tier": "consider",
+  "expected_opening_bid": [
+    513130,
+    544870
+  ],
+  "note": "PLACEHOLDER: fictional Listing and expected tier. Laag ingezet: asking well below the expected sale price (weak WOZ basis). No discount and no asking-price cap: the Guide Bid is the Expected Sale Price (about 529.000), well above the asking price, so the opening bid lies above asking (Guide Bid ±3%). Replace with a real Listing you have judged yourself.",
   "as_of": "2026-10-25T12:00:00+00:00",
   "snapshot": {
-    "funda_id": "example-2",
-    "url": "https://www.funda.nl/detail/koop/voorbeeld/huis-voorbeeldstraat-2/0/",
+    "funda_id": "example-guide-bid-laag-ingezet",
+    "url": "https://www.funda.nl/detail/koop/voorbeeld/example-guide-bid-laag-ingezet/0/",
     "raw_status": "Beschikbaar",
     "status": "available",
     "entry": "manual",
     "fetched_at": "2026-10-25T09:00:00+00:00",
     "address": "Voorbeeldstraat 2",
     "city": "Voorbeeld",
-    "asking_price": 640000,
+    "asking_price": 450000,
     "living_area": 118,
     "plot_area": 150,
     "rooms": 4,
@@ -28,7 +32,7 @@
       "facts": [
         {
           "name": "woz_value",
-          "value": 470000,
+          "value": 520000,
           "as_of": "2026-01-01"
         }
       ]

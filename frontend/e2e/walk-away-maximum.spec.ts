@@ -31,11 +31,29 @@ test("vergelijkbare woningen are fetched on request and ground the Maximumbod", 
   await expect(group.getByText(/^€\s638\.400$/)).toBeVisible();
   await expect(page.getByLabel("Kerncijfers").getByText("-6,8%")).toBeVisible();
 
+  // Strongly grounded: the Dossier names the comparables and the overbid, no Zwak onderbouwd.
+  const block = page.getByRole("region", { name: "Verwachte verkoopprijs" });
+  await expect(block.getByText(/^€\s667\.766$/)).toBeVisible();
+  await expect(block.getByText("op basis van 5 vergelijkbare woningen, incl. 4,6% gemiddeld overbod")).toBeVisible();
+  // These comparables do not spread (the middle half is one price per m²), so there is no range to show.
+  await expect(block.getByText("Bandbreedte")).toBeHidden();
+  await expect(block.getByText("Vraagprijs 10,9% onder verwachte verkoopprijs")).toBeVisible();
+  await expect(block.getByText("laag ingezet")).toBeVisible();
+  await expect(block.getByText("Zwak onderbouwd")).toBeHidden();
+
   await page.getByRole("link", { name: "Oordeel", exact: true }).click();
   await page.getByRole("button", { name: "Oordeel opvragen" }).click();
   const advies = page.getByRole("region", { name: "Biedadvies" });
+  // Laag ingezet: the Richtbod is the Expected Sale Price (€ 667.766, rounded down), above the asking
+  // price of € 595.000, and the fake model opens € 1.000 above it. Both say how far above asking.
+  const opening = advies.getByRole("group", { name: "Openingsbod" });
+  await expect(opening.getByText(/^€\s668\.500$/)).toBeVisible();
+  await expect(opening.getByText("12,4% boven de vraagprijs: laag ingezet, reken op overbieden")).toBeVisible();
+  await expect(opening.getByText(/^Verwachte verkoopprijs\s*€\s667\.766$/)).toBeVisible();
+  await expect(opening.getByText(/^Richtbod\s€\s667\.500 \(12,2% boven de vraagprijs\): Vocht in de kelder\.$/)).toBeVisible();
   await advies.getByText("Hoe berekend").click();
-  await expect(advies.getByText(/Vergelijkbare woningen €\s638\.400 \+ 10%: €\s702\.240/)).toBeVisible();
+  // 638.400 plus NVM's 4,6% average overbid (soort woning unknown) is € 667.766; the Maximumbod adds 5%.
+  await expect(advies.getByText(/Verwachte verkoopprijs €\s667\.766 \+ 5%: €\s701\.154/)).toBeVisible();
   await expect(advies.getByText(/Zwak onderbouwd/)).toBeHidden();
 
   await page.getByRole("link", { name: "Dossier", exact: true }).click();

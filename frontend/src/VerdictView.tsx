@@ -3,12 +3,14 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   type BidAdvice,
+  type GuideBidComponent,
   type Listing,
   type RouteRates,
   type Verdict,
   type VerdictError,
   type VerdictInput,
   type VerdictState,
+  type WalkAwayBasis,
   type WalkAwayDerivation,
   fetchVerdicts,
   isVerdictError,
@@ -120,7 +122,9 @@ export function VerdictView(props: {
           <strong>
             {snapshot.status === "negotiations"
               ? "Deze woning is onder bod. Controleer bij de makelaar of er nog geboden kan worden."
-              : "Deze woning is verkocht. Een biedadvies is niet meer van toepassing."}
+              : snapshot.status === "sold_under_reservation"
+                ? "Deze woning is verkocht onder voorbehoud. Het biedadvies geeft alleen voorwaarden."
+                : "Deze woning is verkocht. Een biedadvies is niet meer van toepassing."}
           </strong>
         </div>
       )}
@@ -179,7 +183,8 @@ export function VerdictView(props: {
             )}
           </TierBlock>
           <Redenering verdict={latest} onShowFlag={props.onShowFlag} />
-          {latest.bid_advice && (
+          {latest.bid_advice?.sold_under_reservation && <VoorbehoudBiedadvies advice={latest.bid_advice} />}
+          {latest.bid_advice && !latest.bid_advice.sold_under_reservation && (
             <Biedadvies
               advice={latest.bid_advice}
               rulesYear={latest.built_from.rules_year}
@@ -255,25 +260,32 @@ function Redenering({ verdict, onShowFlag }: { verdict: Verdict; onShowFlag: (fl
   );
 }
 
-/** Openingsbod to Maximumbod as one stretch, with the asking price and the comparables' value on
- * the same line: where the bid starts, where it must stop, and what it is read against. */
+/** Openingsbod to Maximumbod as one stretch, with the asking price and the Verwachte verkoopprijs on
+ * the same line: where the bid starts, where it must stop, and what it is read against. Older
+ * Verdicts, made before the Verwachte verkoopprijs, show the comparables' value instead. */
 function BidScale({ advice }: { advice: BidAdvice }) {
+  const { opening_bid: opening, walk_away_maximum: maximum } = advice;
+  if (opening === null || maximum === null) return null;
   const markers: ScaleMarker[] = [
-    { label: "Openingsbod", value: advice.opening_bid },
-    { label: "Maximumbod", value: advice.walk_away_maximum },
+    { label: "Openingsbod", value: opening },
+    { label: "Maximumbod", value: maximum },
   ];
   if (advice.asking_price !== null) markers.push({ label: "Vraagprijs", value: advice.asking_price, primary: true });
   const comparables = advice.comparables?.comparables_value;
-  if (comparables != null) markers.push({ label: "Vergelijkbaar", value: comparables });
+  if (advice.expected_sale_price != null) {
+    markers.push({ label: "Verwachte verkoopprijs", value: advice.expected_sale_price });
+  } else if (comparables != null) {
+    markers.push({ label: "Vergelijkbaar", value: comparables });
+  }
   return (
     <div className="bid-scale">
       <PriceScale
         label="Biedruimte"
         markers={markers}
         span={{
-          from: advice.opening_bid,
-          to: advice.walk_away_maximum,
-          label: `biedruimte ${euro.format(advice.walk_away_maximum - advice.opening_bid)}`,
+          from: opening,
+          to: maximum,
+          label: `biedruimte ${euro.format(maximum - opening)}`,
           tone: "neutral",
         }}
       />
@@ -283,19 +295,44 @@ function BidScale({ advice }: { advice: BidAdvice }) {
 
 function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear: number; rates: RouteRates | null }) {
   const renovationDirect = advice.derivation?.renovation_direct ?? 0;
-  const headroom = advice.asking_price !== null ? advice.affordable_maximum - advice.asking_price : null;
+  const { opening_bid: opening, walk_away_maximum: maximum } = advice;
+  // Without an Expected Sale Price there is nothing to bid on: the Voorwaarden only.
+  const conditionsOnly = opening === null || maximum === null;
+  // Verdicts from before the Expected Sale Price read headroom against the asking price.
+  const judgedPrice = advice.expected_sale_price === undefined ? advice.asking_price : advice.expected_sale_price;
+  const headroom = judgedPrice != null ? advice.affordable_maximum - judgedPrice : null;
   return (
     <section aria-labelledby="biedadvies-title">
       <h2 id="biedadvies-title">Biedadvies</h2>
       <BidScale advice={advice} />
       <div className="bid-vakken" role="group" aria-label="Bedragen">
-        <div className="figure">
-          <p className="vak-label">Openingsbod</p>
-          <p className="bid-amount num">{euro.format(advice.opening_bid)}</p>
-        </div>
+        {!conditionsOnly && (
+          <div className="figure" role="group" aria-labelledby="openingsbod-label">
+            <p className="vak-label" id="openingsbod-label">Openingsbod</p>
+            <p className="bid-amount num">{euro.format(opening)}</p>
+            {aboveAsking(advice, opening) && (
+              <p className="above-asking">
+                {aboveAsking(advice, opening)}
+                {prijsstellingOf(advice) === "laag ingezet" && ": laag ingezet, reken op overbieden"}
+              </p>
+            )}
+            {advice.expected_sale_price != null && (
+              <p className="beside-bid">
+                Verwachte verkoopprijs <span className="num">{euro.format(advice.expected_sale_price)}</span>
+              </p>
+            )}
+            <RichtbodNote advice={advice} />
+          </div>
+        )}
+        {conditionsOnly ? (
+          <div className="figure">
+            <p className="vak-label">Maximumbod</p>
+            <p className="muted">Haal vergelijkbare woningen op voor een Maximumbod.</p>
+          </div>
+        ) : (
         <div className="figure">
           <p className="vak-label">Maximumbod</p>
-          <p className="bid-amount num">{euro.format(advice.walk_away_maximum)}</p>
+          <p className="bid-amount num">{euro.format(maximum)}</p>
           {advice.derivation?.weakly_grounded && (
             <p className="weak-grounding">{weakGroundingNote(advice.derivation)}</p>
           )}
@@ -329,16 +366,17 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
                 <>
                   {basisLine(advice, advice.derivation) && <li>{basisLine(advice, advice.derivation)}</li>}
                   {marginSourceLine(advice.derivation) && <li>{marginSourceLine(advice.derivation)}</li>}
-                  <li>{bindingLine(advice, advice.derivation)}</li>
+                  <li>{bindingLine(maximum, advice.derivation)}</li>
                 </>
               ) : (
                 <li>
-                  <LegacyBindingLimit advice={advice} />
+                  <LegacyBindingLimit advice={advice} maximum={maximum} />
                 </li>
               )}
             </ul>
           </details>
         </div>
+        )}
         <div className="figure">
           <p className="vak-label">Voorwaarden</p>
           {advice.conditions.length === 0 ? (
@@ -355,11 +393,12 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
           )}
         </div>
       </div>
+      {!conditionsOnly && (
       <dl className="figures bid-context">
         <MonthlyFigure
-          label="vraagprijs"
-          gross={advice.monthly_cost_at_asking_price}
-          net={advice.monthly_cost_net_at_asking_price}
+          label={advice.expected_sale_price === undefined ? "vraagprijs" : "verwachte verkoopprijs"}
+          gross={advice.monthly_cost_at_expected_sale_price ?? advice.monthly_cost_at_asking_price ?? null}
+          net={advice.monthly_cost_net_at_expected_sale_price ?? advice.monthly_cost_net_at_asking_price}
         />
         <MonthlyFigure
           label="Maximumbod"
@@ -367,14 +406,127 @@ function Biedadvies({ advice, rulesYear, rates }: { advice: BidAdvice; rulesYear
           net={advice.monthly_cost_net_at_walk_away_maximum}
         />
         <div className="figure">
-          <dt>Ruimte boven vraag</dt>
+          <dt>{advice.expected_sale_price === undefined ? "Ruimte boven vraag" : "Ruimte boven verwachte prijs"}</dt>
           <dd className="num">
             {headroom === null ? "–" : signedEuro(headroom)}
           </dd>
         </div>
       </dl>
+      )}
       <p className="muted rules-year">Regels {rulesYear}</p>
     </section>
+  );
+}
+
+/** Verkocht onder voorbehoud: no Openingsbod or Richtbod, the conditions and a note. */
+function VoorbehoudBiedadvies({ advice }: { advice: BidAdvice }) {
+  return (
+    <section aria-labelledby="biedadvies-title">
+      <h2 id="biedadvies-title">Biedadvies</h2>
+      <p role="status" className="status-banner">
+        <strong>Verkocht onder voorbehoud:</strong> geen Openingsbod of Richtbod, alleen voorwaarden.
+      </p>
+      {advice.conditions.length === 0 ? (
+        <p className="muted">Geen voorwaarden geadviseerd.</p>
+      ) : (
+        <ul className="conditions">
+          {advice.conditions.map((condition) => (
+            <li key={condition}>
+              <Square size={15} aria-hidden="true" className="inline-icon" />
+              {condition}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** "12,4% boven de vraagprijs" when a bid lies above the asking price, so the buyer sees it plainly. */
+function aboveAsking(advice: BidAdvice, amount: number): string | null {
+  const asking = advice.asking_price;
+  if (!asking || amount <= asking) return null;
+  return `${percent((amount - asking) / asking)} boven de vraagprijs`;
+}
+
+/** The Prijsstelling the Richtbod was derived from; older Verdicts stored it as a `label`. */
+function prijsstellingOf(advice: BidAdvice): string | null {
+  const component = advice.guide_bid?.breakdown.prijsstelling;
+  return component?.prijsstelling ?? component?.label ?? null;
+}
+
+// Older Verdicts may carry `asking_price`: the Richtbod was capped there until ADR-0005 dropped it.
+const CAPPED_BY_COPY = {
+  asking_price: "Begrensd door de vraagprijs.",
+  walk_away_maximum: "Begrensd door het Maximumbod.",
+};
+
+/** Labels of the Richtbod's discount components; a new component adds a line here. */
+const DISCOUNT_COMPONENT_LABELS: Record<string, string> = {
+  prijsstelling: "Prijsstelling",
+  days_on_market: "Dagen te koop",
+  price_reduction: "Prijsverlaging",
+};
+
+/** A discount component in words: "hoog ingezet", "130 dagen", "van € 625.000 naar € 595.000".
+ * Older Verdicts stored the words as `label`. */
+function componentDetail(key: string, component: GuideBidComponent): string | null {
+  if (component.label !== undefined) return component.label;
+  if (key === "prijsstelling") return component.prijsstelling ?? null;
+  if (key === "days_on_market" && component.days !== undefined) return `${component.days} dagen`;
+  if (key === "price_reduction") {
+    if (!component.reduced) return "geen";
+    if (component.first_asking_price == null || component.asking_price == null) return null;
+    return `van ${euro.format(component.first_asking_price)} naar ${euro.format(component.asking_price)}`;
+  }
+  return null;
+}
+
+/** The Richtbod under the Openingsbod when they differ, with the model's reason, and always how the
+ * Richtbod came about: one line per discount component. */
+function RichtbodNote({ advice }: { advice: BidAdvice }) {
+  const guide = advice.guide_bid;
+  if (!guide) return null;
+  const differs = guide.value !== advice.opening_bid;
+  return (
+    <>
+      {differs && (
+        <p className="richtbod">
+          Richtbod <span className="num">{euro.format(guide.value)}</span>
+          {aboveAsking(advice, guide.value) && ` (${aboveAsking(advice, guide.value)})`}
+          {advice.guide_bid_deviation_reason && (
+            <span className="muted">: {advice.guide_bid_deviation_reason}</span>
+          )}
+        </p>
+      )}
+      {guide.weakly_grounded && (
+        <p className="weak-grounding">
+          Zwak onderbouwd: het Richtbod rust op een verwachte verkoopprijs uit de WOZ-waarde.
+        </p>
+      )}
+      <details>
+        <summary>Hoe het Richtbod is berekend</summary>
+        <ul className="evidence">
+          <li>
+            Richtbod {euro.format(guide.value)} = verwachte verkoopprijs min {percent(guide.discount)} korting, naar
+            beneden afgerond.
+          </li>
+          {Object.entries(guide.breakdown).map(([key, component]) => (
+            <li key={key}>
+              {DISCOUNT_COMPONENT_LABELS[key] ?? key}
+              {componentDetail(key, component) ? `: ${componentDetail(key, component)}` : ""},{" "}
+              {percent(component.discount)}
+            </li>
+          ))}
+          {guide.tempo_known === false && (
+            <li>Tempo onbekend: geen prijshistorie, dus geen korting voor dagen te koop of prijsverlaging.</li>
+          )}
+          {guide.discount_capped && <li>De korting is begrensd op het maximum.</li>}
+          {guide.capped_by && <li>{CAPPED_BY_COPY[guide.capped_by]}</li>}
+          <li>Het Openingsbod blijft binnen {percent(guide.band)} van het Richtbod.</li>
+        </ul>
+      </details>
+    </>
   );
 }
 
@@ -389,7 +541,19 @@ type BasisLabels = {
   weak: string;
 };
 
-const BASIS_LABELS: Record<WalkAwayDerivation["basis"], BasisLabels> = {
+/** The basis of the Walk-away Maximum: stored on older Verdicts only, else the Expected Sale Price. */
+const basisOf = (derivation: WalkAwayDerivation): WalkAwayBasis => derivation.basis ?? "expected_sale_price";
+
+/** The premium over the basis; older Verdicts called it `margin`. */
+const premiumOf = (derivation: WalkAwayDerivation): number | null => derivation.premium ?? derivation.margin ?? null;
+
+const BASIS_LABELS: Record<WalkAwayBasis, BasisLabels> = {
+  expected_sale_price: {
+    line: "Verwachte verkoopprijs",
+    noun: "verwachte verkoopprijs",
+    value: (advice) => advice.expected_sale_price,
+    weak: "Zwak onderbouwd: de verwachte verkoopprijs rust op de WOZ-waarde, niet op vergelijkbare woningen.",
+  },
   comparables: {
     line: "Vergelijkbare woningen",
     noun: "vergelijkbare woningen",
@@ -412,20 +576,21 @@ const BASIS_LABELS: Record<WalkAwayDerivation["basis"], BasisLabels> = {
 
 /** Said next to the Maximumbod, not tucked into "Hoe berekend": without comparables it is a guess. */
 function weakGroundingNote(derivation: WalkAwayDerivation): string {
-  return BASIS_LABELS[derivation.basis].weak;
+  return BASIS_LABELS[basisOf(derivation)].weak;
 }
 
-/** "Vraagprijs € 595.000 − € 6.000 Direct nodig + 5%: € 618.450": the basis, the Direct nodig
- * renovation cost taken off it, and its margin. */
+/** "Verwachte verkoopprijs € 595.000 − € 6.000 Direct nodig + 5%: € 618.450": the basis, the
+ * Direct nodig renovation cost taken off it, and its premium. */
 function basisLine(advice: BidAdvice, derivation: WalkAwayDerivation): string | null {
-  if (derivation.basis_maximum === null || derivation.margin === null) return null;
-  const basis = BASIS_LABELS[derivation.basis];
+  const premium = premiumOf(derivation);
+  if (derivation.basis_maximum === null || premium === null) return null;
+  const basis = BASIS_LABELS[basisOf(derivation)];
   const value = basis.value(advice);
   if (value == null) return null;
   const renovation = derivation.renovation_direct
     ? ` − ${euro.format(derivation.renovation_direct)} Direct nodig`
     : "";
-  return `${basis.line} ${euro.format(value)}${renovation} + ${percent(derivation.margin)}: ${euro.format(derivation.basis_maximum)}`;
+  return `${basis.line} ${euro.format(value)}${renovation} + ${percent(premium)}: ${euro.format(derivation.basis_maximum)}`;
 }
 
 const HOUSE_LABELS: Record<string, string> = {
@@ -439,27 +604,28 @@ const HOUSE_LABELS: Record<string, string> = {
 /** "Marge: gemiddeld overbod voor een tussenwoning (NVM …, 2e kwartaal 2026)". */
 function marginSourceLine(derivation: WalkAwayDerivation): string | null {
   const source = derivation.margin_source;
-  if (!source || derivation.margin === null) return null;
+  const premium = premiumOf(derivation);
+  if (!source || premium === null) return null;
   const house = source.house_type ? (HOUSE_LABELS[source.house_type] ?? source.house_type) : "alle woningen";
-  return `Marge ${percent(derivation.margin)}: gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
+  return `Marge ${percent(premium)}: gemiddeld overbod voor ${house} (${source.source}, ${source.period}).`;
 }
 
 /** Which of the two set the Maximumbod: its basis plus margin, or the betaalruimte. */
-function bindingLine(advice: BidAdvice, derivation: WalkAwayDerivation): string {
-  const maximum = euro.format(advice.walk_away_maximum);
-  if (derivation.basis === "affordability") return `Maximumbod: de betaalruimte, ${maximum}.`;
-  const basis = BASIS_LABELS[derivation.basis].noun;
+function bindingLine(walkAwayMaximum: number, derivation: WalkAwayDerivation): string {
+  const maximum = euro.format(walkAwayMaximum);
+  if (basisOf(derivation) === "affordability") return `Maximumbod: de betaalruimte, ${maximum}.`;
+  const basis = BASIS_LABELS[basisOf(derivation)].noun;
   return derivation.binding === "basis"
     ? `Maximumbod: de ${basis} plus marge, ${maximum}, onder de betaalruimte.`
     : `Maximumbod: de betaalruimte, ${maximum}, lager dan de ${basis} plus marge.`;
 }
 
 /** For older Verdicts whose model proposed the Maximumbod: names the lowest limit it stayed under. */
-function LegacyBindingLimit({ advice }: { advice: BidAdvice }) {
+function LegacyBindingLimit({ advice, maximum }: { advice: BidAdvice; maximum: number }) {
   const comparables = advice.comparables?.maximum ?? null;
   const byComparables = comparables !== null && comparables < advice.affordable_maximum;
   const limit = byComparables ? comparables : advice.affordable_maximum;
-  const below = limit - advice.walk_away_maximum;
+  const below = limit - maximum;
   return (
     <>
       Laagste grens: {byComparables ? "vergelijkbare woningen" : "betaalruimte"}, {euro.format(limit)}.{" "}
@@ -539,7 +705,7 @@ function describeChange(older: Verdict, newer: Verdict): string {
   if (older.built_from.model !== newer.built_from.model) parts.push("ander model");
   const before = older.bid_advice?.walk_away_maximum;
   const after = newer.bid_advice?.walk_away_maximum;
-  if (before !== undefined && after !== undefined && before !== after) {
+  if (before != null && after != null && before !== after) {
     parts.push(`Maximumbod ${after > before ? "+" : "−"}${euro.format(Math.abs(after - before))}`);
   }
   const tiers =
