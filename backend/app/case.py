@@ -120,11 +120,10 @@ def build_case(
     facts += finding_facts(documents)
     woz = _latest_woz(source_facts, price_index, today)
     vs_woz = _asking_vs_woz(snapshot.get("asking_price"), woz)
-    vs_comparables = _asking_vs_comparables(
-        snapshot, source_facts, comparables_fetched, sources.comparables_min_count
-    )
+    comparables = _counted_comparables(snapshot, source_facts, sources.comparables_min_count)
+    vs_comparables = _asking_vs_comparables(snapshot, comparables, comparables_fetched, sources.comparables_min_count)
     expected_sale_price = _expected_sale_price(
-        snapshot, source_facts, vs_comparables, woz, bid_margins, sources.comparables_min_count, computed_at
+        snapshot, vs_comparables, comparables.per_m2, woz, bid_margins, computed_at
     )
     # The Renovation Estimate reads no Buyer Profile and no affordability: it is the same for every
     # household, and its Direct nodig midpoint lowers what the household can pay for this house.
@@ -306,11 +305,10 @@ def _asking_vs_woz(asking_price: int | None, woz: dict | None) -> dict | None:
 
 def _expected_sale_price(
     snapshot: dict,
-    facts: list[dict],
     vs_comparables: dict,
+    comparables_per_m2: list[float],
     woz: dict | None,
     bid_margins: AskingPriceMargins,
-    min_count: int,
     computed_at: str,
 ) -> dict:
     """What the house is expected to sell for, from evidence independent of its asking price:
@@ -327,7 +325,7 @@ def _expected_sale_price(
             "computed_at": computed_at,
         }
         factor = 1 + overbid["value"]
-        q1, q3 = _quartiles(_comparable_per_m2(snapshot, facts, min_count))
+        q1, q3 = _quartiles(comparables_per_m2)
         value, basis, weak = round(vs_comparables["comparables_value"] * factor), "comparables", False
         low, high = round(q1 * area * factor), round(q3 * area * factor)
     elif woz is not None:
@@ -414,14 +412,31 @@ def _quartiles(sorted_values: list[float]) -> tuple[float, float]:
     return q1, q3
 
 
-def _asking_vs_comparables(snapshot: dict, facts: list[dict], fetched: bool, min_count: int) -> dict:
-    """Asking price per m² against the median price per m² of the comparables that state both
-    price and living area and are of the same kind (an apartment is no comparable for a house).
-    With enough of the same soort woning (tussenwoning, vrijstaand, ...) only those count. Coverage
-    states plainly when there are none or too few to lean on."""
+@dataclass(frozen=True)
+class _CountedComparables:
+    """The comparables that count for a Listing: how many were usable, what they were matched on,
+    and the sorted asking price per m² of those chosen."""
+
+    usable: int
+    matched_on: str | None
+    per_m2: list[float]
+
+
+def _counted_comparables(snapshot: dict, facts: list[dict], min_count: int) -> _CountedComparables:
+    """The comparables that state both price and living area and are of the same kind (an apartment
+    is no comparable for a house); with enough of the same soort woning (tussenwoning, vrijstaand,
+    ...) only those count."""
     usable = _usable_comparables(facts)
     chosen, matched_on = _same_type(snapshot, usable, min_count)
-    per_m2 = _comparable_per_m2(snapshot, facts, min_count)
+    return _CountedComparables(
+        len(usable), matched_on, sorted(c["asking_price"] / c["living_area"] for c in chosen)
+    )
+
+
+def _asking_vs_comparables(snapshot: dict, comparables: _CountedComparables, fetched: bool, min_count: int) -> dict:
+    """Asking price per m² against the median price per m² of the comparables that count. Coverage
+    states plainly when there are none or too few to lean on."""
+    per_m2, matched_on = comparables.per_m2, comparables.matched_on
     count = len(per_m2)
     coverage = "not_fetched" if not fetched else "none" if count == 0 else "thin" if count < min_count else "sufficient"
     asking, area = snapshot.get("asking_price"), snapshot.get("living_area")
@@ -432,7 +447,7 @@ def _asking_vs_comparables(snapshot: dict, facts: list[dict], fetched: bool, min
         "count": count,
         "min_count": min_count,
         "matched_on": matched_on,
-        "excluded": len(usable) - count,
+        "excluded": comparables.usable - count,
         "price_per_m2": round(asking / area) if _positive(asking) and _positive(area) else None,
         "median_price_per_m2": round(median) if median is not None else None,
         "percent": round((asking / area / median - 1) * 100, 1) if comparable else None,
@@ -447,12 +462,6 @@ def _usable_comparables(facts: list[dict]) -> list[dict]:
         for c in (f["value"] for f in facts if f["source"] == "comparables" and f["key"] == "comparable")
         if _positive(c.get("asking_price")) and _positive(c.get("living_area"))
     ]
-
-
-def _comparable_per_m2(snapshot: dict, facts: list[dict], min_count: int) -> list[float]:
-    """Sorted asking price per m² of the comparables that count for this Listing."""
-    chosen, _ = _same_type(snapshot, _usable_comparables(facts), min_count)
-    return sorted(c["asking_price"] / c["living_area"] for c in chosen)
 
 
 def _same_type(snapshot: dict, comparables: list[dict], min_count: int) -> tuple[list[dict], str | None]:

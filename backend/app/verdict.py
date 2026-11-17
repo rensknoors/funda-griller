@@ -385,13 +385,23 @@ def _bid_advice(
         return None, ["bid_advice_invalid"]
     opening, conditions = advice.get("opening_bid"), advice.get("conditions")
     walk_away_maximum = derivation["walk_away_maximum"]
-    if walk_away_maximum is None or case["sold_under_reservation"]:
-        return _conditions_only(opening, conditions, case)
-    if not _is_amount(opening):
+    reserved = case["sold_under_reservation"]
+    conditions_only = walk_away_maximum is None or reserved
+    if conditions_only and opening is not None:
+        return None, ["opening_bid_when_sold_under_reservation" if reserved else "opening_bid_without_walk_away_maximum"]
+    if not conditions_only and not _is_amount(opening):
         return None, ["bid_advice_invalid"]
     if not isinstance(conditions, list) or not all(isinstance(c, str) and c.strip() for c in conditions):
         return None, ["conditions_invalid"]
     asking_price = _asking_price(case)
+    common = {
+        "conditions": [condition.strip() for condition in conditions],
+        "affordable_maximum": case["affordability"]["affordable_maximum"],
+        "sold_under_reservation": reserved,
+        "asking_price": asking_price,
+    }
+    if conditions_only:
+        return {**common, **_CONDITIONS_ONLY}, []
     problems = ["opening_bid_above_walk_away_maximum"] if opening > walk_away_maximum else []
     # Bidding above the asking price is the buyer's own choice, never the advice.
     if asking_price is not None and opening > asking_price:
@@ -406,10 +416,9 @@ def _bid_advice(
     comparables = case["metrics"]["asking_vs_comparables"]
     at_walk_away = monthly_cost_at(walk_away_maximum)
     return {
+        **common,
         "opening_bid": opening,
         "walk_away_maximum": walk_away_maximum,
-        "conditions": [condition.strip() for condition in conditions],
-        "affordable_maximum": affordability["affordable_maximum"],
         "comparables": {
             "coverage": comparables["coverage"],
             "count": comparables["count"],
@@ -419,8 +428,6 @@ def _bid_advice(
         "derivation": {key: value for key, value in derivation.items() if key != "walk_away_maximum"},
         "guide_bid": guide_bid,
         "guide_bid_deviation_reason": reason.strip() if deviates and isinstance(reason, str) else None,
-        "sold_under_reservation": False,
-        "asking_price": asking_price,
         "expected_sale_price": case["metrics"]["expected_sale_price"]["value"],
         "monthly_cost_at_expected_sale_price": affordability["monthly_cost"],
         "monthly_cost_net_at_expected_sale_price": affordability["monthly_cost_net"],
@@ -429,27 +436,18 @@ def _bid_advice(
     }, problems
 
 
-def _conditions_only(opening: object, conditions: object, case: dict) -> tuple[dict | None, list[str]]:
-    """Bid Advice without an Expected Sale Price: no Walk-away Maximum, so no opening bid either."""
-    reserved = case["sold_under_reservation"]
-    if opening is not None:
-        return None, ["opening_bid_when_sold_under_reservation" if reserved else "opening_bid_without_walk_away_maximum"]
-    if not isinstance(conditions, list) or not all(isinstance(c, str) and c.strip() for c in conditions):
-        return None, ["conditions_invalid"]
-    return {
-        "opening_bid": None,
-        "walk_away_maximum": None,
-        "conditions": [condition.strip() for condition in conditions],
-        "affordable_maximum": case["affordability"]["affordable_maximum"],
-        "guide_bid": None,
-        "sold_under_reservation": reserved,
-        "asking_price": _asking_price(case),
-        "expected_sale_price": None,
-        "monthly_cost_at_expected_sale_price": None,
-        "monthly_cost_net_at_expected_sale_price": None,
-        "monthly_cost_at_walk_away_maximum": None,
-        "monthly_cost_net_at_walk_away_maximum": None,
-    }, []
+# Bid Advice without a Walk-away Maximum (no Expected Sale Price) or for a house sold under
+# reservation: conditions only, no bids and no figures at a price.
+_CONDITIONS_ONLY = {
+    "opening_bid": None,
+    "walk_away_maximum": None,
+    "guide_bid": None,
+    "expected_sale_price": None,
+    "monthly_cost_at_expected_sale_price": None,
+    "monthly_cost_net_at_expected_sale_price": None,
+    "monthly_cost_at_walk_away_maximum": None,
+    "monthly_cost_net_at_walk_away_maximum": None,
+}
 
 
 def _is_amount(value: object) -> bool:
