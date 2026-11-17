@@ -327,6 +327,9 @@ Grouping uses bands: Band ground, 4px corners, 20 to 28px padding, no border, no
 
 **Woning card**, the only card: white, 8px corners, a 1px Line ring. The first photo fills the top at 3:2 (a hatch with a house glyph when there is none; greyscale when Verkocht, faded when archived), with the tier pill top-left, a white round actions button top-right, the photo count bottom-right and a Verouderd chip bottom-left. Below: the Vraagprijs at 24px/750 condensed with the signed Ruimte, the address (its link covers the card), city and status, then m² wonen and perceel with lucide glyphs and the energy badge, or the deal-breaker for a Harde afwijzing. A hairline footer carries the Signaal counts and the signed WOZ figure.
 
+### Empty Woningen
+The list before its first Woning is a band with the cobalt top rule: a 32px condensed heading and lede, the three steps as a numbered timeline joined by a dashed rule (step 1 filled cobalt, with a link that focuses the capture field; step 3 previews the tier pills), and beside it the straatje: a street of gables (trapgevel, klokgevel, halsgevel, the G-gevel) drawn in cobalt strokes that rise in one after another. One plot is a dashed, slowly marching outline with a plus. It turns cobalt while the capture field has focus and is built, windows and door, once the field holds a valid link. The Koperprofiel hint sits in a footer strip under a hairline.
+
 ### Figure graphics
 Drawn in HTML and CSS, never images, each repeating its figures in a visually hidden caption.
 - **Price scale:** a 6px Band Strong track with the Vraagprijs as an 18px ink dot labelled above, references as Ink 3 ticks labelled below (staggered into rows when close), and a hatched span between two figures: green for room up to Jouw maximum, vermilion for a shortfall, cobalt for the Biedruimte from Openingsbod to Maximumbod. Under the Dossier key figures and above the Biedadvies.
