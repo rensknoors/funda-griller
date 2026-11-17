@@ -43,7 +43,15 @@ def test_sufficient_comparables_plus_the_average_overbid_are_the_expected_sale_p
         "value": 635_968,
         "basis": "comparables",
         "weakly_grounded": False,
-        "overbid": {"value": 0.046, "house_type": None, "source": NVM, "period": "2e kwartaal 2026"},
+        # A figure from a versioned rule table, so it carries the rule class, not a fetch time.
+        "overbid": {
+            "value": 0.046,
+            "house_type": None,
+            "source": NVM,
+            "period": "2e kwartaal 2026",
+            "provenance": "rule",
+            "computed_at": NOW,
+        },
         "low": 556_472,
         "high": 715_464,
         "provenance": "computed",

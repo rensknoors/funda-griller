@@ -113,7 +113,7 @@ def build_case(
         snapshot, source_facts, comparables_fetched, sources.comparables_min_count
     )
     expected_sale_price = _expected_sale_price(
-        snapshot, source_facts, vs_comparables, woz, bid_margins, sources.comparables_min_count
+        snapshot, source_facts, vs_comparables, woz, bid_margins, sources.comparables_min_count, computed_at
     )
     # The Renovation Estimate reads no Buyer Profile and no affordability: it is the same for every
     # household, and its Direct nodig midpoint lowers what the household can pay for this house.
@@ -300,6 +300,7 @@ def _expected_sale_price(
     woz: dict | None,
     bid_margins: AskingPriceMargins,
     min_count: int,
+    computed_at: str,
 ) -> dict:
     """What the house is expected to sell for, from evidence independent of its asking price:
     sufficient comparables plus the average overbid for the soort woning (strong), else the WOZ
@@ -308,7 +309,12 @@ def _expected_sale_price(
     value = basis = weak = overbid = low = high = None
     area = snapshot.get("living_area")
     if vs_comparables["coverage"] == "sufficient" and vs_comparables["comparables_value"] is not None:
-        overbid = bid_margins.for_category(category(snapshot.get("object_type"), snapshot.get("house_type")))
+        # A figure from a versioned rule table: the rule class, derived when the Case was built.
+        overbid = {
+            **bid_margins.for_category(category(snapshot.get("object_type"), snapshot.get("house_type"))),
+            "provenance": "rule",
+            "computed_at": computed_at,
+        }
         factor = 1 + overbid["value"]
         q1, q3 = _quartiles(_comparable_per_m2(snapshot, facts, min_count))
         value, basis, weak = round(vs_comparables["comparables_value"] * factor), "comparables", False
