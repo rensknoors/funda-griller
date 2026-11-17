@@ -13,9 +13,11 @@ Expected Sale Price, and an opening bid needs a Walk-away Maximum.
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Literal, TypedDict
 
+from pydantic import BaseModel
+
+from app.case import Prijsstelling
 from app.ports import LlmClient, LlmError
 
 TIERS = ("must_buy", "consider", "skip", "hard_no")
@@ -50,12 +52,11 @@ class WalkAwayDerivation(TypedDict):
     weakly_grounded: bool | None
 
 
-@dataclass(frozen=True)
-class GuideBidConfig:
-    """The Guide Bid's configured figures (config/defaults.toml, `[guide_bid]`): the discount per
-    Prijsstelling, the extra discount for time on the market (over the long threshold, or the very
-    long one instead) and for a price reduction, the cap on the total, the band the model's opening
-    bid must stay within, and the rounding step."""
+class GuideBidConfig(BaseModel):
+    """The Guide Bid's configured figures (config/defaults.toml `[guide_bid]`, ADR-0005), the only
+    place they are set: the discount per Prijsstelling, the extra discount for time on the market
+    (over the long threshold, or the very long one instead, not both) and for a price reduction, the
+    cap on the total, the band the model's opening bid must stay within, and the rounding step."""
 
     discount_hoog_ingezet: float
     discount_marktconform: float
@@ -69,11 +70,12 @@ class GuideBidConfig:
     discount_price_reduction: float
     max_discount: float
 
-    def discount_for(self, prijsstelling: str) -> float:
+    def discount_for(self, prijsstelling: Prijsstelling) -> float:
         return {
-            "hoog ingezet": self.discount_hoog_ingezet,
-            "laag ingezet": self.discount_laag_ingezet,
-        }.get(prijsstelling, self.discount_marktconform)
+            Prijsstelling.HOOG_INGEZET: self.discount_hoog_ingezet,
+            Prijsstelling.MARKTCONFORM: self.discount_marktconform,
+            Prijsstelling.LAAG_INGEZET: self.discount_laag_ingezet,
+        }[Prijsstelling(prijsstelling)]
 
     def discount_for_days(self, days: int) -> float:
         if days > self.very_long_on_market_days:

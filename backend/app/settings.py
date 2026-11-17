@@ -2,12 +2,14 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
+
+from app.verdict import GuideBidConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "config"
@@ -31,25 +33,6 @@ class _DefaultsFileSource(PydanticBaseSettingsSource):
             "listing_status_map": data.get("listing_status_map", {}),
             "guide_bid": data.get("guide_bid", {}),
         }
-
-
-class GuideBidSettings(BaseModel):
-    """The Guide Bid's figures (config/defaults.toml `[guide_bid]`, ADR-0005)."""
-
-    discount_hoog_ingezet: float = 0.06
-    discount_marktconform: float = 0.025
-    discount_laag_ingezet: float = 0.0
-    # The model's opening bid stays within this share of the Guide Bid.
-    band: float = 0.03
-    rounding_step: int = 500
-    # Time on the market: more than this many days adds the first discount, more than the very long
-    # threshold the second instead (not both); a price reduction adds its own. The total is capped.
-    long_on_market_days: int = 60
-    discount_long_on_market: float = 0.01
-    very_long_on_market_days: int = 120
-    discount_very_long_on_market: float = 0.02
-    discount_price_reduction: float = 0.01
-    max_discount: float = 0.10
 
 
 class Settings(BaseSettings):
@@ -90,10 +73,11 @@ class Settings(BaseSettings):
     walk_away_premium: float = 0.05
 
     # Within this share of the Expected Sale Price an asking price is marktconform; beyond it the
-    # seller priced the house hoog or laag ingezet (config/defaults.toml).
-    prijsstelling_band: float = 0.05
+    # seller priced the house hoog or laag ingezet. Set only in config/defaults.toml `[case]`.
+    prijsstelling_band: float
 
-    guide_bid: GuideBidSettings = Field(default_factory=GuideBidSettings)
+    # Set only in config/defaults.toml `[guide_bid]`.
+    guide_bid: GuideBidConfig
 
     # Months from today to the expected levering at the notary: the affordability rules, the
     # starters' ages and the startersvrijstelling limit are taken at that date.

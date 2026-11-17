@@ -4,6 +4,7 @@ import statistics
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
+from enum import StrEnum
 
 from app.affordability import Rules, compute, route_rates, rules_summary
 from app.buyer_profile import BuyerProfile
@@ -44,6 +45,15 @@ SOURCE_TRUST = {
 }
 
 
+class Prijsstelling(StrEnum):
+    """How the seller priced the house against its Expected Sale Price; the values are the Dutch UI
+    labels."""
+
+    HOOG_INGEZET = "hoog ingezet"
+    MARKTCONFORM = "marktconform"
+    LAAG_INGEZET = "laag ingezet"
+
+
 @dataclass(frozen=True)
 class VersionedProfile:
     version: int
@@ -76,7 +86,8 @@ def build_case(
     sources: SourceInputs,
     observation_runs: dict | None = None,
     documents: Sequence[dict] = (),
-    prijsstelling_band: float = 0.05,
+    *,
+    prijsstelling_band: float,
 ) -> dict:
     """Staleness is computed against `now`, never stored. `observation_runs` holds the latest and
     latest succeeded vision run over the snapshot's photo set. `documents` are the Listing's stored
@@ -344,7 +355,13 @@ def _asking_vs_expected(asking_price: int | None, expected: int | None, band: fl
         "expected_sale_price": expected,
         "difference": asking_price - expected,
         "percent": round(ratio * 100, 1),
-        "prijsstelling": "hoog ingezet" if ratio > band else "laag ingezet" if ratio < -band else "marktconform",
+        "prijsstelling": (
+            Prijsstelling.HOOG_INGEZET
+            if ratio > band
+            else Prijsstelling.LAAG_INGEZET
+            if ratio < -band
+            else Prijsstelling.MARKTCONFORM
+        ),
         "band": band,
         "provenance": "computed",
     }
