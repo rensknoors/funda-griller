@@ -11,7 +11,7 @@ from app.gemini_client import VERDICT_PROMPT_VERSION
 from app.ports import PricePoint, SourceFact
 from tests.fakes import FakeGeocoder, FakeTravelTimeRouter
 from tests.listing_fixtures import LIVE_URL, live_listing
-from tests.profile_fixtures import typical_profile
+from tests.profile_fixtures import typical_profile, well_off_profile
 from tests.test_comparables_api import FETCH_COMPARABLES, SEVERAL
 
 pytestmark = pytest.mark.usefixtures("price_at_asking")
@@ -385,6 +385,47 @@ def test_the_export_gives_the_richtbod_with_the_models_reason_and_the_discount_b
     assert "### Hoe het Richtbod is berekend" in bid
     assert "- Prijsstelling: marktconform, 2,5% korting op de verwachte verkoopprijs" in bid
     assert "**Zwak onderbouwd**" in bid
+
+
+def test_the_export_gives_the_expected_sale_price_right_above_the_opening_bid(client, listing_provider, llm_client):
+    capture(client, listing_provider)
+    llm_client.verdict = model_says()
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Verwachte verkoopprijs: € 595.000\n- Openingsbod: € 585.000\n" in bid
+    assert "boven de vraagprijs" not in bid
+
+
+def test_a_laag_ingezet_opening_bid_above_the_asking_price_says_so(client, listing_provider, source_clients, llm_client):
+    capture(client, listing_provider, well_off_profile())
+    source_clients["comparables"].facts = SEVERAL
+    client.post(FETCH_COMPARABLES)
+    llm_client.verdict = lambda case, _: model_says(opening_bid=case["guide_bid"]["value"])
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    # Expected 635.968, asking 595.000: laag ingezet, the Guide Bid takes no discount.
+    assert "- Verwachte verkoopprijs: € 635.968\n" in bid
+    assert "- Openingsbod: € 635.500 (6,8% boven de vraagprijs: laag ingezet, reken op overbieden)\n" in bid
+
+
+def test_a_richtbod_above_the_asking_price_says_so_too(client, listing_provider, source_clients, llm_client):
+    capture(client, listing_provider, well_off_profile())
+    source_clients["comparables"].facts = SEVERAL
+    client.post(FETCH_COMPARABLES)
+    llm_client.verdict = model_says(opening_bid=620_000, deviation_reason="Achterstallig onderhoud.")
+    client.post(VERDICT)
+
+    bid = section(client.get(EXPORT).text, "Biedadvies")
+
+    assert "- Openingsbod: € 620.000 (4,2% boven de vraagprijs: laag ingezet, reken op overbieden)\n" in bid
+    assert (
+        "- Richtbod: € 635.500 (6,8% boven de vraagprijs: laag ingezet, reken op overbieden)"
+        " (afwijking: Achterstallig onderhoud.)\n"
+    ) in bid
 
 
 def test_the_export_leaves_out_the_richtbod_line_when_the_opening_bid_equals_it(

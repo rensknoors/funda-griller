@@ -806,7 +806,9 @@ def bid_advice(export: ExportInput) -> list[str]:
         bids = ["- Verkocht onder voorbehoud: geen Openingsbod of Richtbod, alleen voorwaarden."]
     elif advice["walk_away_maximum"] is not None:
         bids = [
-            f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}",
+            f"- Verwachte verkoopprijs: {euro(advice['expected_sale_price'])}",
+            f"- Openingsbod: {_bid(advice, 'opening_bid', export.with_profile)}"
+            + _above_asking(advice, _shown_amount(advice, "opening_bid", export.with_profile)),
             *_richtbod_line(advice, export),
             f"- Maximumbod: {_bid(advice, 'walk_away_maximum', export.with_profile)}",
         ]
@@ -835,9 +837,32 @@ def _richtbod_line(advice: dict, export: ExportInput) -> list[str]:
     if export.with_profile or not (binding == "affordability" and guide_bid["capped_by"] == "walk_away_maximum"):
         shown = euro(amount)
     else:
-        shown = f"{euro(amount // AMOUNT_STEP * AMOUNT_STEP)} (afgerond)"
+        amount = amount // AMOUNT_STEP * AMOUNT_STEP
+        shown = f"{euro(amount)} (afgerond)"
     reason = advice.get("guide_bid_deviation_reason")
-    return [f"- Richtbod: {shown}" + (f" (afwijking: {export.anonymiser.scrub_text(reason)})" if reason else "")]
+    return [
+        f"- Richtbod: {shown}"
+        + _above_asking(advice, amount)
+        + (f" (afwijking: {export.anonymiser.scrub_text(reason)})" if reason else "")
+    ]
+
+
+def _above_asking(advice: dict, amount: int) -> str:
+    """" (4,2% boven de vraagprijs: laag ingezet, reken op overbieden)" when a bid lies above the
+    asking price, so the buyer sees it plainly; empty otherwise."""
+    asking_price = advice.get("asking_price")
+    if not asking_price or amount <= asking_price:
+        return ""
+    percent = _number(round((amount - asking_price) / asking_price * 100, 1))
+    laag = _prijsstelling(advice) == Prijsstelling.LAAG_INGEZET
+    return f" ({percent}% boven de vraagprijs" + (": laag ingezet, reken op overbieden)" if laag else ")")
+
+
+def _prijsstelling(advice: dict) -> Prijsstelling | None:
+    """The Prijsstelling the Guide Bid was derived from; older Verdicts stored it as a `label`."""
+    component = ((advice.get("guide_bid") or {}).get("breakdown") or {}).get("prijsstelling") or {}
+    value = component.get("prijsstelling", component.get("label"))
+    return Prijsstelling(value) if value in {p.value for p in Prijsstelling} else None
 
 
 DISCOUNT_COMPONENTS = {
@@ -887,15 +912,21 @@ def _component_detail(key: str, component: dict) -> str | None:
     return None
 
 
+def _shown_amount(advice: dict, key: str, with_profile: bool) -> int:
+    """The amount `_bid` shows, so a percentage off it gives nothing more away."""
+    amount = advice[key]
+    if with_profile or (advice.get("derivation") or {}).get("binding") != "affordability":
+        return amount
+    return amount // AMOUNT_STEP * AMOUNT_STEP
+
+
 def _bid(advice: dict, key: str, with_profile: bool) -> str:
     """Exact, except without the profile when affordability binds: the Maximumbod is then the
     household's affordable maximum, and the Openingsbod often sits a fixed step below it, so both
     are rounded down."""
-    amount = advice[key]
-    binding = (advice.get("derivation") or {}).get("binding")
-    if with_profile or binding != "affordability":
-        return euro(amount)
-    return f"{euro(amount // AMOUNT_STEP * AMOUNT_STEP)} (afgerond)"
+    if with_profile or (advice.get("derivation") or {}).get("binding") != "affordability":
+        return euro(advice[key])
+    return f"{euro(_shown_amount(advice, key, with_profile))} (afgerond)"
 
 
 BASES = {
