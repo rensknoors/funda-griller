@@ -16,6 +16,7 @@ was added, plus
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
@@ -24,6 +25,7 @@ from app import store
 from app.assembly import assemble_case, make_verdict
 from app.buyer_profile import BuyerProfile
 from app.case import VersionedProfile
+from app.correction import Correction
 from app.gemini_client import VERDICT_PROMPT_VERSION, GeminiLlmClient
 from app.photos import photo_set
 from app.ports import LlmClient, LlmError
@@ -138,7 +140,7 @@ def _judge(
         {source: {"latest": run, "last_success": run} for source, run in data["source_runs"].items()},
         {"latest": observed, "last_success": observed} if observed else None,
         data.get("documents", []),
-        data.get("corrections", []),
+        [Correction(**correction) for correction in data.get("corrections", [])],
     )
     house_note = data.get("house_note")
     note = {"text": house_note, "updated_at": data["as_of"]} if house_note else None
@@ -187,8 +189,8 @@ def _add(args: argparse.Namespace, settings: Settings, out: TextIO) -> int:
         "source_runs": {source: run["last_success"] for source, run in runs.items() if run["last_success"]},
         "observation_run": observed.get("last_success"),
         "documents": documents,
-        "corrections": store.corrections(settings.database_path, args.funda_id),
-        "house_note": (store.note(settings.database_path, args.funda_id) or {}).get("text", ""),
+        "corrections": [asdict(c) for c in store.corrections(settings.database_path, args.funda_id)],
+        "house_note": store.note_text(settings.database_path, args.funda_id),
         "buyer_profile": profile["profile"],
     }
     args.set.mkdir(parents=True, exist_ok=True)

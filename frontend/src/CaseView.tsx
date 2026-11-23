@@ -84,6 +84,8 @@ export function CaseView(props: {
   onRefetch: (fundaId: string) => void;
   /** A Signaal to scroll to and expand once the Dossier has loaded (from an Oordeel chip). */
   focusFlagId?: string | null;
+  /** A Correctie changed the Dossier, so the Woning's row (header, Woningen list) is re-read. */
+  onCorrected?: () => void;
 }) {
   const { listing, focusFlagId } = props;
   const [state, setState] = useState<LoadState>({ kind: "laden" });
@@ -223,7 +225,10 @@ export function CaseView(props: {
           <Kenmerken
             fundaId={listing.funda_id}
             facts={state.data.facts}
-            onCase={(data) => setState({ kind: "klaar", data })}
+            onCase={(data) => {
+              setState({ kind: "klaar", data });
+              props.onCorrected?.();
+            }}
           />
           <SourceGroup
             title="Prijs en waarde"
@@ -309,7 +314,10 @@ export function CaseView(props: {
           <FotoWaarnemingen
             data={state.data}
             fundaId={listing.funda_id}
-            onCase={(data) => setState({ kind: "klaar", data })}
+            onCase={(data) => {
+              setState({ kind: "klaar", data });
+              props.onCorrected?.();
+            }}
           />
           <Documenten fundaId={listing.funda_id} documents={state.data.documents} onChanged={reloadCase} />
           </div>

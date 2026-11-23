@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app import store
-from app.case import NotCorrectable, corrected_value
+from app.correction import NotCorrectable, corrected_value
 from app.listing_url import funda_id_from_url
 from app.manual_provider import ManualEntry, ManualListingProvider
 from app.source_runner import run_sources
@@ -130,18 +130,25 @@ def routes(w: Wiring) -> APIRouter:
         """The household's own value for a Listing fact the Case computes with, with where it comes
         from. It replaces any earlier Correction of that fact; the answer is the new Case."""
         listing = w.listing(funda_id)
+        now = w.clock()
         try:
-            value = corrected_value(key, request.value)
+            value = corrected_value(key, request.value, now.date())
         except NotCorrectable:
             return JSONResponse({"code": "not_correctable"}, status_code=422)
         except ValueError:
             return JSONResponse({"code": "invalid_value"}, status_code=422)
         if not request.explanation.strip():
             return JSONResponse({"code": "explanation_required"}, status_code=422)
-        listing_value = listing["snapshots"][0].get(key)
-        store.set_correction(
-            settings.database_path, funda_id, key, value, request.explanation.strip(), w.clock().isoformat(), listing_value
-        )
+        store.set_correction(settings.database_path, funda_id, key, value, request.explanation.strip(), now.isoformat())
+        return w.current_case(listing)
+
+    @router.post("/{funda_id}/corrections/{key}/keep", response_model=None)
+    def keep_correction(funda_id: str, key: str) -> dict:
+        """Keep a Correction after the Listing moved ("Correctie behouden"): the notice goes, and
+        nothing the Verdict was built from changes."""
+        listing = w.listing(funda_id)
+        if not store.keep_correction(settings.database_path, funda_id, key):
+            raise NotFound()
         return w.current_case(listing)
 
     @router.delete("/{funda_id}/corrections/{key}", response_model=None)

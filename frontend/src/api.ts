@@ -30,9 +30,11 @@ export type Comparison = {
   status_change: { from: string; to: string } | null;
   asking_price: number | null;
   previous_asking_price: number | null;
+  /** Living area, plot area and energielabel as the Dossier counts them: a Correctie goes first. */
   living_area: number | null;
   plot_area: number | null;
-  energy_label: { value: string; official: boolean } | null;
+  /** `official`: from the register; `corrected`: the household's Correctie. */
+  energy_label: { value: string; official: boolean; corrected: boolean } | null;
   asking_vs_woz_percent: number | null;
   asking_vs_comparables_percent: number | null;
   /** The Prijsstelling as a percentage: the asking price against the Expected Sale Price. */
@@ -216,7 +218,10 @@ export type CorrectionFact = {
   provenance: "correction";
   explanation: string;
   corrected_at: string;
-  original: { value: string | number; provenance: "listing" | "source" } | { value: null; provenance: null };
+  original:
+    | { value: string | number; provenance: "listing"; fetched_at: string }
+    | { value: string; provenance: "source"; source: string; fetched_at: string }
+    | { value: null; provenance: null };
   listing_changed: boolean;
 };
 
@@ -616,6 +621,13 @@ export async function correctFact(
   return { error: code === "invalid_value" || code === "explanation_required" ? code : "unavailable" };
 }
 
+/** Keep a Correction after the advertentie moved: the notice goes and the Oordeel stays current. */
+export async function keepCorrection(fundaId: string, key: CorrectableKey): Promise<Case> {
+  const response = await apiFetch(`/api/listings/${fundaId}/corrections/${key}/keep`, { method: "POST" });
+  if (!response.ok) throw new Error("correction not kept");
+  return response.json();
+}
+
 /** Remove a Correction: the Listing's value counts again. Returns the rebuilt Case. */
 export async function removeCorrection(fundaId: string, key: CorrectableKey): Promise<Case> {
   const response = await apiFetch(`/api/listings/${fundaId}/corrections/${key}`, { method: "DELETE" });
@@ -623,7 +635,7 @@ export async function removeCorrection(fundaId: string, key: CorrectableKey): Pr
   return response.json();
 }
 
-const documentsPath =(fundaId: string) => `/api/listings/${fundaId}/documents`;
+const documentsPath = (fundaId: string) => `/api/listings/${fundaId}/documents`;
 
 async function sendDocument(path: string, method: "POST" | "PUT", file: File): Promise<void> {
   const form = new FormData();
