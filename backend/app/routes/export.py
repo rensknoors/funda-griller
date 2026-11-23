@@ -28,6 +28,7 @@ def routes(w: Wiring) -> APIRouter:
             profile=latest,
             include_profile=profile,
             now=w.clock(),
+            note=(store.note(w.settings.database_path, funda_id) or {}).get("text", ""),
         )
         return Response(
             render(export),

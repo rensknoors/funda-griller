@@ -6,7 +6,8 @@ anonymised (`Anonymiser`): euro amounts derived from the household's finances ar
 where the Verdict's free text names them) and commute destination labels become "Bestemming 1, 2,
 …". Without `include_profile` the reduced Buyer Profile and every affordability figure are left
 out, and household amounts in the Verdict text read "[weggelaten]". Photos and Documents are never
-linked, named or quoted: they are shown only in the app's own UI.
+linked, named or quoted: they are shown only in the app's own UI. Corrections (marked gecorrigeerd,
+with the original value and the explanation) and the Notitie are exported whole, not kept private.
 
 Each section is one function from `ExportInput` to Markdown lines; adding a section is adding one
 function to `SECTIONS`.
@@ -48,6 +49,8 @@ class ExportInput:
     profile: VersionedProfile | None
     include_profile: bool
     now: datetime
+    # The household's Notitie; empty when there is none. Exported whole, not anonymised (ADR-0006).
+    note: str = ""
 
     @property
     def with_profile(self) -> bool:
@@ -169,7 +172,8 @@ def filename(export: ExportInput) -> str:
 
 
 def render(export: ExportInput) -> str:
-    return "\n".join(line for section in SECTIONS for line in [*section(export), ""]).rstrip() + "\n"
+    sections = [lines for section in SECTIONS if (lines := section(export))]
+    return "\n".join(line for lines in sections for line in [*lines, ""]).rstrip() + "\n"
 
 
 # --- Formatting --------------------------------------------------------------------------------
@@ -229,7 +233,10 @@ CHANGED_LABELS = {
     "buyer_profile": "het Koperprofiel",
     "rules": "de regels",
     "model": "het model",
+    "note": "de Notitie",
 }
+# Where a corrected fact's original value came from: the Listing, or the register's energielabel.
+ORIGIN_LABELS = {"listing": "advertentie", "source": "register"}
 COVERAGE_LABELS = {
     "not_fetched": "niet opgehaald",
     "none": "geen bruikbare vergelijkbare woningen",
@@ -393,6 +400,9 @@ def preamble(export: ExportInput) -> list[str]:
         "- **Bron**: uit een externe bron. *Officieel register* is het betrouwbaarst; *derde partij* is indicatief.",
         "- **Waarneming (geschat)**: door een beeldmodel geschat uit de advertentiefoto's; kan fout zijn.",
         "- **Bevinding (door verkoper)**: door de verkoper gezegd in een document, met paginaverwijzing; niet gecontroleerd.",
+        "- **Gecorrigeerd**: door het huishouden verbeterd (Correctie), met de oorspronkelijke waarde en een "
+        "toelichting erbij; deze waarde gaat voor en alle berekeningen gebruiken haar. Dat de advertentie het "
+        "feit verkeerd gaf, zegt ook iets over de betrouwbaarheid van de advertentie.",
         "- **Verouderd**: het feit is ouder dan de geldigheidsduur van zijn bron.",
         "- **Berekend**: rekenwerk over andere feiten.",
         "",
@@ -403,6 +413,8 @@ def preamble(export: ExportInput) -> list[str]:
         "- Bron = Source",
         "- Waarneming = Observation",
         "- Bevinding = Finding",
+        "- Correctie = Correction",
+        "- Notitie = Note (vrije tekst van het huishouden, buiten het Dossier)",
         "- Document = Document",
         "- Signaal = Flag (Pluspunt = pro, Minpunt = con, Risico = risk)",
         "- Vergelijkbare woning = Comparable (Dun = thin)",
@@ -468,13 +480,24 @@ def _prompt_version(verdict: dict) -> str:
 
 def woning(export: ExportInput) -> list[str]:
     snapshot = export.snapshot
+    corrected = {f["key"]: f["value"] for f in export.case["facts"] if f["provenance"] == "correction"}
+
+    def listed(key: str, unit: str = "") -> str | None:
+        """The Listing's value, or the household's Correction with the Listing's value beside it."""
+        def shown(value: object) -> str | None:
+            return f"{value}{unit}" if value else None
+
+        if key not in corrected:
+            return shown(snapshot.get(key))
+        return f"{shown(corrected[key])} **gecorrigeerd** (advertentie: {shown(snapshot.get(key)) or 'onbekend'})"
+
     rows = [
         ("Adres", _place(snapshot)),
         ("Vraagprijs", euro(snapshot["asking_price"]) if snapshot.get("asking_price") is not None else None),
-        ("Woonoppervlak", f"{snapshot['living_area']} m²" if snapshot.get("living_area") else None),
-        ("Perceeloppervlak", f"{snapshot['plot_area']} m²" if snapshot.get("plot_area") else None),
-        ("Bouwjaar", snapshot.get("construction_year")),
-        ("Energielabel (advertentie)", snapshot.get("energy_label")),
+        ("Woonoppervlak", listed("living_area", " m²")),
+        ("Perceeloppervlak", listed("plot_area", " m²")),
+        ("Bouwjaar", listed("construction_year")),
+        ("Energielabel (advertentie)", listed("energy_label")),
         ("Status", STATUS_LABELS.get(snapshot.get("status") or "", snapshot.get("raw_status"))),
         ("Vastgelegd op", snapshot.get("fetched_at")),
         ("funda", export.url),
@@ -489,9 +512,11 @@ def woning(export: ExportInput) -> list[str]:
 def facts(export: ExportInput) -> list[str]:
     anonymiser = export.anonymiser
     case_facts = export.case["facts"]
-    by_class = {p: [f for f in case_facts if f["provenance"] == p] for p in ("listing", "source", "observation", "finding")}
+    by_class = {p: [f for f in case_facts if f["provenance"] == p] for p in ("source", "observation", "finding")}
+    # A Correction stands in the Listing's place, so it is listed among the Listing's facts.
+    listed = [f for f in case_facts if f["provenance"] in ("listing", "correction")]
     lines = ["## Feiten", "", "### Advertentie", ""]
-    lines += [f"- {_label(f['key'])}: {_value(f['key'], f['value'], anonymiser)}" for f in by_class["listing"]] or ["Geen."]
+    lines += [_listing_line(f, anonymiser) for f in listed] or ["Geen."]
     lines += ["", "### Bron", ""]
     sourced = [f for f in by_class["source"] if f["source"] not in ("comparables", "commute")]
     lines += [_source_line(f, anonymiser) for f in sourced] or ["Geen."]
@@ -500,6 +525,33 @@ def facts(export: ExportInput) -> list[str]:
     lines += ["", "### Bevinding (door verkoper)", ""]
     lines += [_finding_line(f) for f in by_class["finding"]] or ["Geen."]
     return lines
+
+
+def _listing_line(fact: dict, anonymiser: Anonymiser) -> str:
+    line = f"- {_label(fact['key'])}: {_value(fact['key'], fact['value'], anonymiser)}"
+    if fact["provenance"] != "correction":
+        return line
+    original = fact["original"]
+    shown = _plain_value(fact["key"], original["value"]) if original["value"] is not None else "onbekend"
+    moved = "; de advertentie is gewijzigd sinds de correctie" if fact.get("listing_changed") else ""
+    origin = ORIGIN_LABELS.get(original["provenance"], "advertentie")
+    return f"{line} **gecorrigeerd** ({origin}: {shown}; toelichting: {fact['explanation']}){moved}"
+
+
+def note(export: ExportInput) -> list[str]:
+    """Left out when there is no Notitie. Fenced, since it is the household's own free text."""
+    if not export.note:
+        return []
+    return [
+        "## Notitie (van het huishouden)",
+        "",
+        "Wat het huishouden zelf weet, bijvoorbeeld van een bezichtiging of de buren; niet gecontroleerd. "
+        "Het Oordeel weegt dit mee.",
+        "",
+        "````text",
+        export.note,
+        "````",
+    ]
 
 
 def _source_line(fact: dict, anonymiser: Anonymiser) -> str:
@@ -1020,6 +1072,7 @@ SECTIONS: tuple[Section, ...] = (
     provenance,
     woning,
     facts,
+    note,
     metrics,
     comparables,
     flags,
