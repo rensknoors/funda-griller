@@ -341,3 +341,40 @@ def test_adding_a_listing_freezes_its_observations_and_documents(
     frozen = json.loads((regression_set.directory / "holtum.json").read_text())
     assert [o["key"] for o in frozen["observation_run"]["observations"]] == ["damp_or_mould"]
     assert "stored_name" not in frozen["documents"][0]
+
+
+NEIGHBOUR_NOTE = "De buren zeggen dat de fundering van de hele rij is verzakt."
+
+
+def test_an_entrys_house_note_reaches_the_model_like_in_the_app(settings, llm_client, regression_set):
+    regression_set("holtum-with-note", entry("skip", house_note=NEIGHBOUR_NOTE))
+    regression_set("holtum-without-note", entry("consider"))
+    llm_client.verdict = answer_per_case("consider")
+
+    run(settings, llm_client, "run", "--yes", "--set", str(regression_set.directory))
+
+    # Entries run in name order.
+    assert llm_client.rate_notes == [NEIGHBOUR_NOTE, None]
+
+
+def test_adding_a_listing_freezes_its_house_note(client, settings, listing_provider, llm_client, regression_set):
+    listing_provider.listings[LIVE_URL] = live_listing(brochure_url=None)
+    client.post("/api/listings", json={"url": LIVE_URL})
+    client.put("/api/buyer-profile", json=typical_profile())
+    client.put("/api/listings/80907644/note", json={"text": NEIGHBOUR_NOTE})
+
+    directory = str(regression_set.directory)
+    run(settings, llm_client, "add", "80907644", "--expect", "skip", "--name", "holtum", "--set", directory)
+
+    frozen = json.loads((regression_set.directory / "holtum.json").read_text())
+    assert frozen["house_note"] == NEIGHBOUR_NOTE
+
+
+def test_the_shipped_note_entry_sends_its_note_to_the_model(settings, llm_client):
+    llm_client.verdict = answer_per_case("consider")
+
+    run(settings, llm_client, "run", "--yes")
+
+    calls = zip(llm_client.rate_calls, llm_client.rate_notes, strict=True)
+    [note] = [note for (case, _), note in calls if case["funda_id"] == "example-note-foundation-problems"]
+    assert "fundering" in note
