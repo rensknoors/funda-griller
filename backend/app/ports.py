@@ -107,8 +107,9 @@ class LlmClient(Protocol):
         Raises LlmError."""
         ...
 
-    def rate(self, case: dict, buyer_profile: dict) -> dict:
-        """The Verdict model's raw answer for a Case and the reduced Buyer Profile. Raises LlmError."""
+    def rate(self, case: dict, buyer_profile: dict, note: str | None = None) -> dict:
+        """The Verdict model's raw answer for a Case, the reduced Buyer Profile and the house's Note
+        (the household's own free text, outside the Case; ADR-0006). Raises LlmError."""
         ...
 
 

@@ -8,7 +8,8 @@ part of `pytest`; run it by hand:
     uv run python -m app.verdict_regression add <funda_id> --expect consider --name <slug>
 
 Each entry is one JSON file in the set directory: the Listing snapshot, Source runs, photo
-Observation run, Documents, Corrections and Buyer Profile frozen at the moment it was added, plus
+Observation run, Documents, Corrections, the house's Note and Buyer Profile frozen at the moment it
+was added, plus
 `expected_tier` and `as_of` (the clock the Case is built against). See `config/verdict_regression/README.md`.
 """
 
@@ -139,8 +140,10 @@ def _judge(
         data.get("documents", []),
         data.get("corrections", []),
     )
+    house_note = data.get("house_note")
+    note = {"text": house_note, "updated_at": data["as_of"]} if house_note else None
     try:
-        verdict = make_verdict(settings, case, profile, llm_client, now)
+        verdict = make_verdict(settings, case, profile, llm_client, now, note)
     except InvalidVerdict as error:
         return None, f"invalid_verdict: {error}", False, None
     except LlmError as error:
@@ -185,6 +188,7 @@ def _add(args: argparse.Namespace, settings: Settings, out: TextIO) -> int:
         "observation_run": observed.get("last_success"),
         "documents": documents,
         "corrections": store.corrections(settings.database_path, args.funda_id),
+        "house_note": (store.note(settings.database_path, args.funda_id) or {}).get("text", ""),
         "buyer_profile": profile["profile"],
     }
     args.set.mkdir(parents=True, exist_ok=True)

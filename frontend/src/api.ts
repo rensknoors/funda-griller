@@ -663,7 +663,7 @@ export async function rerunObservations(fundaId: string): Promise<Case> {
 }
 
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
-export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
+export type VerdictInput = "case" | "buyer_profile" | "rules" | "model" | "note";
 
 export type WalkAwayBasis = "expected_sale_price" | "comparables" | "asking_price" | "affordability";
 
@@ -768,6 +768,8 @@ export type Verdict = {
     mortgage_rates?: RouteRates | null;
     source_fetches: Record<string, string>;
     model: string | null;
+    /** When the Notitie it read last changed; null without one, absent on Verdicts from before the Notitie. */
+    note_updated_at?: string | null;
   };
 };
 
@@ -784,6 +786,27 @@ export type VerdictError =
   /** `reason` is the backend's explanation, e.g. no API key or an unknown model. */
   | { kind: "llm_unavailable"; reason?: string }
   | { kind: "unknown" };
+
+/** The household's own free text about one Woning (Notitie), outside the Dossier; the model weighs
+ * it for the Oordeel. An empty text is no Notitie. */
+export type Note = { text: string; updated_at: string | null };
+
+export async function fetchNote(fundaId: string): Promise<Note> {
+  const response = await apiFetch(`/api/listings/${fundaId}/note`);
+  if (!response.ok) throw new Error("note unavailable");
+  return response.json();
+}
+
+/** Replace the Notitie; an empty text clears it. Makes an existing Oordeel Achterhaald. */
+export async function saveNote(fundaId: string, text: string): Promise<Note> {
+  const response = await apiFetch(`/api/listings/${fundaId}/note`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) throw new Error("note not saved");
+  return response.json();
+}
 
 /** The Markdown export of a Woning: Dossier and current Oordeel; the koperprofiel always anonymised. */
 export const exportUrl = (fundaId: string, withProfile: boolean) =>

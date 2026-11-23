@@ -76,6 +76,11 @@ _listing_provider.listings[TEMPO_URL] = live_listing(
     address="Kerkpad 4",
     price_history=(PricePoint(date=f"{_listed.day} {DUTCH_MONTHS[_listed.month - 1]} {_listed.year}", price=625_000),),
 )
+# Its own woning for the Notitie spec, so its Achterhaald Oordeel leaves the other specs' alone.
+NOTE_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-6/80907662/"
+_listing_provider.listings[NOTE_URL] = live_listing(
+    funda_id="80907662", provider_id="17270392", url=NOTE_URL, address="Kerkpad 6"
+)
 # Verkocht onder voorbehoud: its Oordeel gives conditions only (no Openingsbod or Richtbod).
 RESERVED_URL = "https://www.funda.nl/detail/koop/maastricht/appartement-molenstraat-7/55500002/"
 _listing_provider.listings[RESERVED_URL] = live_listing(

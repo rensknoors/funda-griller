@@ -3,6 +3,7 @@ import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Downl
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 
 import { exportUrl, type CasePhoto, type Listing } from "./api";
+import { Notitie } from "./Notitie";
 import { PhotoViewer } from "./PhotoViewer";
 import { href } from "./route";
 
@@ -12,7 +13,8 @@ const addressOf = (listing: Listing) =>
   listing.snapshots[0].address ?? listing.url;
 
 /** The top of a Woning's two pages: back to the list, the address, Dossier and Oordeel as two
- * halves of one Woning, and the step to the neighbouring Woningen. */
+ * halves of one Woning, the step to the neighbouring Woningen, and the Notitie under the tabs on
+ * both halves. `onNoteSaved` lets the Oordeel re-read whether it is achterhaald. */
 export function WoningHeader(props: {
   listing: Listing;
   page: "dossier" | "oordeel";
@@ -20,6 +22,7 @@ export function WoningHeader(props: {
   headingRef: RefObject<HTMLHeadingElement | null>;
   meta: ReactNode;
   actions?: ReactNode;
+  onNoteSaved?: () => void;
 }) {
   const { listing, page, neighbours } = props;
   const latest = listing.snapshots[0];
@@ -86,6 +89,7 @@ export function WoningHeader(props: {
         </div>
       </header>
       <Halves fundaId={fundaId} page={page} address={addressOf(listing)} />
+      <Notitie fundaId={fundaId} onSaved={props.onNoteSaved} />
     </>
   );
 }

@@ -373,6 +373,18 @@ a.button:hover { background: var(--band); border-color: var(--ink-3); }
 .halves-address { display: none; min-width: 0; margin-left: auto; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--on-hero-2); }
 .halves[data-stuck] .halves-address { display: block; }
 
+/* Notitie: the household's own text under the tabs on both halves, a band like the other groupings. */
+.notitie { background: var(--band); border-radius: var(--radius-m); padding: 20px 24px; margin: 0 0 32px; }
+.notitie form { display: grid; gap: 8px; max-width: 920px; }
+.notitie-title { margin: 0; font-size: 15px; font-weight: 650; }
+.notitie textarea { width: 100%; resize: vertical; line-height: 1.5; }
+.notitie-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.notitie-foot p { margin: 0; }
+.notitie-foot > p:first-child { flex: 1 1 320px; max-width: 68ch; font-size: 13px; }
+.notitie-saved { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--green); font-weight: 550; }
+.notitie-saved.muted { color: var(--ink-2); font-weight: 400; }
+@media (max-width: 720px) { .notitie { padding: 16px; margin-bottom: 24px; } }
+
 /* Dossier: content column beside a sticky overview rail. */
 .dossier-body { display: grid; grid-template-columns: 272px minmax(0, 1fr); gap: 56px; align-items: start; }
 .dossier-rail { position: sticky; top: calc(var(--topbar-h) + var(--tabs-h) + 24px); display: grid; gap: 28px; max-height: calc(100vh - var(--topbar-h) - var(--tabs-h) - 40px); overflow-y: auto; padding: 0 4px 24px 0; mask-image: linear-gradient(#000 calc(100% - 24px), transparent); }
