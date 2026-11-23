@@ -18,6 +18,10 @@ class CaptureRequest(BaseModel):
     url: str
 
 
+class NoteRequest(BaseModel):
+    text: str
+
+
 class ManualEntryForm(BaseModel):
     url: str
     raw_status: str = Field(min_length=1)
@@ -160,6 +164,18 @@ def routes(w: Wiring) -> APIRouter:
             return JSONResponse({"code": "llm_unavailable"}, status_code=502)
         return w.current_case(listing)
 
+    @router.get("/{funda_id}/note", response_model=None)
+    def read_note(funda_id: str) -> dict:
+        w.listing(funda_id)
+        return _note_view(store.note(settings.database_path, funda_id))
+
+    @router.put("/{funda_id}/note", response_model=None)
+    def write_note(funda_id: str, request: NoteRequest) -> dict:
+        """Replace the house's Note (ADR-0006). An empty text clears it. Never part of the Case."""
+        w.listing(funda_id)
+        store.set_note(settings.database_path, funda_id, request.text.strip(), w.clock().isoformat())
+        return _note_view(store.note(settings.database_path, funda_id))
+
     def set_archived(funda_id: str, archived: bool) -> dict:
         w.listing(funda_id)
         store.set_archived(settings.database_path, funda_id, archived, w.clock().isoformat())
@@ -174,3 +190,7 @@ def routes(w: Wiring) -> APIRouter:
         return set_archived(funda_id, False)
 
     return router
+
+
+def _note_view(note: dict | None) -> dict:
+    return note or {"text": "", "updated_at": None}

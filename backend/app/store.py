@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.ports import Coordinates, Listing, PricePoint
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -82,6 +82,11 @@ CREATE TABLE IF NOT EXISTS geocodes (
     address TEXT PRIMARY KEY,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notes (
+    funda_id TEXT PRIMARY KEY REFERENCES listings(funda_id),
+    text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 """
 
@@ -654,5 +659,31 @@ def listings_with_verdicts(database_path: Path) -> list[str]:
             row["funda_id"]
             for row in connection.execute("SELECT DISTINCT funda_id FROM verdicts ORDER BY funda_id")
         ]
+    finally:
+        connection.close()
+
+
+def note(database_path: Path, funda_id: str) -> dict | None:
+    """A house's Note (`text`, `updated_at`), or None when it has none (ADR-0006)."""
+    connection = connect(database_path)
+    try:
+        row = connection.execute("SELECT text, updated_at FROM notes WHERE funda_id = ?", (funda_id,)).fetchone()
+    finally:
+        connection.close()
+    return dict(row) if row else None
+
+
+def set_note(database_path: Path, funda_id: str, text: str, updated_at: str) -> None:
+    """Replace a house's Note; an empty text removes it."""
+    connection = connect(database_path)
+    try:
+        if text:
+            connection.execute(
+                "INSERT OR REPLACE INTO notes (funda_id, text, updated_at) VALUES (?, ?, ?)",
+                (funda_id, text, updated_at),
+            )
+        else:
+            connection.execute("DELETE FROM notes WHERE funda_id = ?", (funda_id,))
+        connection.commit()
     finally:
         connection.close()

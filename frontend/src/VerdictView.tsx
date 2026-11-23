@@ -34,6 +34,7 @@ const CHANGED_COPY: Record<VerdictInput, string> = {
   buyer_profile: "je koperprofiel",
   rules: "de regels",
   model: "het model",
+  note: "je notitie",
 };
 
 const ERROR_COPY: Record<VerdictError["kind"], string> = {
@@ -89,6 +90,16 @@ export function VerdictView(props: {
     setRunning(false);
   }
 
+  /** A saved Notitie may make the Oordeel achterhaald: re-read the state in place, no skeleton. */
+  async function handleNoteSaved() {
+    try {
+      const data = await fetchVerdicts(listing.funda_id);
+      setState({ kind: "klaar", data });
+    } catch {
+      // The Oordeel shown stays as it was; the next visit reads it again.
+    }
+  }
+
   const data = state.kind === "klaar" ? state.data : null;
   const latest = data?.verdicts[0];
 
@@ -99,6 +110,7 @@ export function VerdictView(props: {
         page="oordeel"
         neighbours={props.neighbours}
         headingRef={heading}
+        onNoteSaved={handleNoteSaved}
         meta={
           latest ? (
             <span>
