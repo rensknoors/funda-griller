@@ -69,6 +69,15 @@ CREATE TABLE IF NOT EXISTS listing_archive_events (
     archived INTEGER NOT NULL,
     at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS corrections (
+    funda_id TEXT NOT NULL REFERENCES listings(funda_id),
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    listing_value_at_correction TEXT NOT NULL,
+    PRIMARY KEY (funda_id, key)
+);
 CREATE TABLE IF NOT EXISTS geocodes (
     address TEXT PRIMARY KEY,
     latitude REAL NOT NULL,
@@ -534,6 +543,65 @@ def delete_document(database_path: Path, document_id: int) -> None:
         connection.commit()
     finally:
         connection.close()
+
+
+def set_correction(
+    database_path: Path,
+    funda_id: str,
+    key: str,
+    value: object,
+    explanation: str,
+    created_at: str,
+    listing_value: object,
+) -> None:
+    """Store the live Correction of one Listing fact, replacing any earlier one. `listing_value` is
+    the Listing's value at this moment, so a later re-capture can tell whether it moved."""
+    connection = connect(database_path)
+    try:
+        connection.execute(
+            "INSERT OR REPLACE INTO corrections "
+            "(funda_id, key, value, explanation, created_at, listing_value_at_correction) VALUES (?, ?, ?, ?, ?, ?)",
+            (funda_id, key, json.dumps(value), explanation, created_at, json.dumps(listing_value)),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def delete_correction(database_path: Path, funda_id: str, key: str) -> bool:
+    """Remove a Correction; False when there was none."""
+    connection = connect(database_path)
+    try:
+        deleted = connection.execute(
+            "DELETE FROM corrections WHERE funda_id = ? AND key = ?", (funda_id, key)
+        ).rowcount
+        connection.commit()
+    finally:
+        connection.close()
+    return deleted > 0
+
+
+def corrections(database_path: Path, funda_id: str) -> list[dict]:
+    """A Listing's live Corrections, by fact key."""
+    connection = connect(database_path)
+    try:
+        rows = connection.execute(
+            "SELECT key, value, explanation, created_at, listing_value_at_correction FROM corrections "
+            "WHERE funda_id = ? ORDER BY key",
+            (funda_id,),
+        ).fetchall()
+    finally:
+        connection.close()
+    return [
+        {
+            "key": row["key"],
+            "value": json.loads(row["value"]),
+            "explanation": row["explanation"],
+            "created_at": row["created_at"],
+            "listing_value_at_correction": json.loads(row["listing_value_at_correction"]),
+        }
+        for row in rows
+    ]
 
 
 def cached_extraction(database_path: Path, sha256: str, model: str | None) -> dict | None:

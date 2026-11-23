@@ -32,6 +32,7 @@ def assemble_case(
     source_runs: dict[str, dict],
     observation_runs: dict | None = None,
     documents: Sequence[dict] = (),
+    corrections: Sequence[dict] = (),
 ) -> dict:
     sources = SourceInputs(source_names, source_runs, settings.source_ttl_days, settings.comparables_min_count)
     levering = expected_levering(now.date(), settings.expected_levering_months)
@@ -50,6 +51,7 @@ def assemble_case(
         observation_runs,
         documents,
         prijsstelling_band=settings.prijsstelling_band,
+        corrections=corrections,
     )
 
 
