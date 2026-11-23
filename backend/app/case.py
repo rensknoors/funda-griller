@@ -9,7 +9,7 @@ from enum import StrEnum
 from app.affordability import Rules, compute, route_rates, rules_summary
 from app.buyer_profile import BuyerProfile
 from app.findings import USER_DOCUMENT_KIND, document_summaries, finding_facts
-from app.flags import RuleSet, evaluate, hard_no
+from app.flags import ENERGY_LABELS, RuleSet, evaluate, hard_no
 from app.house_type import AskingPriceMargins, category, kind
 from app.price_index import PriceIndex, peildatum
 from app.renovation import CostTable, estimate
@@ -29,6 +29,48 @@ LISTING_FACTS = (
     "heating",
     "ownership_situation",
 )
+
+# The Listing facts the Case computes with, which the household may correct (spec decision 2).
+CORRECTABLE_FACTS = (
+    "living_area",
+    "plot_area",
+    "rooms",
+    "bedrooms",
+    "construction_year",
+    "house_type",
+    "energy_label",
+    "ownership_situation",
+)
+
+
+class NotCorrectable(ValueError):
+    """The key is no Listing fact the Case computes with."""
+
+
+def corrected_value(key: str, value: object) -> object:
+    """The Correction's value as the Case uses it (an energielabel in capitals, text trimmed).
+    Raises NotCorrectable for any other key and ValueError for an implausible value: areas, rooms
+    and bedrooms are positive whole numbers, a build year lies between 1000 and 2100, and the
+    energielabel and soort woning come from their known values."""
+    if key not in CORRECTABLE_FACTS:
+        raise NotCorrectable(key)
+    if key in ("living_area", "plot_area", "rooms", "bedrooms", "construction_year"):
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError(key)
+        if key == "construction_year" and not 1000 <= value <= 2100:
+            raise ValueError(key)
+        return value
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(key)
+    text = value.strip()
+    if key == "energy_label":
+        if text.upper() not in ENERGY_LABELS:
+            raise ValueError(key)
+        return text.upper()
+    if key == "house_type" and category(None, text) is None:
+        raise ValueError(key)
+    return text
+
 
 # How far a Source's facts can be trusted. WOZ comes from a third-party price-history service,
 # not from an official register. Flood and soil risk (Klimaateffectatlas, publishing LIWO and
@@ -88,10 +130,15 @@ def build_case(
     documents: Sequence[dict] = (),
     *,
     prijsstelling_band: float,
+    corrections: Sequence[dict] = (),
 ) -> dict:
     """Staleness is computed against `now`, never stored. `observation_runs` holds the latest and
     latest succeeded vision run over the snapshot's photo set. `documents` are the Listing's stored
-    Documents; analysed ones contribute their Findings."""
+    Documents; analysed ones contribute their Findings. `corrections` are the household's
+    Corrections, applied to the snapshot before anything is derived, so every figure uses them."""
+    listed = snapshot
+    corrected = {c["key"]: c for c in corrections}
+    snapshot = {**listed, **{key: c["value"] for key, c in corrected.items()}}
     profile = versioned_profile.profile if versioned_profile else None
     source_runs = sources.runs
     today = now.date()
@@ -102,10 +149,15 @@ def build_case(
     )
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
     register_label = _value(source_facts, "energielabel", "energy_label")
-    # The register's label, when known, outranks the Listing's claim.
-    energy_label = register_label if isinstance(register_label, str) else snapshot.get("energy_label")
+    # The register's label, when known, outranks the Listing's claim; a Correction outranks both.
+    if "energy_label" in corrected:
+        energy_label = snapshot["energy_label"]
+    else:
+        energy_label = register_label if isinstance(register_label, str) else snapshot.get("energy_label")
     facts = [
-        {
+        _correction_fact(corrected[key], listed, register_label)
+        if key in corrected
+        else {
             "key": key,
             "value": snapshot[key],
             "provenance": "listing",
@@ -181,6 +233,7 @@ def build_case(
             "bid_margins_version": bid_margins.version,
             "observation_run": observed["id"] if observed else None,
             "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
+            "corrections": [{"key": c["key"], "value": c["value"], "created_at": c["created_at"]} for c in corrections],
         },
         "facts": facts,
         "sources": [_source_status(name, source_runs.get(name)) for name in sources.names],
@@ -190,7 +243,7 @@ def build_case(
         "metrics": {
             name: {**metric, "computed_at": computed_at} if metric else None
             for name, metric in {
-                "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
+                "energy_label_check": _energy_label_check(listed.get("energy_label"), register_label),
                 "asking_vs_woz": vs_woz,
                 "asking_vs_comparables": vs_comparables,
                 "expected_sale_price": expected_sale_price,
@@ -208,6 +261,26 @@ def build_case(
         "flags": flags,
         "hard_no": hard_no(flag_rules, profile.deal_breakers, flags, inputs) if profile else None,
         "rules": rules_summary(rules, levering, rates, computed_at),
+    }
+
+
+def _correction_fact(correction: dict, listed: dict, register_label: object) -> dict:
+    """A corrected Listing fact: the household's value, with the value it replaces (the register's
+    energielabel when there is one, else the Listing's; None when the Listing leaves it out) and
+    whether the Listing's value has moved since the Correction was made."""
+    key, listing_value = correction["key"], listed.get(correction["key"])
+    if key == "energy_label" and isinstance(register_label, str):
+        original = {"value": register_label, "provenance": "source"}
+    else:
+        original = {"value": listing_value, "provenance": "listing" if listing_value is not None else None}
+    return {
+        "key": key,
+        "value": correction["value"],
+        "provenance": "correction",
+        "explanation": correction["explanation"],
+        "corrected_at": correction["created_at"],
+        "original": original,
+        "listing_changed": listing_value != correction["listing_value_at_correction"],
     }
 
 
@@ -588,11 +661,14 @@ def _rule_inputs(
 ) -> dict:
     """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values.
     `renovation` (the Renovation Estimate) is None while the estimate itself is being built."""
-    inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
+    inputs = {fact["key"]: fact for fact in facts if fact["provenance"] in ("listing", "correction")}
     # Source facts are keyed `<source>.<key>` (e.g. `woz.woz_value`), so the register's
     # energielabel never shadows the Listing's claim; the value with the latest `as_of` wins.
     for fact in sorted((f for f in facts if f["provenance"] == "source"), key=_as_of_order):
         inputs[f"{fact['source']}.{fact['key']}"] = fact
+    # Rules read the register's energielabel before the Listing's; a corrected one outranks both.
+    if inputs.get("energy_label", {}).get("provenance") == "correction":
+        inputs.pop("energielabel.energy_label", None)
     # Commute travel times, one per destination, are keyed `commute.travel_minutes:<label>`, with
     # the faster mode's minutes as the value and the travel time (modes included) beside it.
     # Unknown ones (address not found, no route) are left out: they raise nothing.
