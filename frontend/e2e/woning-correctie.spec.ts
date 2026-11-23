@@ -2,9 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Woningen of their own in the e2e app. This spec runs after verdict.spec, whose "Dit verandert 1
 // oordeel" would otherwise count the Oordeel made here.
-const CORRECTION_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-6/80907662/";
+const CORRECTION_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-10/80907663/";
 // Its advertentie states 128 m² and no perceeloppervlak, and 120 m² on every refetch after.
-const RECAPTURE_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-8/80907663/";
+const RECAPTURE_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-12/80907664/";
 
 test.beforeEach(async ({ request }) => {
   await request.put("/api/buyer-profile", {
@@ -29,9 +29,9 @@ test("correcting the woonoppervlak changes the verwachte verkoopprijs and makes 
   request,
 }) => {
   await request.post("/api/listings", { data: { url: CORRECTION_URL } });
-  await request.post("/api/listings/80907662/sources/comparables/refetch");
+  await request.post("/api/listings/80907663/sources/comparables/refetch");
   await page.goto("/");
-  await page.getByRole("link", { name: "Kerkpad 6" }).click();
+  await page.getByRole("link", { name: "Kerkpad 10" }).click();
 
   // Median € 4.200 per m² of the vergelijkbare woningen plus 4,6% gemiddeld overbod: on 152 m² € 667.766.
   const verwacht = page.getByRole("region", { name: "Verwachte verkoopprijs" });
@@ -79,7 +79,7 @@ test("a fact the advertentie leaves out can be filled in, and a changed adverten
 }) => {
   await request.post("/api/listings", { data: { url: RECAPTURE_URL } });
   await page.goto("/");
-  await page.getByRole("link", { name: "Kerkpad 8" }).click();
+  await page.getByRole("link", { name: "Kerkpad 12" }).click();
 
   const perceel = kenmerk(page, "Perceeloppervlak");
   await expect(perceel.getByText("onbekend")).toBeVisible();
