@@ -113,6 +113,18 @@ def test_a_note_does_not_soften_a_deal_breaker(client, listing_provider, llm_cli
     assert llm_client.rate_calls == []
 
 
+def test_a_note_change_leaves_a_deal_breaker_hard_no_current(client, listing_provider, clock):
+    listing_provider.listings[LIVE_URL] = live_listing(description="Appartement op erfpacht.")
+    client.post("/api/listings", json={"url": LIVE_URL})
+    client.put("/api/buyer-profile", json=typical_profile() | {"deal_breakers": ["Geen erfpacht"]})
+    client.post(VERDICT)
+
+    clock.advance(1)
+    client.put(NOTE, json={"text": NEIGHBOUR})
+
+    assert client.get(VERDICT).json()["out_of_date"] is False
+
+
 def test_a_note_needs_a_captured_house(client):
     assert client.put(NOTE, json={"text": NEIGHBOUR}).status_code == 404
     assert client.get(NOTE).status_code == 404

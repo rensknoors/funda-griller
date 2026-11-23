@@ -854,6 +854,16 @@ def test_the_woning_section_gives_the_corrected_value_too(client, listing_provid
     assert "- Woonoppervlak: 112 m² **gecorrigeerd** (advertentie: 152 m²)" in woning
 
 
+def test_the_woning_section_names_the_register_as_a_corrected_labels_origin(client, listing_provider, source_clients):
+    source_clients["energielabel"].facts = [SourceFact(name="energy_label", value="G", as_of="2020-01-01")]
+    capture(client, listing_provider)
+    correct(client, "energy_label", "A", "Nieuw label na isolatie")
+
+    woning = section(client.get(EXPORT).text, "Woning")
+
+    assert "- Energielabel: A **gecorrigeerd** (register: G)" in woning
+
+
 def test_a_correction_filling_a_gap_shows_the_original_as_onbekend(client, listing_provider):
     capture(client, listing_provider, living_area=None, brochure_url=None)
     correct(client, "living_area", 112, "Zelf nagemeten bij bezichtiging")

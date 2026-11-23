@@ -8,6 +8,7 @@ from datetime import datetime
 from app.affordability import Affordability, RouteRates, compute
 from app.buyer_profile import reduce_profile
 from app.case import SourceInputs, VersionedProfile, build_case
+from app.correction import Correction
 from app.gemini_client import VERDICT_PROMPT_VERSION
 from app.ports import LlmClient
 from app.rules_loader import (
@@ -32,7 +33,7 @@ def assemble_case(
     source_runs: dict[str, dict],
     observation_runs: dict | None = None,
     documents: Sequence[dict] = (),
-    corrections: Sequence[dict] = (),
+    corrections: Sequence[Correction] = (),
 ) -> dict:
     sources = SourceInputs(source_names, source_runs, settings.source_ttl_days, settings.comparables_min_count)
     levering = expected_levering(now.date(), settings.expected_levering_months)

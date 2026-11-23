@@ -43,17 +43,17 @@ Two concepts (glossary: **Correction**, **Note**):
 ### Correction
 
 - Storage: a `corrections` table per `funda_id` and fact key holding the value, the explanation, `created_at` and `listing_value_at_correction`. One live Correction per fact. Removing one deletes it.
-- Case assembly: apply the Corrections to the snapshot before `build_case` derives anything, so every computation (comparables €/m², `asking_vs_comparables`, Expected Sale Price, Renovation Estimate, Flags, comparables matched by kind) reads the corrected value. The fact in `facts` gets provenance `correction` and carries `original` (value, provenance) and `explanation`. For the energielabel, the correction outranks the register.
+- Case assembly: apply the Corrections to the snapshot before `build_case` derives anything, so every computation (comparables €/m², `asking_vs_comparables`, Expected Sale Price, Renovation Estimate, Flags, comparables matched by kind) reads the corrected value. A corrected soort woning also decides the kind (house or apartment) over funda's object type. The fact in `facts` gets provenance `correction` and carries `original` (value, provenance, fetch time and, for the register, the Source) and `explanation`. For the energielabel, the correction outranks the register; for the ownership situation, it outranks the erfpacht Finding. The Woningen list and the Woning header show corrected values too.
 - Changed-since marker: `listing_changed: true` on the corrected fact when the current snapshot's value differs from `listing_value_at_correction`.
-- Validation per key: positive integers for areas, rooms and bedrooms; a plausible year; the energielabel and house type from their known value sets.
-- Verdict inputs: `built_from` gains the Corrections (or their latest change), and `changed_inputs` counts a change as `case`.
-- Routes: `PUT /listings/{funda_id}/corrections/{key}` and `DELETE /listings/{funda_id}/corrections/{key}`.
+- Validation per key: positive integers for areas, rooms and bedrooms; a build year from 1100 to five years ahead; the energielabel from its known set and a soort woning funda uses (as `house_type.py` recognises it, not only the five categories).
+- Verdict inputs: `built_from` gains the Corrections (key, value, explanation; not when they were made), and `changed_inputs` counts a change as `case`.
+- Routes: `PUT /listings/{funda_id}/corrections/{key}`, `DELETE /listings/{funda_id}/corrections/{key}`, and `POST /listings/{funda_id}/corrections/{key}/keep` ("Correctie behouden": records the Listing's current value, so no Verdict input changes).
 
 ### Note
 
 - Storage: one text per `funda_id`, with `updated_at`. An empty text means no Note.
 - The Verdict prompt receives the Note as a separate, labelled input beside the Case. It is never in `facts` and never read by `flags`.
-- Verdict inputs: `built_from.note_updated_at`. `changed_inputs` reports `note`, and the UI words it among the causes of Achterhaald.
+- Verdict inputs: `built_from.note_updated_at`. `changed_inputs` reports `note`, and the UI words it among the causes of Achterhaald. A deterministic Hard no never read the Note, so a Note change leaves it current.
 - Route: `PUT /listings/{funda_id}/note`.
 - `VERDICT_PROMPT_VERSION` bumps when the prompt changes.
 

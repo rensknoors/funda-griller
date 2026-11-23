@@ -3,6 +3,7 @@ import { ArrowLeft, Camera, Check, ChevronDown, ChevronLeft, ChevronRight, Downl
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 
 import { exportUrl, type CasePhoto, type Listing } from "./api";
+import { energyLabelOrigin } from "./format";
 import { Notitie } from "./Notitie";
 import { PhotoViewer } from "./PhotoViewer";
 import { href } from "./route";
@@ -185,8 +186,8 @@ function HeaderPhotos({ fundaId, photos }: { fundaId: string; photos: CasePhoto[
   );
 }
 
-/** The size and energy label, each left out when missing; the label from the register over the
- * advertentie's, as on the Woning cards. */
+/** The size and energy label, each left out when missing and a Correctie going first; the label
+ * from the register over the advertentie's, as on the Woning cards. */
 function WoningFacts({ row }: { row: Listing["comparison"] }) {
   const { living_area, plot_area, energy_label } = row;
   if (living_area === null && plot_area === null && !energy_label) return null;
@@ -197,7 +198,7 @@ function WoningFacts({ row }: { row: Listing["comparison"] }) {
       {energy_label && (
         <span
           className={`energy-badge energy-${energy_label.value[0].toLowerCase()}`}
-          title={energy_label.official ? "Energielabel uit het register" : "Energielabel volgens de advertentie"}
+          title={`Energielabel ${energyLabelOrigin(energy_label)}`}
         >
           <span className="visually-hidden">Energielabel </span>
           {energy_label.value}

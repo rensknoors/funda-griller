@@ -313,8 +313,9 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         changed.append("rules")
     if not verdict["deterministic"] and then["model"] != current["model"]:
         changed.append("model")
-    # Verdicts from before the Note have no `note_updated_at`, as if made without one.
-    if then.get("note_updated_at") != current.get("note_updated_at"):
+    # Verdicts from before the Note have no `note_updated_at`, as if made without one. A
+    # deterministic Hard no never read the Note (as it never read the model).
+    if not verdict["deterministic"] and then.get("note_updated_at") != current.get("note_updated_at"):
         changed.append("note")
     return changed
 

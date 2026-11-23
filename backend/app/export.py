@@ -480,24 +480,27 @@ def _prompt_version(verdict: dict) -> str:
 
 def woning(export: ExportInput) -> list[str]:
     snapshot = export.snapshot
-    corrected = {f["key"]: f["value"] for f in export.case["facts"] if f["provenance"] == "correction"}
+    corrections = {f["key"]: f for f in export.case["facts"] if f["provenance"] == "correction"}
 
-    def listed(key: str, unit: str = "") -> str | None:
-        """The Listing's value, or the household's Correction with the Listing's value beside it."""
+    def kenmerk(key: str, unit: str = "") -> str | None:
+        """The Listing's value, or the household's Correction with the value it replaces beside it."""
+
         def shown(value: object) -> str | None:
             return f"{value}{unit}" if value else None
 
-        if key not in corrected:
+        if key not in corrections:
             return shown(snapshot.get(key))
-        return f"{shown(corrected[key])} **gecorrigeerd** (advertentie: {shown(snapshot.get(key)) or 'onbekend'})"
+        fact = corrections[key]
+        return f"{shown(fact['value'])} **gecorrigeerd** ({_original_text(fact, shown)})"
 
     rows = [
         ("Adres", _place(snapshot)),
         ("Vraagprijs", euro(snapshot["asking_price"]) if snapshot.get("asking_price") is not None else None),
-        ("Woonoppervlak", listed("living_area", " m²")),
-        ("Perceeloppervlak", listed("plot_area", " m²")),
-        ("Bouwjaar", listed("construction_year")),
-        ("Energielabel (advertentie)", listed("energy_label")),
+        ("Woonoppervlak", kenmerk("living_area", " m²")),
+        ("Perceeloppervlak", kenmerk("plot_area", " m²")),
+        ("Bouwjaar", kenmerk("construction_year")),
+        # A corrected label may replace the register's, so it is no longer the advertentie's.
+        ("Energielabel" if "energy_label" in corrections else "Energielabel (advertentie)", kenmerk("energy_label")),
         ("Status", STATUS_LABELS.get(snapshot.get("status") or "", snapshot.get("raw_status"))),
         ("Vastgelegd op", snapshot.get("fetched_at")),
         ("funda", export.url),
@@ -514,9 +517,9 @@ def facts(export: ExportInput) -> list[str]:
     case_facts = export.case["facts"]
     by_class = {p: [f for f in case_facts if f["provenance"] == p] for p in ("source", "observation", "finding")}
     # A Correction stands in the Listing's place, so it is listed among the Listing's facts.
-    listed = [f for f in case_facts if f["provenance"] in ("listing", "correction")]
+    kenmerken = [f for f in case_facts if f["provenance"] in ("listing", "correction")]
     lines = ["## Feiten", "", "### Advertentie", ""]
-    lines += [_listing_line(f, anonymiser) for f in listed] or ["Geen."]
+    lines += [_listing_line(f, anonymiser) for f in kenmerken] or ["Geen."]
     lines += ["", "### Bron", ""]
     sourced = [f for f in by_class["source"] if f["source"] not in ("comparables", "commute")]
     lines += [_source_line(f, anonymiser) for f in sourced] or ["Geen."]
@@ -531,11 +534,17 @@ def _listing_line(fact: dict, anonymiser: Anonymiser) -> str:
     line = f"- {_label(fact['key'])}: {_value(fact['key'], fact['value'], anonymiser)}"
     if fact["provenance"] != "correction":
         return line
-    original = fact["original"]
-    shown = _plain_value(fact["key"], original["value"]) if original["value"] is not None else "onbekend"
+    original = _original_text(fact, lambda value: _plain_value(fact["key"], value))
     moved = "; de advertentie is gewijzigd sinds de correctie" if fact.get("listing_changed") else ""
+    return f"{line} **gecorrigeerd** ({original}; toelichting: {fact['explanation']}){moved}"
+
+
+def _original_text(fact: dict, shown: Callable[[object], str | None]) -> str:
+    """A corrected fact's original with where it came from: "register: G", "advertentie: onbekend"."""
+    original = fact["original"]
     origin = ORIGIN_LABELS.get(original["provenance"], "advertentie")
-    return f"{line} **gecorrigeerd** ({origin}: {shown}; toelichting: {fact['explanation']}){moved}"
+    value = shown(original["value"]) if original["value"] is not None else None
+    return f"{origin}: {value or 'onbekend'}"
 
 
 def note(export: ExportInput) -> list[str]:

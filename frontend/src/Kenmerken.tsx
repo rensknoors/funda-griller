@@ -11,9 +11,10 @@ import {
   type ListingFact,
   CORRECTABLE_KEYS,
   correctFact,
+  keepCorrection,
   removeCorrection,
 } from "./api";
-import { FACT_LABELS, factText, formatValue, isKenmerk } from "./facts";
+import { FACT_LABELS, factText, formatScalar, formatValue, isKenmerk } from "./facts";
 import { plural } from "./plural";
 import { Stamp } from "./Stamp";
 import { Vak } from "./Vak";
@@ -22,12 +23,32 @@ const dayMonth = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "shor
 const shortDate = (iso: string) => dayMonth.format(new Date(iso));
 
 const ENERGY_LABELS = ["A++++", "A+++", "A++", "A+", "A", "B", "C", "D", "E", "F", "G"];
-// The soorten woning the Case knows (app/house_type.py); a Correctie names one of them.
-const HOUSE_TYPES = ["appartement", "tussenwoning", "hoekwoning", "twee-onder-een-kapwoning", "vrijstaande woning"];
+// funda's soorten woning that app/house_type.py recognises; a Correctie names one of them.
+const HOUSE_TYPES = [
+  "Eengezinswoning, tussenwoning",
+  "Eengezinswoning, hoekwoning",
+  "Eengezinswoning, eindwoning",
+  "Eengezinswoning, 2-onder-1-kapwoning",
+  "Eengezinswoning, geschakelde woning",
+  "Eengezinswoning, vrijstaande woning",
+  "Herenhuis",
+  "Villa",
+  "Bungalow",
+  "Woonboerderij",
+  "Appartement",
+  "Bovenwoning",
+  "Benedenwoning",
+  "Maisonnette",
+  "Portiekflat",
+  "Galerijflat",
+  "Penthouse",
+];
 const NUMBER_KEYS = new Set<CorrectableKey>(["living_area", "plot_area", "rooms", "bedrooms", "construction_year"]);
 
 const isCorrectable = (key: string): key is CorrectableKey => (CORRECTABLE_KEYS as readonly string[]).includes(key);
 const label = (key: string) => FACT_LABELS[key] ?? key;
+/** Where a corrected fact's original came from: the register's energielabel or the advertentie. */
+const originLabel = (provenance: "listing" | "source") => (provenance === "source" ? "Register" : "Advertentie");
 
 type Row =
   | { kind: "listing"; fact: ListingFact }
@@ -147,13 +168,6 @@ function CorrectedValue(props: {
     }
   }
 
-  async function keep() {
-    // Saving it again records the advertentie's current value, so the notice goes.
-    const result = await correctFact(props.fundaId, fact.key, fact.value, fact.explanation);
-    if ("error" in result) throw new Error(result.error);
-    return result;
-  }
-
   return (
     <span className="fact-value correction">
       <span className="correction-head">
@@ -165,9 +179,9 @@ function CorrectedValue(props: {
           <s>onbekend</s>
         ) : (
           <>
-            <s>{formatValue({ key: fact.key, value: fact.original.value } as CaseFact)}</s>{" "}
+            <s>{formatScalar(fact.key, fact.original.value)}</s>{" "}
             <Stamp kind={fact.original.provenance === "source" ? "official" : "listing"}>
-              {fact.original.provenance === "source" ? "Register" : "Advertentie"}
+              {originLabel(fact.original.provenance)}
             </Stamp>
           </>
         )}
@@ -182,7 +196,7 @@ function CorrectedValue(props: {
             Klopt je correctie nog?
           </span>
           <span className="correction-actions">
-            <button type="button" className="small" disabled={busy} onClick={() => act(keep)}>
+            <button type="button" className="small" disabled={busy} onClick={() => act(() => keepCorrection(props.fundaId, fact.key))}>
               Correctie behouden
             </button>
             <button
@@ -237,7 +251,7 @@ function CorrectieDialog(props: {
   const originalText =
     original.provenance === null
       ? "De advertentie noemt dit niet."
-      : `${original.provenance === "source" ? "Register" : "Advertentie"}: ${factText(key, original.value)}.`;
+      : `${originLabel(original.provenance)}: ${factText(key, original.value)}.`;
 
   async function save(event: React.FormEvent) {
     event.preventDefault();

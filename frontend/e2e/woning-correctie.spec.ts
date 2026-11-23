@@ -57,6 +57,8 @@ test("correcting the woonoppervlak changes the verwachte verkoopprijs and makes 
   await expect(row.locator("s", { hasText: "152" })).toBeVisible();
   await expect(row.getByText(/Advertentie/)).toBeVisible();
   await expect(row.getByText("NEN 2580-meetrapport")).toBeVisible();
+  // The Woning header counts the corrected woonoppervlak too.
+  await expect(page.getByText("112 m² wonen")).toBeVisible();
 
   await page.getByRole("link", { name: "Oordeel", exact: true }).click();
   await expect(page.getByText("Dit oordeel is gebaseerd op een oudere versie")).toBeVisible();
@@ -109,8 +111,14 @@ test("a fact the advertentie leaves out can be filled in, and a changed adverten
   await page.getByRole("button", { name: "Opnieuw ophalen", exact: true }).click();
   await expect(wonen.getByText("De advertentie noemt nu 120 m²")).toBeVisible();
   await expect(wonen.getByText("112", { exact: true })).toBeVisible();
+  expect((await request.post("/api/listings/80907664/verdict")).status()).toBe(201);
   await wonen.getByRole("button", { name: "Correctie behouden" }).click();
   await expect(wonen.getByText("De advertentie noemt nu 120 m²")).toBeHidden();
   await expect(wonen.getByText("112", { exact: true })).toBeVisible();
   await expect(wonen.locator("s", { hasText: "120" })).toBeVisible();
+
+  // Keeping an unchanged Correctie changes nothing the Oordeel was built from.
+  await page.getByRole("link", { name: "Oordeel", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Oordeel", exact: true })).toBeVisible();
+  await expect(page.getByText("Dit oordeel is gebaseerd op een oudere versie")).toBeHidden();
 });
