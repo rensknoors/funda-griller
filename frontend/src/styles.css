@@ -443,6 +443,23 @@ a.stamp-finding:hover { background: var(--band); color: var(--ink); }
 .stamp-computed { background: var(--band); border-color: transparent; color: var(--ink-2); }
 .stamp-observation { color: #5b3fb0; border-color: #a99ad8; }
 .stamp button.link { font-size: inherit; font-weight: 600; }
+/* The household's own value: ink, solid, so it reads as nobody else's claim. */
+.stamp-correction { border-color: var(--ink); color: var(--ink); }
+
+/* Correctie: a quiet pencil beside every correctable value; the corrected value keeps its original in view. */
+.fact-value button.correct-button { min-height: 28px; width: 28px; margin: -6px 0 -6px 6px; vertical-align: middle; color: var(--ink-3); }
+.fact-value button.correct-button:hover:not(:disabled) { color: var(--ink); }
+.fact .not-stated { font-size: 13px; }
+.fact-value.correction { display: grid; gap: 4px; justify-items: start; }
+.correction-head { display: inline-flex; align-items: center; gap: 8px; }
+.correction-chip { background: var(--ink); color: var(--bg); }
+.correction-original, .correction-explanation { font-size: 13px; font-weight: 400; color: var(--ink-2); }
+.correction-original { display: inline-flex; align-items: center; gap: 8px; }
+.correction-changed { display: grid; gap: 8px; margin-top: 4px; padding: 8px 10px; border-radius: var(--radius-s); background: var(--ochre-tint); color: var(--ochre); font-size: 13.5px; font-weight: 550; }
+.correction-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.correctie-dialog form { display: grid; gap: 16px; margin-top: 16px; }
+.correctie-dialog .dialog-actions { margin-top: 4px; }
+.correctie-dialog .correctie-remove { margin-right: auto; }
 
 /* Signalen. */
 .flag-band + .flag-band { margin-top: 20px; }
