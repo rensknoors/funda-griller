@@ -161,6 +161,7 @@ class Wiring:
             store.source_runs(settings.database_path, funda_id),
             store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
             store.documents(settings.database_path, funda_id),
+            store.corrections(settings.database_path, funda_id),
         )
 
     def verdict_state(self, funda_id: str, case: dict) -> dict:

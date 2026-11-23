@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app import store
+from app.case import NotCorrectable, corrected_value
 from app.listing_url import funda_id_from_url
 from app.manual_provider import ManualEntry, ManualListingProvider
 from app.source_runner import run_sources
@@ -39,6 +40,11 @@ class ManualEntryForm(BaseModel):
     def blank_is_absent(cls, value: object) -> object:
         """An empty form field means the fact is unknown, not zero or an empty string."""
         return (value.strip() or None) if isinstance(value, str) else value
+
+
+class CorrectionRequest(BaseModel):
+    value: object
+    explanation: str
 
 
 def routes(w: Wiring) -> APIRouter:
@@ -114,6 +120,32 @@ def routes(w: Wiring) -> APIRouter:
     @router.get("/{funda_id}/case", response_model=None)
     def read_case(funda_id: str) -> dict:
         return w.current_case(w.listing(funda_id))
+
+    @router.put("/{funda_id}/corrections/{key}", response_model=None)
+    def correct_fact(funda_id: str, key: str, request: CorrectionRequest) -> dict | JSONResponse:
+        """The household's own value for a Listing fact the Case computes with, with where it comes
+        from. It replaces any earlier Correction of that fact; the answer is the new Case."""
+        listing = w.listing(funda_id)
+        try:
+            value = corrected_value(key, request.value)
+        except NotCorrectable:
+            return JSONResponse({"code": "not_correctable"}, status_code=422)
+        except ValueError:
+            return JSONResponse({"code": "invalid_value"}, status_code=422)
+        if not request.explanation.strip():
+            return JSONResponse({"code": "explanation_required"}, status_code=422)
+        listing_value = listing["snapshots"][0].get(key)
+        store.set_correction(
+            settings.database_path, funda_id, key, value, request.explanation.strip(), w.clock().isoformat(), listing_value
+        )
+        return w.current_case(listing)
+
+    @router.delete("/{funda_id}/corrections/{key}", response_model=None)
+    def remove_correction(funda_id: str, key: str) -> dict:
+        listing = w.listing(funda_id)
+        if not store.delete_correction(settings.database_path, funda_id, key):
+            raise NotFound()
+        return w.current_case(listing)
 
     @router.post("/{funda_id}/observations", response_model=None)
     def rerun_observations(funda_id: str) -> dict | JSONResponse:

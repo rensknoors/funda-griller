@@ -31,6 +31,12 @@ PROVENANCE_LEGEND = {
     "source:third_party": "From a third-party service, not an official register; indicative only.",
     "observation": "Estimated by a vision model from Listing photos; may be wrong.",
     "finding": "Stated by the seller in a Document; seller-stated, not verified.",
+    "correction": (
+        "The household's own value, replacing the Listing's (or filling a fact it left out); it"
+        " outranks every other value for the fact. `original` is the value it replaces and"
+        " `explanation` where it comes from. A misstated Listing fact says something about how"
+        " far the Listing can be trusted."
+    ),
     "computed": "Arithmetic over other facts and the household's derived figures.",
     "buyer_profile": "The household's own preferences.",
     "rule": "A threshold from the versioned Flag rule set.",
@@ -278,6 +284,7 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         or then["source_fetches"] != current["source_fetches"]
         or then.get("observation_run") != current.get("observation_run")
         or then.get("documents", []) != current.get("documents", [])
+        or then.get("corrections", []) != current.get("corrections", [])
     ):
         changed.append("case")
     if then["profile_version"] != current["profile_version"]:
