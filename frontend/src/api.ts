@@ -194,6 +194,32 @@ export type ListingFact = {
   fetched_at: string;
 };
 
+/** The Listing facts the Case computes with, which a Correction may set. */
+export const CORRECTABLE_KEYS = [
+  "living_area",
+  "plot_area",
+  "rooms",
+  "bedrooms",
+  "construction_year",
+  "house_type",
+  "energy_label",
+  "ownership_situation",
+] as const;
+export type CorrectableKey = (typeof CORRECTABLE_KEYS)[number];
+
+/** The household's own value for a Listing fact, with why; it outranks every other value for that
+ * fact. `original` is the value it replaces (null when the Listing leaves the fact out), and
+ * `listing_changed` says the Listing's value has moved since the Correction was made. */
+export type CorrectionFact = {
+  key: CorrectableKey;
+  value: string | number;
+  provenance: "correction";
+  explanation: string;
+  corrected_at: string;
+  original: { value: string | number; provenance: "listing" | "source" } | { value: null; provenance: null };
+  listing_changed: boolean;
+};
+
 export type SourceTrust = "official" | "third_party";
 
 /** A nearby Listing from the comparables Source; prices are its (last) asking price. */
@@ -309,7 +335,7 @@ export type ObservationStatus = {
   model: string | null;
 };
 
-export type CaseFact = ListingFact | SourceFact | ObservationFact | FindingFact;
+export type CaseFact = ListingFact | CorrectionFact | SourceFact | ObservationFact | FindingFact;
 
 export type SourceStatus = {
   source: string;
@@ -571,7 +597,33 @@ export async function refetchSource(fundaId: string, source: string): Promise<Ca
   return response.json();
 }
 
-const documentsPath = (fundaId: string) => `/api/listings/${fundaId}/documents`;
+export type CorrectionError = "invalid_value" | "explanation_required" | "unavailable";
+
+/** Set the household's own value for a fact; returns the rebuilt Case, or why it was refused. */
+export async function correctFact(
+  fundaId: string,
+  key: CorrectableKey,
+  value: string | number,
+  explanation: string,
+): Promise<Case | { error: CorrectionError }> {
+  const response = await apiFetch(`/api/listings/${fundaId}/corrections/${key}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ value, explanation }),
+  });
+  if (response.ok) return response.json();
+  const code = response.status === 422 ? ((await response.json()) as { code?: string }).code : undefined;
+  return { error: code === "invalid_value" || code === "explanation_required" ? code : "unavailable" };
+}
+
+/** Remove a Correction: the Listing's value counts again. Returns the rebuilt Case. */
+export async function removeCorrection(fundaId: string, key: CorrectableKey): Promise<Case> {
+  const response = await apiFetch(`/api/listings/${fundaId}/corrections/${key}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("correction removal failed");
+  return response.json();
+}
+
+const documentsPath =(fundaId: string) => `/api/listings/${fundaId}/documents`;
 
 async function sendDocument(path: string, method: "POST" | "PUT", file: File): Promise<void> {
   const form = new FormData();

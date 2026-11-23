@@ -103,6 +103,18 @@ LOW_WOZ_URL = "https://www.funda.nl/detail/koop/holtum/huis-hoogstraat-9/8090765
 _listing_provider.listings[LOW_WOZ_URL] = live_listing(
     funda_id="80907659", provider_id="17270389", url=LOW_WOZ_URL, address="Hoogstraat 9"
 )
+# For the Correctie spec: one woning to correct, and one whose woonoppervlak the advertentie changes
+# from 128 to 120 m² on the refetch after the first, with no perceeloppervlak stated.
+CORRECTION_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-10/80907663/"
+_listing_provider.listings[CORRECTION_URL] = live_listing(
+    funda_id="80907663", provider_id="17270393", url=CORRECTION_URL, address="Kerkpad 10"
+)
+RECAPTURE_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-12/80907664/"
+_kerkpad_12 = dict(funda_id="80907664", provider_id="17270394", url=RECAPTURE_URL, address="Kerkpad 12", plot_area=None)
+_listing_provider.listings[RECAPTURE_URL] = [
+    live_listing(**_kerkpad_12, living_area=128),
+    live_listing(**_kerkpad_12, living_area=120),
+]
 
 
 class _WozClient(FakeSourceClient):
