@@ -1,9 +1,9 @@
-import { FolderSearch, Link2, Scale } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { BuyerProfileForm } from "./BuyerProfileForm";
 import { CaptureTray } from "./CaptureTray";
 import { CaseView } from "./CaseView";
+import { EmptyWoningen } from "./EmptyWoningen";
 import { ListingsTable } from "./ListingsTable";
 import { ManualEntryForm } from "./ManualEntryForm";
 import { VerdictView } from "./VerdictView";
@@ -322,32 +322,7 @@ export function App() {
           </p>
         )}
         {listState === "klaar" && listings.length === 0 && (
-          <div className="empty-state">
-            <p>
-              <strong>Nog geen woningen.</strong> Zo krijg je je eerste dossier:
-            </p>
-            <ol className="empty-steps">
-              <li>
-                <Link2 size={22} aria-hidden="true" />
-                <strong>Plak een funda-link</strong>
-                <span>van een koopwoning, hierboven.</span>
-              </li>
-              <li>
-                <FolderSearch size={22} aria-hidden="true" />
-                <strong>Ophalen</strong>
-                <span>De advertentie, foto's en bronnen komen in een dossier.</span>
-              </li>
-              <li>
-                <Scale size={22} aria-hidden="true" />
-                <strong>Oordeel</strong>
-                <span>Op jouw verzoek: Zeker kopen tot Harde afwijzing, met biedadvies.</span>
-              </li>
-            </ol>
-            <p>
-              Vul ook je <a href={href({ view: "koperprofiel" })}>koperprofiel</a> in, dan zie je per woning je
-              betaalruimte.
-            </p>
-          </div>
+          <EmptyWoningen />
         )}
         {archiveFailed && (
           <p role="alert" className="notice error">
