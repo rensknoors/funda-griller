@@ -161,12 +161,15 @@ class Wiring:
             store.source_runs(settings.database_path, funda_id),
             store.observation_runs(settings.database_path, funda_id, identity) if identity else None,
             store.documents(settings.database_path, funda_id),
+            store.corrections(settings.database_path, funda_id),
         )
 
     def verdict_state(self, funda_id: str, case: dict) -> dict:
         """A Listing's Verdicts, newest first, and whether the newest is out of date (Achterhaald)."""
-        history = store.verdicts(self.settings.database_path, funda_id)
-        changed = changed_inputs(history[0], inputs_of(case, self.settings.verdict_model)) if history else []
+        settings = self.settings
+        history = store.verdicts(settings.database_path, funda_id)
+        note = store.note(settings.database_path, funda_id)
+        changed = changed_inputs(history[0], inputs_of(case, settings.verdict_model, note)) if history else []
         return {"verdicts": history, "out_of_date": bool(changed), "changed": changed}
 
     def with_comparison(self, listing: dict) -> dict:

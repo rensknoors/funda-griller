@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from app import store
+from app.correction import NotCorrectable, corrected_value
 from app.listing_url import funda_id_from_url
 from app.manual_provider import ManualEntry, ManualListingProvider
 from app.source_runner import run_sources
@@ -15,6 +16,10 @@ from app.wiring import NotFound, Wiring
 
 class CaptureRequest(BaseModel):
     url: str
+
+
+class NoteRequest(BaseModel):
+    text: str
 
 
 class ManualEntryForm(BaseModel):
@@ -39,6 +44,11 @@ class ManualEntryForm(BaseModel):
     def blank_is_absent(cls, value: object) -> object:
         """An empty form field means the fact is unknown, not zero or an empty string."""
         return (value.strip() or None) if isinstance(value, str) else value
+
+
+class CorrectionRequest(BaseModel):
+    value: object
+    explanation: str
 
 
 def routes(w: Wiring) -> APIRouter:
@@ -115,6 +125,39 @@ def routes(w: Wiring) -> APIRouter:
     def read_case(funda_id: str) -> dict:
         return w.current_case(w.listing(funda_id))
 
+    @router.put("/{funda_id}/corrections/{key}", response_model=None)
+    def correct_fact(funda_id: str, key: str, request: CorrectionRequest) -> dict | JSONResponse:
+        """The household's own value for a Listing fact the Case computes with, with where it comes
+        from. It replaces any earlier Correction of that fact; the answer is the new Case."""
+        listing = w.listing(funda_id)
+        now = w.clock()
+        try:
+            value = corrected_value(key, request.value, now.date())
+        except NotCorrectable:
+            return JSONResponse({"code": "not_correctable"}, status_code=422)
+        except ValueError:
+            return JSONResponse({"code": "invalid_value"}, status_code=422)
+        if not request.explanation.strip():
+            return JSONResponse({"code": "explanation_required"}, status_code=422)
+        store.set_correction(settings.database_path, funda_id, key, value, request.explanation.strip(), now.isoformat())
+        return w.current_case(listing)
+
+    @router.post("/{funda_id}/corrections/{key}/keep", response_model=None)
+    def keep_correction(funda_id: str, key: str) -> dict:
+        """Keep a Correction after the Listing moved ("Correctie behouden"): the notice goes, and
+        nothing the Verdict was built from changes."""
+        listing = w.listing(funda_id)
+        if not store.keep_correction(settings.database_path, funda_id, key):
+            raise NotFound()
+        return w.current_case(listing)
+
+    @router.delete("/{funda_id}/corrections/{key}", response_model=None)
+    def remove_correction(funda_id: str, key: str) -> dict:
+        listing = w.listing(funda_id)
+        if not store.delete_correction(settings.database_path, funda_id, key):
+            raise NotFound()
+        return w.current_case(listing)
+
     @router.post("/{funda_id}/observations", response_model=None)
     def rerun_observations(funda_id: str) -> dict | JSONResponse:
         """Re-run the vision model over the latest snapshot's photos, e.g. after a model change."""
@@ -127,6 +170,18 @@ def routes(w: Wiring) -> APIRouter:
         if w.observe(funda_id, photos, w.clock().isoformat(), rerun=True) == "failed":
             return JSONResponse({"code": "llm_unavailable"}, status_code=502)
         return w.current_case(listing)
+
+    @router.get("/{funda_id}/note", response_model=None)
+    def read_note(funda_id: str) -> dict:
+        w.listing(funda_id)
+        return _note_view(store.note(settings.database_path, funda_id))
+
+    @router.put("/{funda_id}/note", response_model=None)
+    def write_note(funda_id: str, request: NoteRequest) -> dict:
+        """Replace the house's Note (ADR-0006). An empty text clears it. Never part of the Case."""
+        w.listing(funda_id)
+        store.set_note(settings.database_path, funda_id, request.text.strip(), w.clock().isoformat())
+        return _note_view(store.note(settings.database_path, funda_id))
 
     def set_archived(funda_id: str, archived: bool) -> dict:
         w.listing(funda_id)
@@ -142,3 +197,7 @@ def routes(w: Wiring) -> APIRouter:
         return set_archived(funda_id, False)
 
     return router
+
+
+def _note_view(note: dict | None) -> dict:
+    return note or {"text": "", "updated_at": None}

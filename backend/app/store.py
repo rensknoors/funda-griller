@@ -6,9 +6,10 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.correction import Correction
 from app.ports import Coordinates, Listing, PricePoint
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS listings (
@@ -69,10 +70,24 @@ CREATE TABLE IF NOT EXISTS listing_archive_events (
     archived INTEGER NOT NULL,
     at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS corrections (
+    funda_id TEXT NOT NULL REFERENCES listings(funda_id),
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    listing_value_at_correction TEXT NOT NULL,
+    PRIMARY KEY (funda_id, key)
+);
 CREATE TABLE IF NOT EXISTS geocodes (
     address TEXT PRIMARY KEY,
     latitude REAL NOT NULL,
     longitude REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS notes (
+    funda_id TEXT PRIMARY KEY REFERENCES listings(funda_id),
+    text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 """
 
@@ -536,6 +551,89 @@ def delete_document(database_path: Path, document_id: int) -> None:
         connection.close()
 
 
+def set_correction(
+    database_path: Path, funda_id: str, key: str, value: object, explanation: str, created_at: str
+) -> None:
+    """Store the live Correction of one Listing fact, replacing any earlier one. It records the
+    latest snapshot's value for the fact, so a later re-capture can tell whether it moved."""
+    connection = connect(database_path)
+    try:
+        connection.execute(
+            "INSERT OR REPLACE INTO corrections "
+            "(funda_id, key, value, explanation, created_at, listing_value_at_correction) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                funda_id,
+                key,
+                json.dumps(value),
+                explanation,
+                created_at,
+                json.dumps(_latest_listing_value(connection, funda_id, key)),
+            ),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def keep_correction(database_path: Path, funda_id: str, key: str) -> bool:
+    """Keep a Correction after the Listing moved: only the Listing's value it was made against
+    becomes the latest snapshot's, so the Correction itself (and every Verdict input) stays as it
+    was. False when there is no such Correction."""
+    connection = connect(database_path)
+    try:
+        kept = connection.execute(
+            "UPDATE corrections SET listing_value_at_correction = ? WHERE funda_id = ? AND key = ?",
+            (json.dumps(_latest_listing_value(connection, funda_id, key)), funda_id, key),
+        ).rowcount
+        connection.commit()
+    finally:
+        connection.close()
+    return kept > 0
+
+
+def _latest_listing_value(connection: sqlite3.Connection, funda_id: str, key: str) -> object:
+    row = connection.execute(
+        "SELECT data FROM listing_snapshots WHERE funda_id = ? ORDER BY id DESC LIMIT 1", (funda_id,)
+    ).fetchone()
+    return json.loads(row["data"]).get(key) if row else None
+
+
+def delete_correction(database_path: Path, funda_id: str, key: str) -> bool:
+    """Remove a Correction; False when there was none."""
+    connection = connect(database_path)
+    try:
+        deleted = connection.execute(
+            "DELETE FROM corrections WHERE funda_id = ? AND key = ?", (funda_id, key)
+        ).rowcount
+        connection.commit()
+    finally:
+        connection.close()
+    return deleted > 0
+
+
+def corrections(database_path: Path, funda_id: str) -> list[Correction]:
+    """A Listing's live Corrections, by fact key."""
+    connection = connect(database_path)
+    try:
+        rows = connection.execute(
+            "SELECT key, value, explanation, created_at, listing_value_at_correction FROM corrections "
+            "WHERE funda_id = ? ORDER BY key",
+            (funda_id,),
+        ).fetchall()
+    finally:
+        connection.close()
+    return [
+        Correction(
+            key=row["key"],
+            value=json.loads(row["value"]),
+            explanation=row["explanation"],
+            created_at=row["created_at"],
+            listing_value_at_correction=json.loads(row["listing_value_at_correction"]),
+        )
+        for row in rows
+    ]
+
+
 def cached_extraction(database_path: Path, sha256: str, model: str | None) -> dict | None:
     """An earlier analysis of the same bytes by the same model, from any Listing."""
     connection = connect(database_path)
@@ -586,5 +684,36 @@ def listings_with_verdicts(database_path: Path) -> list[str]:
             row["funda_id"]
             for row in connection.execute("SELECT DISTINCT funda_id FROM verdicts ORDER BY funda_id")
         ]
+    finally:
+        connection.close()
+
+
+def note(database_path: Path, funda_id: str) -> dict | None:
+    """A house's Note (`text`, `updated_at`), or None when it has none (ADR-0006)."""
+    connection = connect(database_path)
+    try:
+        row = connection.execute("SELECT text, updated_at FROM notes WHERE funda_id = ?", (funda_id,)).fetchone()
+    finally:
+        connection.close()
+    return dict(row) if row else None
+
+
+def note_text(database_path: Path, funda_id: str) -> str:
+    """A house's Note text; empty when it has none."""
+    return (note(database_path, funda_id) or {}).get("text", "")
+
+
+def set_note(database_path: Path, funda_id: str, text: str, updated_at: str) -> None:
+    """Replace a house's Note; an empty text removes it."""
+    connection = connect(database_path)
+    try:
+        if text:
+            connection.execute(
+                "INSERT OR REPLACE INTO notes (funda_id, text, updated_at) VALUES (?, ?, ?)",
+                (funda_id, text, updated_at),
+            )
+        else:
+            connection.execute("DELETE FROM notes WHERE funda_id = ?", (funda_id,))
+        connection.commit()
     finally:
         connection.close()

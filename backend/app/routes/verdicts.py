@@ -38,7 +38,8 @@ def routes(w: Wiring) -> APIRouter:
         profile = VersionedProfile(latest["version"], BuyerProfile.model_validate(latest["profile"]))
         now = w.clock()
         try:
-            verdict = make_verdict(settings, case, profile, w.ports.llm_client, now)
+            note = store.note(settings.database_path, funda_id)
+            verdict = make_verdict(settings, case, profile, w.ports.llm_client, now, note)
         except InvalidVerdict as error:
             return JSONResponse({"code": "invalid_verdict", "problems": error.problems}, status_code=502)
         except LlmError as error:

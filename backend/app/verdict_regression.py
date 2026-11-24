@@ -8,13 +8,15 @@ part of `pytest`; run it by hand:
     uv run python -m app.verdict_regression add <funda_id> --expect consider --name <slug>
 
 Each entry is one JSON file in the set directory: the Listing snapshot, Source runs, photo
-Observation run, Documents and Buyer Profile frozen at the moment it was added, plus
+Observation run, Documents, Corrections, the house's Note and Buyer Profile frozen at the moment it
+was added, plus
 `expected_tier` and `as_of` (the clock the Case is built against). See `config/verdict_regression/README.md`.
 """
 
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
@@ -23,6 +25,7 @@ from app import store
 from app.assembly import assemble_case, make_verdict
 from app.buyer_profile import BuyerProfile
 from app.case import VersionedProfile
+from app.correction import Correction
 from app.gemini_client import VERDICT_PROMPT_VERSION, GeminiLlmClient
 from app.photos import photo_set
 from app.ports import LlmClient, LlmError
@@ -137,9 +140,12 @@ def _judge(
         {source: {"latest": run, "last_success": run} for source, run in data["source_runs"].items()},
         {"latest": observed, "last_success": observed} if observed else None,
         data.get("documents", []),
+        [Correction(**correction) for correction in data.get("corrections", [])],
     )
+    house_note = data.get("house_note")
+    note = {"text": house_note, "updated_at": data["as_of"]} if house_note else None
     try:
-        verdict = make_verdict(settings, case, profile, llm_client, now)
+        verdict = make_verdict(settings, case, profile, llm_client, now, note)
     except InvalidVerdict as error:
         return None, f"invalid_verdict: {error}", False, None
     except LlmError as error:
@@ -183,6 +189,8 @@ def _add(args: argparse.Namespace, settings: Settings, out: TextIO) -> int:
         "source_runs": {source: run["last_success"] for source, run in runs.items() if run["last_success"]},
         "observation_run": observed.get("last_success"),
         "documents": documents,
+        "corrections": [asdict(c) for c in store.corrections(settings.database_path, args.funda_id)],
+        "house_note": store.note_text(settings.database_path, args.funda_id),
         "buyer_profile": profile["profile"],
     }
     args.set.mkdir(parents=True, exist_ok=True)

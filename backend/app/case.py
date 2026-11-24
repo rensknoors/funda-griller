@@ -9,6 +9,7 @@ from enum import StrEnum
 from app.affordability import Rules, compute, route_rates, rules_summary
 from app.buyer_profile import BuyerProfile
 from app.findings import USER_DOCUMENT_KIND, document_summaries, finding_facts
+from app.correction import Correction, applied
 from app.flags import RuleSet, evaluate, hard_no
 from app.house_type import AskingPriceMargins, category, kind
 from app.price_index import PriceIndex, peildatum
@@ -29,6 +30,13 @@ LISTING_FACTS = (
     "heating",
     "ownership_situation",
 )
+
+# The inputs that state the same fact as a correctable Listing fact: the register's energielabel
+# (which outranks the Listing's claim) and the Findings on ownership. A Correction outranks them.
+OUTRANKED_BY_CORRECTION = {
+    "energy_label": ("energielabel.energy_label",),
+    "ownership_situation": ("finding.erfpacht",),
+}
 
 # How far a Source's facts can be trusted. WOZ comes from a third-party price-history service,
 # not from an official register. Flood and soil risk (Klimaateffectatlas, publishing LIWO and
@@ -88,10 +96,15 @@ def build_case(
     documents: Sequence[dict] = (),
     *,
     prijsstelling_band: float,
+    corrections: Sequence[Correction] = (),
 ) -> dict:
     """Staleness is computed against `now`, never stored. `observation_runs` holds the latest and
     latest succeeded vision run over the snapshot's photo set. `documents` are the Listing's stored
-    Documents; analysed ones contribute their Findings."""
+    Documents; analysed ones contribute their Findings. `corrections` are the household's
+    Corrections, applied to the snapshot before anything is derived, so every figure uses them."""
+    listing_snapshot = snapshot
+    corrected = {c.key: c for c in corrections}
+    snapshot = applied(listing_snapshot, corrections)
     profile = versioned_profile.profile if versioned_profile else None
     source_runs = sources.runs
     today = now.date()
@@ -101,11 +114,11 @@ def build_case(
         _source_facts(source_runs, sources.ttl_days, now), profile, "commute" in sources.names
     )
     comparables_fetched = (source_runs.get("comparables") or {}).get("last_success") is not None
-    register_label = _value(source_facts, "energielabel", "energy_label")
-    # The register's label, when known, outranks the Listing's claim.
-    energy_label = register_label if isinstance(register_label, str) else snapshot.get("energy_label")
+    register_fact = next((f for f in source_facts if f["source"] == "energielabel" and f["key"] == "energy_label"), None)
     facts = [
-        {
+        _correction_fact(corrected[key], listing_snapshot, register_fact)
+        if key in corrected
+        else {
             "key": key,
             "value": snapshot[key],
             "provenance": "listing",
@@ -127,9 +140,12 @@ def build_case(
     )
     # The Renovation Estimate reads no Buyer Profile and no affordability: it is the same for every
     # household, and its Direct nodig midpoint lowers what the household can pay for this house.
+    fact_inputs = _rule_inputs(snapshot, facts, None, vs_comparables, None, None, vs_woz)
+    # The energielabel counts as the Flag rules read it (see `_rule_inputs`).
+    energy_label = _energy_label(fact_inputs)
     renovation = estimate(
         cost_table,
-        _rule_inputs(snapshot, facts, None, vs_comparables, None, None, vs_woz),
+        fact_inputs,
         _missing_renovation_inputs(facts, photos, observed, documents, energy_label),
         computed_at,
     )
@@ -181,6 +197,8 @@ def build_case(
             "bid_margins_version": bid_margins.version,
             "observation_run": observed["id"] if observed else None,
             "documents": [{"id": d["id"], "sha256": d["sha256"], "status": d["status"]} for d in documents],
+            # What a Correction says, not when it was made or kept: keeping one changes no input.
+            "corrections": [{"key": c.key, "value": c.value, "explanation": c.explanation} for c in corrections],
         },
         "facts": facts,
         "sources": [_source_status(name, source_runs.get(name)) for name in sources.names],
@@ -190,7 +208,9 @@ def build_case(
         "metrics": {
             name: {**metric, "computed_at": computed_at} if metric else None
             for name, metric in {
-                "energy_label_check": _energy_label_check(snapshot.get("energy_label"), register_label),
+                "energy_label_check": _energy_label_check(
+                    listing_snapshot.get("energy_label"), register_fact["value"] if register_fact else None
+                ),
                 "asking_vs_woz": vs_woz,
                 "asking_vs_comparables": vs_comparables,
                 "expected_sale_price": expected_sale_price,
@@ -209,6 +229,46 @@ def build_case(
         "hard_no": hard_no(flag_rules, profile.deal_breakers, flags, inputs) if profile else None,
         "rules": rules_summary(rules, levering, rates, computed_at),
     }
+
+
+def _correction_fact(correction: Correction, listing_snapshot: dict, register_fact: dict | None) -> dict:
+    """A corrected Listing fact: the household's value, with the value it replaces and that value's
+    provenance and fetch time, and whether the Listing's value has moved since the Correction was
+    made or last kept."""
+    listing_value = listing_snapshot.get(correction.key)
+    return {
+        "key": correction.key,
+        "value": correction.value,
+        "provenance": "correction",
+        "explanation": correction.explanation,
+        "corrected_at": correction.created_at,
+        "original": _original(correction.key, listing_snapshot, register_fact),
+        "listing_changed": listing_value != correction.listing_value_at_correction,
+    }
+
+
+def _original(key: str, listing_snapshot: dict, register_fact: dict | None) -> dict:
+    """The value a Correction replaces: the register's energielabel when there is one, else the
+    Listing's value; `provenance` None when the Listing leaves the fact out."""
+    if key == "energy_label" and register_fact and isinstance(register_fact["value"], str):
+        return {
+            "value": register_fact["value"],
+            "provenance": "source",
+            "source": register_fact["source"],
+            "fetched_at": register_fact["fetched_at"],
+        }
+    value = listing_snapshot.get(key)
+    if value is None:
+        return {"value": None, "provenance": None}
+    return {"value": value, "provenance": "listing", "fetched_at": listing_snapshot["fetched_at"]}
+
+
+def _energy_label(inputs: dict) -> object:
+    """The register's energielabel when it states one, else the Listing's or the corrected one."""
+    register = inputs.get("energielabel.energy_label")
+    if register and isinstance(register["value"], str):
+        return register["value"]
+    return (inputs.get("energy_label") or {}).get("value")
 
 
 def _missing_renovation_inputs(
@@ -236,10 +296,6 @@ def _source_status(source: str, runs: dict | None) -> dict:
         "attempted_at": latest["attempted_at"] if latest else None,
         "trust": SOURCE_TRUST.get(source, "third_party"),
     }
-
-
-def _value(facts: list[dict], source: str, key: str) -> object:
-    return next((f["value"] for f in facts if f["source"] == source and f["key"] == key), None)
 
 
 def _energy_label_check(listing_label: str | None, register_label: object) -> dict | None:
@@ -588,7 +644,7 @@ def _rule_inputs(
 ) -> dict:
     """Everything a Flag rule may read, keyed by fact key. Only derived Buyer Profile values.
     `renovation` (the Renovation Estimate) is None while the estimate itself is being built."""
-    inputs = {fact["key"]: fact for fact in facts if fact["provenance"] == "listing"}
+    inputs = {fact["key"]: fact for fact in facts if fact["provenance"] in ("listing", "correction")}
     # Source facts are keyed `<source>.<key>` (e.g. `woz.woz_value`), so the register's
     # energielabel never shadows the Listing's claim; the value with the latest `as_of` wins.
     for fact in sorted((f for f in facts if f["provenance"] == "source"), key=_as_of_order):
@@ -613,6 +669,11 @@ def _rule_inputs(
     # over a denial, so a seller's admission is never hidden by another page.
     for fact in sorted((f for f in facts if f["provenance"] == "finding"), key=lambda f: f["value"] is True):
         inputs[f"finding.{fact['key']}"] = fact
+    # A Correction outranks every other value for its fact, so what it outranks is not read.
+    for key, fact in list(inputs.items()):
+        if fact["provenance"] == "correction":
+            for outranked in OUTRANKED_BY_CORRECTION.get(key, ()):
+                inputs.pop(outranked, None)
     if snapshot.get("description"):
         inputs["description"] = {
             "key": "description",

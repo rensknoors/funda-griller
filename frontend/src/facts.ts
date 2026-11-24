@@ -1,7 +1,15 @@
 /** How Case facts are labelled and shown: the Dutch label per fact key, the herkomst word per
  * provenance class, and number formats per kind of fact. */
 
-import type { CaseFact, Comparable, CommuteFact, CommuteMode, CommuteUnknown } from "./api";
+import type {
+  CaseFact,
+  Comparable,
+  CommuteFact,
+  CommuteMode,
+  CommuteUnknown,
+  CorrectionFact,
+  ListingFact,
+} from "./api";
 import { decimal, euro, percentChange } from "./format";
 import { statusLabel } from "./ListingsTable";
 
@@ -50,7 +58,17 @@ export const PROVENANCE_LABELS: Record<string, string> = {
   buyer_profile: "Koperprofiel",
   rule: "Regel",
   observation: "Waarneming, geschat",
+  correction: "Correctie",
 };
+
+/** Kenmerken: the Listing's facts, each replaced by its Correction when there is one. */
+export const isKenmerk = (fact: CaseFact): fact is ListingFact | CorrectionFact =>
+  fact.provenance === "listing" || fact.provenance === "correction";
+
+/** A Listing fact's value in a sentence, with its unit: "120 m²". */
+export function factText(key: string, value: string | number): string {
+  return key === "living_area" || key === "plot_area" ? `${value} m²` : formatScalar(key, value);
+}
 
 export function formatNumber(key: string, value: number): string {
   if (MONEY_FACTS.has(key)) return euro.format(value);
@@ -102,6 +120,11 @@ function comparableText(c: Comparable): string {
 export function formatValue(fact: CaseFact): string {
   if (isCommuteFact(fact.value)) return commuteText(fact.value);
   if (isComparableFact(fact)) return comparableText(fact.value);
-  if (fact.key === "status" && typeof fact.value === "string") return statusLabel(fact.value, fact.value);
-  return typeof fact.value === "number" ? formatNumber(fact.key, fact.value) : String(fact.value);
+  return formatScalar(fact.key, fact.value);
+}
+
+/** A plain fact value (text or number) by its key, e.g. a corrected fact's original. */
+export function formatScalar(key: string, value: unknown): string {
+  if (key === "status" && typeof value === "string") return statusLabel(value, value);
+  return typeof value === "number" ? formatNumber(key, value) : String(value);
 }

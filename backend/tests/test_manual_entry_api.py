@@ -130,6 +130,7 @@ def test_case_is_built_from_a_manual_entry_like_any_other_listing(client):
         "bid_margins_version": 1,
         "observation_run": None,
         "documents": [],
+        "corrections": [],
     }
     facts = {fact["key"]: fact for fact in case["facts"]}
     assert facts["asking_price"]["value"] == 595000

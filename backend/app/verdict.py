@@ -31,6 +31,12 @@ PROVENANCE_LEGEND = {
     "source:third_party": "From a third-party service, not an official register; indicative only.",
     "observation": "Estimated by a vision model from Listing photos; may be wrong.",
     "finding": "Stated by the seller in a Document; seller-stated, not verified.",
+    "correction": (
+        "The household's own value, replacing the Listing's (or filling a fact it left out); it"
+        " outranks every other value for the fact. `original` is the value it replaces and"
+        " `explanation` where it comes from. A misstated Listing fact says something about how"
+        " far the Listing can be trusted."
+    ),
     "computed": "Arithmetic over other facts and the household's derived figures.",
     "buyer_profile": "The household's own preferences.",
     "rule": "A threshold from the versioned Flag rule set.",
@@ -125,9 +131,12 @@ def judge(
     walk_away_premium: float,
     monthly_cost_at: Callable[[int], MonthlyCosts],
     guide_bid_config: GuideBidConfig,
+    note: dict | None = None,
 ) -> dict:
-    """A Verdict for the Case, without id, version or creation time (the store adds those)."""
-    built_from = inputs_of(case, model)
+    """A Verdict for the Case, without id, version or creation time (the store adds those). The
+    house's Note (`text`, `updated_at`), if any, goes to the model beside the Case, never into it: it
+    raises no Flag and never forces a Hard no (ADR-0006)."""
+    built_from = inputs_of(case, model, note)
     if case["hard_no"]:
         return _hard_no(case, {**built_from, "model": None})
     if llm_client is None:
@@ -144,6 +153,7 @@ def judge(
             "guide_bid": guide_bid,
         },
         reduced_profile,
+        note["text"] if note else None,
     )
     return {
         **_validated(response, case, derivation, monthly_cost_at, guide_bid),
@@ -251,7 +261,7 @@ def _asking_price(case: dict) -> int | None:
     )
 
 
-def inputs_of(case: dict, model: str | None) -> dict:
+def inputs_of(case: dict, model: str | None, note: dict | None = None) -> dict:
     """What a Verdict on this Case depends on; a Verdict is out of date when any of it changes."""
     source_fetches: dict[str, str] = {}
     for fact in case["facts"]:
@@ -266,11 +276,13 @@ def inputs_of(case: dict, model: str | None) -> dict:
         "mortgage_rates": case["rules"].get("rates"),
         "source_fetches": source_fetches,
         "model": model,
+        "note_updated_at": note["updated_at"] if note else None,
     }
 
 
 def changed_inputs(verdict: dict, current: dict) -> list[str]:
-    """Which inputs moved since the Verdict was made: `case`, `buyer_profile`, `rules`, `model`."""
+    """Which inputs moved since the Verdict was made: `case`, `buyer_profile`, `rules`, `model`,
+    `note`."""
     then = verdict["built_from"]
     changed = []
     if (
@@ -278,6 +290,7 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         or then["source_fetches"] != current["source_fetches"]
         or then.get("observation_run") != current.get("observation_run")
         or then.get("documents", []) != current.get("documents", [])
+        or then.get("corrections", []) != current.get("corrections", [])
     ):
         changed.append("case")
     if then["profile_version"] != current["profile_version"]:
@@ -300,6 +313,10 @@ def changed_inputs(verdict: dict, current: dict) -> list[str]:
         changed.append("rules")
     if not verdict["deterministic"] and then["model"] != current["model"]:
         changed.append("model")
+    # Verdicts from before the Note have no `note_updated_at`, as if made without one. A
+    # deterministic Hard no never read the Note (as it never read the model).
+    if not verdict["deterministic"] and then.get("note_updated_at") != current.get("note_updated_at"):
+        changed.append("note")
     return changed
 
 

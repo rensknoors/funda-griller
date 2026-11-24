@@ -22,9 +22,10 @@ def summarise(snapshots: list[dict], case: dict, tier: str | None = None) -> dic
         "previous_asking_price": (
             previous.get("asking_price") if _change(previous, latest, "asking_price") else None
         ),
-        "living_area": latest.get("living_area"),
-        "plot_area": latest.get("plot_area"),
-        "energy_label": _energy_label(case["facts"], latest.get("energy_label")),
+        # As the Case counts them: a Correction outranks the Listing (and the register's label).
+        "living_area": _kenmerk_value(case["facts"], "living_area"),
+        "plot_area": _kenmerk_value(case["facts"], "plot_area"),
+        "energy_label": _energy_label(case["facts"]),
         # Against the WOZ value in today's prices when it can be indexed; the raw one lags the market.
         "asking_vs_woz_percent": (woz["indexed"] or woz)["percent"] if woz else None,
         "asking_vs_comparables_percent": case["metrics"]["asking_vs_comparables"]["percent"],
@@ -63,7 +64,21 @@ def _change(previous: dict | None, latest: dict, key: str) -> dict | None:
     return {"from": previous.get(key), "to": latest.get(key)}
 
 
-def _energy_label(facts: list[dict], listing_label: str | None) -> dict | None:
+def _kenmerk(facts: list[dict], key: str) -> dict | None:
+    """The Listing's fact, or the household's Correction in its place."""
+    return next((f for f in facts if f["key"] == key and f["provenance"] in ("listing", "correction")), None)
+
+
+def _kenmerk_value(facts: list[dict], key: str) -> object:
+    kenmerk = _kenmerk(facts, key)
+    return kenmerk["value"] if kenmerk else None
+
+
+def _energy_label(facts: list[dict]) -> dict | None:
+    """The energielabel the Case counts with: a Correction, else the register's, else the Listing's."""
+    kenmerk = _kenmerk(facts, "energy_label")
+    if kenmerk and kenmerk["provenance"] == "correction":
+        return {"value": kenmerk["value"], "official": False, "corrected": True}
     register = next(
         (
             f["value"]
@@ -73,5 +88,5 @@ def _energy_label(facts: list[dict], listing_label: str | None) -> dict | None:
         None,
     )
     if isinstance(register, str):
-        return {"value": register, "official": True}
-    return {"value": listing_label, "official": False} if listing_label else None
+        return {"value": register, "official": True, "corrected": False}
+    return {"value": kenmerk["value"], "official": False, "corrected": False} if kenmerk else None

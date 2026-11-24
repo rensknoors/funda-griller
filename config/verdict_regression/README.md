@@ -40,7 +40,8 @@ uv run python -m app.verdict_regression add <funda_id> --expect consider --name 
 ```
 
 This freezes the newest snapshot, the last good run of each Source, the photo Observation run, the
-Documents with their Findings and the newest Buyer Profile into
+Documents with their Findings, the Corrections, the Note (as `house_note`) and the newest Buyer
+Profile into
 `config/verdict_regression/<short-slug>.json`, so later runs see the same inputs even after the
 Listing or profile changes. `--expect` is one of `must_buy`, `consider`, `skip`, `hard_no`.
 
@@ -58,6 +59,10 @@ One JSON file per entry; the file name is its name.
 - `observation_run` (optional): the last good photo Observation run, `{id, attempted_at, outcome,
   reason, model, observations}`; `snapshot.photos` lists the photos it cites.
 - `documents` (optional): the Listing's Documents as the app stores them, with their `findings`.
+- `corrections` (optional): the household's Corrections as the app stores them, `{key, value,
+  explanation, created_at, listing_value_at_correction}`.
+- `house_note` (optional): the house's Note (Notitie), the household's own free text the model reads
+  beside the Case. Not to be confused with `note` above.
 - `buyer_profile`: a full Buyer Profile as `PUT /api/buyer-profile` accepts it. Only its reduced form
   reaches the model.
 

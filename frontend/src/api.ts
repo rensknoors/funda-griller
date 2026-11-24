@@ -30,9 +30,11 @@ export type Comparison = {
   status_change: { from: string; to: string } | null;
   asking_price: number | null;
   previous_asking_price: number | null;
+  /** Living area, plot area and energielabel as the Dossier counts them: a Correctie goes first. */
   living_area: number | null;
   plot_area: number | null;
-  energy_label: { value: string; official: boolean } | null;
+  /** `official`: from the register; `corrected`: the household's Correctie. */
+  energy_label: { value: string; official: boolean; corrected: boolean } | null;
   asking_vs_woz_percent: number | null;
   asking_vs_comparables_percent: number | null;
   /** The Prijsstelling as a percentage: the asking price against the Expected Sale Price. */
@@ -194,6 +196,35 @@ export type ListingFact = {
   fetched_at: string;
 };
 
+/** The Listing facts the Case computes with, which a Correction may set. */
+export const CORRECTABLE_KEYS = [
+  "living_area",
+  "plot_area",
+  "rooms",
+  "bedrooms",
+  "construction_year",
+  "house_type",
+  "energy_label",
+  "ownership_situation",
+] as const;
+export type CorrectableKey = (typeof CORRECTABLE_KEYS)[number];
+
+/** The household's own value for a Listing fact, with why; it outranks every other value for that
+ * fact. `original` is the value it replaces (null when the Listing leaves the fact out), and
+ * `listing_changed` says the Listing's value has moved since the Correction was made. */
+export type CorrectionFact = {
+  key: CorrectableKey;
+  value: string | number;
+  provenance: "correction";
+  explanation: string;
+  corrected_at: string;
+  original:
+    | { value: string | number; provenance: "listing"; fetched_at: string }
+    | { value: string; provenance: "source"; source: string; fetched_at: string }
+    | { value: null; provenance: null };
+  listing_changed: boolean;
+};
+
 export type SourceTrust = "official" | "third_party";
 
 /** A nearby Listing from the comparables Source; prices are its (last) asking price. */
@@ -309,7 +340,7 @@ export type ObservationStatus = {
   model: string | null;
 };
 
-export type CaseFact = ListingFact | SourceFact | ObservationFact | FindingFact;
+export type CaseFact = ListingFact | CorrectionFact | SourceFact | ObservationFact | FindingFact;
 
 export type SourceStatus = {
   source: string;
@@ -571,6 +602,39 @@ export async function refetchSource(fundaId: string, source: string): Promise<Ca
   return response.json();
 }
 
+export type CorrectionError = "invalid_value" | "explanation_required" | "unavailable";
+
+/** Set the household's own value for a fact; returns the rebuilt Case, or why it was refused. */
+export async function correctFact(
+  fundaId: string,
+  key: CorrectableKey,
+  value: string | number,
+  explanation: string,
+): Promise<Case | { error: CorrectionError }> {
+  const response = await apiFetch(`/api/listings/${fundaId}/corrections/${key}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ value, explanation }),
+  });
+  if (response.ok) return response.json();
+  const code = response.status === 422 ? ((await response.json()) as { code?: string }).code : undefined;
+  return { error: code === "invalid_value" || code === "explanation_required" ? code : "unavailable" };
+}
+
+/** Keep a Correction after the advertentie moved: the notice goes and the Oordeel stays current. */
+export async function keepCorrection(fundaId: string, key: CorrectableKey): Promise<Case> {
+  const response = await apiFetch(`/api/listings/${fundaId}/corrections/${key}/keep`, { method: "POST" });
+  if (!response.ok) throw new Error("correction not kept");
+  return response.json();
+}
+
+/** Remove a Correction: the Listing's value counts again. Returns the rebuilt Case. */
+export async function removeCorrection(fundaId: string, key: CorrectableKey): Promise<Case> {
+  const response = await apiFetch(`/api/listings/${fundaId}/corrections/${key}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("correction removal failed");
+  return response.json();
+}
+
 const documentsPath = (fundaId: string) => `/api/listings/${fundaId}/documents`;
 
 async function sendDocument(path: string, method: "POST" | "PUT", file: File): Promise<void> {
@@ -611,7 +675,7 @@ export async function rerunObservations(fundaId: string): Promise<Case> {
 }
 
 /** What changed since a Verdict was made; any entry makes it out of date (Achterhaald). */
-export type VerdictInput = "case" | "buyer_profile" | "rules" | "model";
+export type VerdictInput = "case" | "buyer_profile" | "rules" | "model" | "note";
 
 export type WalkAwayBasis = "expected_sale_price" | "comparables" | "asking_price" | "affordability";
 
@@ -716,6 +780,8 @@ export type Verdict = {
     mortgage_rates?: RouteRates | null;
     source_fetches: Record<string, string>;
     model: string | null;
+    /** When the Notitie it read last changed; null without one, absent on Verdicts from before the Notitie. */
+    note_updated_at?: string | null;
   };
 };
 
@@ -732,6 +798,27 @@ export type VerdictError =
   /** `reason` is the backend's explanation, e.g. no API key or an unknown model. */
   | { kind: "llm_unavailable"; reason?: string }
   | { kind: "unknown" };
+
+/** The household's own free text about one Woning (Notitie), outside the Dossier; the model weighs
+ * it for the Oordeel. An empty text is no Notitie. */
+export type Note = { text: string; updated_at: string | null };
+
+export async function fetchNote(fundaId: string): Promise<Note> {
+  const response = await apiFetch(`/api/listings/${fundaId}/note`);
+  if (!response.ok) throw new Error("note unavailable");
+  return response.json();
+}
+
+/** Replace the Notitie; an empty text clears it. Makes an existing Oordeel Achterhaald. */
+export async function saveNote(fundaId: string, text: string): Promise<Note> {
+  const response = await apiFetch(`/api/listings/${fundaId}/note`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) throw new Error("note not saved");
+  return response.json();
+}
 
 /** The Markdown export of a Woning: Dossier and current Oordeel; the koperprofiel always anonymised. */
 export const exportUrl = (fundaId: string, withProfile: boolean) =>

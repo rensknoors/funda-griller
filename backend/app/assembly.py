@@ -8,6 +8,7 @@ from datetime import datetime
 from app.affordability import Affordability, RouteRates, compute
 from app.buyer_profile import reduce_profile
 from app.case import SourceInputs, VersionedProfile, build_case
+from app.correction import Correction
 from app.gemini_client import VERDICT_PROMPT_VERSION
 from app.ports import LlmClient
 from app.rules_loader import (
@@ -32,6 +33,7 @@ def assemble_case(
     source_runs: dict[str, dict],
     observation_runs: dict | None = None,
     documents: Sequence[dict] = (),
+    corrections: Sequence[Correction] = (),
 ) -> dict:
     sources = SourceInputs(source_names, source_runs, settings.source_ttl_days, settings.comparables_min_count)
     levering = expected_levering(now.date(), settings.expected_levering_months)
@@ -50,15 +52,22 @@ def assemble_case(
         observation_runs,
         documents,
         prijsstelling_band=settings.prijsstelling_band,
+        corrections=corrections,
     )
 
 
 def make_verdict(
-    settings: Settings, case: dict, profile: VersionedProfile, llm_client: LlmClient | None, now: datetime
+    settings: Settings,
+    case: dict,
+    profile: VersionedProfile,
+    llm_client: LlmClient | None,
+    now: datetime,
+    note: dict | None = None,
 ) -> dict:
-    """A Verdict for the Case. Raises InvalidVerdict or LlmError (also when the Case needs the model
-    and there is no LLM client); a deal-breaker Hard no needs neither. A model Verdict records the
-    prompt version it was made with."""
+    """A Verdict for the Case, with the house's Note (`text`, `updated_at`) as a separate input.
+    Raises InvalidVerdict or LlmError (also when the Case needs the model and there is no LLM
+    client); a deal-breaker Hard no needs neither. A model Verdict records the prompt version it was
+    made with."""
     levering = expected_levering(now.date(), settings.expected_levering_months)
     rules = load_rules(settings.affordability_rules_path, levering.year)
     affordability = case["affordability"] or {}
@@ -76,6 +85,7 @@ def make_verdict(
             compute(profile.profile, price, energy_label, rules, levering, rates, renovation_direct)
         ),
         settings.guide_bid,
+        note,
     )
     return {**verdict, "prompt_version": None if verdict["deterministic"] else VERDICT_PROMPT_VERSION}
 
