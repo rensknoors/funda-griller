@@ -76,11 +76,6 @@ _listing_provider.listings[TEMPO_URL] = live_listing(
     address="Kerkpad 4",
     price_history=(PricePoint(date=f"{_listed.day} {DUTCH_MONTHS[_listed.month - 1]} {_listed.year}", price=625_000),),
 )
-# Its own woning for the Notitie spec, so its Achterhaald Oordeel leaves the other specs' alone.
-NOTE_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-6/80907662/"
-_listing_provider.listings[NOTE_URL] = live_listing(
-    funda_id="80907662", provider_id="17270392", url=NOTE_URL, address="Kerkpad 6"
-)
 # Verkocht onder voorbehoud: its Oordeel gives conditions only (no Openingsbod or Richtbod).
 RESERVED_URL = "https://www.funda.nl/detail/koop/maastricht/appartement-molenstraat-7/55500002/"
 _listing_provider.listings[RESERVED_URL] = live_listing(
@@ -103,18 +98,6 @@ LOW_WOZ_URL = "https://www.funda.nl/detail/koop/holtum/huis-hoogstraat-9/8090765
 _listing_provider.listings[LOW_WOZ_URL] = live_listing(
     funda_id="80907659", provider_id="17270389", url=LOW_WOZ_URL, address="Hoogstraat 9"
 )
-# For the Correctie spec: one woning to correct, and one whose woonoppervlak the advertentie changes
-# from 128 to 120 m² on the refetch after the first, with no perceeloppervlak stated.
-CORRECTION_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-10/80907663/"
-_listing_provider.listings[CORRECTION_URL] = live_listing(
-    funda_id="80907663", provider_id="17270393", url=CORRECTION_URL, address="Kerkpad 10"
-)
-RECAPTURE_URL = "https://www.funda.nl/detail/koop/holtum/huis-kerkpad-12/80907664/"
-_kerkpad_12 = dict(funda_id="80907664", provider_id="17270394", url=RECAPTURE_URL, address="Kerkpad 12", plot_area=None)
-_listing_provider.listings[RECAPTURE_URL] = [
-    live_listing(**_kerkpad_12, living_area=128),
-    live_listing(**_kerkpad_12, living_area=120),
-]
 
 
 class _WozClient(FakeSourceClient):

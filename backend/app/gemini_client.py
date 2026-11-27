@@ -24,20 +24,12 @@ TIMEOUT_SECONDS = 120
 Transport = Callable[[str, dict, bytes], bytes]
 
 # Bump on any change to VERDICT_INSTRUCTION or the Verdict schema; the regression set records it.
-VERDICT_PROMPT_VERSION = 13
+VERDICT_PROMPT_VERSION = 12
 
 VERDICT_INSTRUCTION = """\
-You rate one house for one Dutch household. The input is JSON with three parts: `case`, the
-deterministic evidence file (facts, computed metrics, affordability and Flags), `buyer_profile`,
-the household's derived figures and preferences, and `note`, the household's own free text about
-this house (null when there is none).
-
-The `note` holds what the household learned themselves: at a viewing, from the agent or from the
-neighbours. It is not part of the case and not verified, but it is first-hand: weigh it, and let it
-move the tier, the opening bid and the conditions when it bears on them (e.g. neighbours reporting
-foundation problems call for a funderingsonderzoek and caution on the price). Say in the reasoning
-when and how the note weighed. It never turns into a Flag: do not cite it in `cited_flags`, and do
-not answer hard_no on the note alone.
+You rate one house for one Dutch household. The input is JSON with two parts: `case`, the
+deterministic evidence file (facts, computed metrics, affordability and Flags), and `buyer_profile`,
+the household's derived figures and preferences.
 
 Every fact carries a `provenance`; `case.provenance_legend` says how far each class can be trusted.
 Weigh seller-stated and estimated facts below official registers, and say so when a conclusion rests
@@ -370,11 +362,11 @@ class GeminiLlmClient:
             raise LlmError("reply has no findings")
         return findings
 
-    def rate(self, case: dict, buyer_profile: dict, note: str | None = None) -> dict:
+    def rate(self, case: dict, buyer_profile: dict) -> dict:
         text = self._generate(
             self.verdict_model,
             VERDICT_INSTRUCTION,
-            json.dumps({"case": case, "buyer_profile": buyer_profile, "note": note}, ensure_ascii=False),
+            json.dumps({"case": case, "buyer_profile": buyer_profile}, ensure_ascii=False),
             _VERDICT_SCHEMA,
         )
         try:

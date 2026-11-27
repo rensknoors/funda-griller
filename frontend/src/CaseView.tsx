@@ -6,6 +6,7 @@ import {
   type Affordability,
   type Case,
   type Listing,
+  type ListingFact,
   type Metrics,
   type RouteRates,
   type SourceFact,
@@ -17,7 +18,6 @@ import {
 import { Documenten, VerkoperInformatie } from "./Documenten";
 import { FACT_LABELS, ENVIRONMENT_FACTS, comparableLabel, formatValue, isComparableFact, isCommuteFact } from "./facts";
 import { FotoWaarnemingen } from "./FotoWaarnemingen";
-import { Kenmerken } from "./Kenmerken";
 import {
   type Tone,
   euro,
@@ -84,8 +84,6 @@ export function CaseView(props: {
   onRefetch: (fundaId: string) => void;
   /** A Signaal to scroll to and expand once the Dossier has loaded (from an Oordeel chip). */
   focusFlagId?: string | null;
-  /** A Correctie changed the Dossier, so the Woning's row (header, Woningen list) is re-read. */
-  onCorrected?: () => void;
 }) {
   const { listing, focusFlagId } = props;
   const [state, setState] = useState<LoadState>({ kind: "laden" });
@@ -222,13 +220,10 @@ export function CaseView(props: {
           <VerwachteVerkoopprijs metrics={state.data.metrics} />
           <Betaalruimte affordability={state.data.affordability} rules={state.data.rules} />
           <Verbouwingskosten estimate={state.data.renovation_estimate} facts={state.data.facts} />
-          <Kenmerken
-            fundaId={listing.funda_id}
-            facts={state.data.facts}
-            onCase={(data) => {
-              setState({ kind: "klaar", data });
-              props.onCorrected?.();
-            }}
+          <FactGroup
+            title="Kenmerken"
+            id="kenmerken"
+            facts={state.data.facts.filter((f): f is ListingFact => f.provenance === "listing")}
           />
           <SourceGroup
             title="Prijs en waarde"
@@ -314,10 +309,7 @@ export function CaseView(props: {
           <FotoWaarnemingen
             data={state.data}
             fundaId={listing.funda_id}
-            onCase={(data) => {
-              setState({ kind: "klaar", data });
-              props.onCorrected?.();
-            }}
+            onCase={(data) => setState({ kind: "klaar", data })}
           />
           <Documenten fundaId={listing.funda_id} documents={state.data.documents} onChanged={reloadCase} />
           </div>
@@ -636,6 +628,29 @@ function Figure(props: { label: string; value: string; tone?: Tone; children?: R
       <dd className={props.tone ? `num tone-${props.tone}` : "num"}>{props.value}</dd>
       {props.children && <dd className="muted note">{props.children}</dd>}
     </div>
+  );
+}
+
+function FactGroup({ title, id, facts }: { title: string; id: string; facts: ListingFact[] }) {
+  return (
+    <details open className="fact-group">
+      <summary>
+        <h2 id={`${id}-title`}>{title}</h2>
+        <span className="muted">{plural(facts.length, "feit", "feiten")}</span>
+      </summary>
+      <ol className="facts">
+        {facts.map((fact, index) => (
+          <li key={fact.key} id={`vak-${index + 1}`} className="fact">
+            <span className="vak-number">{index + 1}</span>
+            <span className="fact-label">{FACT_LABELS[fact.key] ?? fact.key}</span>
+            <span className="fact-value">{formatValue(fact)}</span>
+            <Stamp kind="listing" label={`Bron: advertentie, opgehaald ${shortDate(fact.fetched_at)}`}>
+              Advertentie · {shortDate(fact.fetched_at)}
+            </Stamp>
+          </li>
+        ))}
+      </ol>
+    </details>
   );
 }
 

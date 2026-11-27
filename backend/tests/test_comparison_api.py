@@ -33,7 +33,7 @@ def test_list_shows_price_area_and_key_metrics_per_listing(client, listing_provi
 
     assert row["asking_price"] == 595_000
     assert (row["living_area"], row["plot_area"]) == (152, 410)
-    assert row["energy_label"] == {"value": "A", "official": True, "corrected": False}
+    assert row["energy_label"] == {"value": "A", "official": True}
     # Against the WOZ brought to today (536.082), not the raw 500.000 (+19,0%).
     assert row["asking_vs_woz_percent"] == 11.0
     case = client.get("/api/listings/80907644/case").json()
@@ -52,7 +52,7 @@ def test_without_register_label_the_listing_claim_is_shown(client, listing_provi
 
     row = comparison(client)
 
-    assert row["energy_label"] == {"value": "B", "official": False, "corrected": False}
+    assert row["energy_label"] == {"value": "B", "official": False}
     assert row["asking_vs_woz_percent"] is None
     assert row["headroom"] is None
     assert row["expected_sale_price"] is None

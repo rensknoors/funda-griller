@@ -20,7 +20,7 @@ _Dutch UI_: **Verouderd**
 _Avoid_: Expired, outdated
 
 **Out of date**:
-Describes a Verdict or Case produced from an earlier Case, Buyer Profile, Note or rule version than the current ones. Distinct from Stale, which is about the age of a single fact.
+Describes a Verdict or Case produced from an earlier Case, Buyer Profile or rule version than the current ones. Distinct from Stale, which is about the age of a single fact.
 _Dutch UI_: **Achterhaald**
 _Avoid_: Stale (for Verdicts and Cases), expired
 
@@ -48,16 +48,6 @@ _Avoid_: Attachment, upload, paperwork
 A fact extracted from a Document at upload time and stored in the Case with its page reference, marked as seller-stated rather than verified.
 _Dutch UI_: **Bevinding** (marked **door verkoper**)
 _Avoid_: Claim, extraction
-
-**Correction**:
-The user's own value for a Listing fact the Case computes with (living area, plot area, build year, house type, energielabel, ownership situation, rooms, bedrooms), with a required explanation of where it comes from (e.g. a NEN 2580 measurement report). It also fills a fact the Listing leaves out. It outranks every other value for that fact (Listing, register, Finding) in all computations, while the original value and its provenance stay visible beside it. It belongs to the house, so it is part of the Case and the same for every Buyer Profile. A re-captured Listing never removes it; when the Listing's value has changed since, the Case says so and the user decides.
-_Dutch UI_: **Correctie**; a corrected fact is marked **gecorrigeerd**
-_Avoid_: Override, edit, adjustment (aanpassing)
-
-**Note**:
-The user's own free text about one house (from a viewing, a conversation with the agent or a neighbour), one editable text per house. It may hold judgement, so it is not part of the Case: it is a separate input the LLM reads and weighs for the Verdict and Bid Advice. It raises no Flag and never forces a Hard no.
-_Dutch UI_: **Notitie**
-_Avoid_: Comment, remark, Observation (Waarneming)
 
 **Verdict**:
 The LLM's rating of a Case against the Buyer Profile, as one of four tiers (Must buy, Consider, Skip, Hard no), with reasoning.

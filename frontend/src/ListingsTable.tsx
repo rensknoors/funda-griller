@@ -1,10 +1,10 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { Menu } from "@base-ui/react/menu";
-import { ArrowDown, ArrowUp, ChevronDown, Clock, Ellipsis, RefreshCw, LayoutGrid, Landmark, List, Newspaper, Pencil, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, Clock, Ellipsis, RefreshCw, LayoutGrid, Landmark, List, Newspaper, TrendingDown, TrendingUp } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import type { Listing, StaleSource } from "./api";
-import { energyLabelOrigin, euro, euroRange, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
+import { euro, euroRange, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
 import { plural } from "./plural";
 import { sourceLabel, staleLabel } from "./sources";
 import { ListingCards } from "./ListingCards";
@@ -539,14 +539,14 @@ function RowDetails({ listing }: { listing: Listing }) {
         {row.energy_label ? (
           <>
             <span className={`energy-badge energy-${row.energy_label.value[0].toLowerCase()}`}>{row.energy_label.value}</span>
-            {row.energy_label.corrected ? (
-              <Pencil size={14} aria-hidden="true" className="label-source" />
-            ) : row.energy_label.official ? (
+            {row.energy_label.official ? (
               <Landmark size={14} aria-hidden="true" className="label-source" />
             ) : (
               <Newspaper size={14} aria-hidden="true" className="label-source" />
             )}
-            <span className="visually-hidden">{energyLabelOrigin(row.energy_label)}</span>
+            <span className="visually-hidden">
+              {row.energy_label.official ? "uit het energielabelregister" : "volgens de advertentie"}
+            </span>
           </>
         ) : (
           "–"

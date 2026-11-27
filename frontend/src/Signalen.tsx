@@ -6,7 +6,7 @@ import { Ban } from "lucide-react";
 import type { CaseFact, Evidence, Flag, FlagClass, FindingFact, HardNo } from "./api";
 import { FINDING_LABELS } from "./Documenten";
 import { FlagGlyph } from "./FlagGlyph";
-import { ENVIRONMENT_FACTS, FACT_LABELS, PROVENANCE_LABELS, commuteText, formatNumber, isKenmerk } from "./facts";
+import { ENVIRONMENT_FACTS, FACT_LABELS, PROVENANCE_LABELS, commuteText, formatNumber } from "./facts";
 import { OBSERVATION_LABELS, observationValue, photoList } from "./FotoWaarnemingen";
 
 const EVIDENCE_LABELS: Record<string, string> = {
@@ -117,8 +117,8 @@ export function EvidenceRow({ item, facts }: { item: Evidence; facts: CaseFact[]
   }
   // Only Kenmerken rows carry a vak anchor; Source facts are shown in their own groups.
   const vak =
-    item.provenance === "listing" || item.provenance === "correction"
-      ? facts.filter(isKenmerk).findIndex((fact) => fact.key === item.key) + 1
+    item.provenance === "listing"
+      ? facts.findIndex((fact) => fact.key === item.key && fact.provenance === "listing") + 1
       : 0;
   return (
     <li>

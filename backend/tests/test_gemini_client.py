@@ -62,18 +62,7 @@ def test_rating_asks_the_configured_verdict_model_for_structured_json():
     assert headers["x-goog-api-key"] == "key-123"
     assert "key-123" not in url
     sent = body["contents"][0]["parts"][0]["text"]
-    assert json.loads(sent) == {"case": CASE, "buyer_profile": PROFILE, "note": None}
-
-
-def test_the_note_goes_to_the_verdict_model_as_its_own_part_beside_the_case():
-    client, transport = client_with(gemini_reply(json.dumps(ANSWER)))
-
-    client.rate(CASE, PROFILE, "Buren melden funderingsproblemen.")
-
-    [(_, _, body)] = transport.requests
-    sent = json.loads(body["contents"][0]["parts"][0]["text"])
-    assert sent["note"] == "Buren melden funderingsproblemen."
-    assert sent["case"] == CASE
+    assert json.loads(sent) == {"case": CASE, "buyer_profile": PROFILE}
 
 
 def test_the_verdict_model_is_not_asked_for_a_walk_away_maximum():

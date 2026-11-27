@@ -7,7 +7,6 @@ Read during review. Judgement calls only; anything mechanical belongs in a check
 - Only the Verdict service judges (ADR-0001). A Case, a Flag rule or a metric that sounds like an opinion is a defect.
 - Every Flag cites its rule id, rule version and evidence facts. A Flag with no evidence path is a defect.
 - Every fact entering a Case carries a provenance class (Listing, Source, Observation, Finding) and a fetch or extraction time. Observations read as estimated, Findings as seller-stated, WOZ as third-party.
-- A Correction (`correction`) is the household's own value for a Listing fact and carries its explanation, the time it was made and the `original` value with that value's provenance; it outranks the Listing, the register and a Finding for that fact. It is applied to the snapshot before the Case derives anything, so no figure is computed on the value it replaces.
 - Derived inputs are not facts and never get a fake fetch time: computed metrics and affordability (`computed`), Buyer Profile values (`buyer_profile`) and rule thresholds (`rule`) carry their derived class and a `computed_at` time, the moment the Case derived them.
 - LLM output is validated at the boundary: a tier outside the four, or an opening bid above the Walk-away Maximum, is rejected, not displayed. The Walk-away Maximum itself is derived, never taken from the model.
 
