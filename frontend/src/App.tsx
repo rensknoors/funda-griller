@@ -246,7 +246,6 @@ export function App() {
         busy={busy || captures.isRunning({ fundaId: openCase.funda_id })}
         onRefetch={handleRefetch}
         focusFlagId={focusFlagId}
-        onCorrected={reloadListings}
       />
     );
   } else if (openId && listState === "laden") {

@@ -1,9 +1,9 @@
-import { ArrowLeftRight, Calculator, Globe, Landmark, Newspaper, PencilLine, Quote, ScanEye } from "lucide-react";
+import { ArrowLeftRight, Calculator, Globe, Landmark, Newspaper, Quote, ScanEye } from "lucide-react";
 import type { ReactNode } from "react";
 
 /** Where a fact came from. Each kind has its own icon and border style (double for a register,
- * dotted for a seller's claim, dashed for an estimate, ink for the household's own Correction), so it reads without colour. */
-export type StampKind = "listing" | "official" | "third-party" | "finding" | "observation" | "computed" | "comparable" | "correction";
+ * dotted for a seller's claim, dashed for an estimate), so it reads without colour. */
+export type StampKind = "listing" | "official" | "third-party" | "finding" | "observation" | "computed" | "comparable";
 
 const ICONS: Record<StampKind, typeof Landmark> = {
   listing: Newspaper,
@@ -13,7 +13,6 @@ const ICONS: Record<StampKind, typeof Landmark> = {
   observation: ScanEye,
   computed: Calculator,
   comparable: ArrowLeftRight,
-  correction: PencilLine,
 };
 
 export const STAMP_LEGEND: [StampKind, string, string][] = [
@@ -24,7 +23,6 @@ export const STAMP_LEGEND: [StampKind, string, string][] = [
   ["observation", "Foto's", "geschat door model"],
   ["computed", "Berekend", "uit andere feiten"],
   ["comparable", "Vergelijkbaar", "andere woning"],
-  ["correction", "Correctie", "eigen waarde, met toelichting"],
 ];
 
 export function Stamp(props: {

@@ -1,7 +1,7 @@
 import { Camera, Clock, House, Ruler, Trees, TrendingDown, TrendingUp } from "lucide-react";
 
 import type { Listing } from "./api";
-import { energyLabelOrigin, euro, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
+import { euro, headroomTone, priceTone, signedEuro, signedPercent } from "./format";
 import { ListingActions, SignalCounts, addressOf, staleSourcesTitle, statusLabel } from "./ListingsTable";
 import { staleLabel } from "./sources";
 import { TierMark } from "./TierMark";
@@ -160,7 +160,7 @@ function ListingCard(props: {
             {row.energy_label && (
               <span
                 className={`energy-badge energy-${row.energy_label.value[0].toLowerCase()}`}
-                title={`Energielabel ${energyLabelOrigin(row.energy_label)}`}
+                title={row.energy_label.official ? "Energielabel uit het register" : "Energielabel volgens de advertentie"}
               >
                 {row.energy_label.value}
               </span>

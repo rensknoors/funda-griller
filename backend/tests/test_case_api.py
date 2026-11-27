@@ -49,7 +49,6 @@ def test_case_records_the_snapshot_and_profile_version_that_produced_it(client, 
         "bid_margins_version": 1,
         "observation_run": 1,
         "documents": None,
-        "corrections": [],
     }
 
 

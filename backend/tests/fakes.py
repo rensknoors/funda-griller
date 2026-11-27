@@ -89,8 +89,6 @@ class FakeLlmClient:
             "bid_advice": None,
         }
         self.rate_calls: list[tuple[dict, dict]] = []
-        # The Note each `rate` call read beside the Case, in call order.
-        self.rate_notes: list[str | None] = []
         self.observe_calls: list[list[str]] = []
 
     def observe_photos(self, photo_paths: list[str]) -> list[dict]:
@@ -106,9 +104,8 @@ class FakeLlmClient:
             raise self.findings
         return self.findings(document_path) if callable(self.findings) else self.findings
 
-    def rate(self, case: dict, buyer_profile: dict, note: str | None = None) -> dict:
+    def rate(self, case: dict, buyer_profile: dict) -> dict:
         self.rate_calls.append((case, buyer_profile))
-        self.rate_notes.append(note)
         if isinstance(self.verdict, Exception):
             raise self.verdict
         return self.verdict(case, buyer_profile) if callable(self.verdict) else self.verdict

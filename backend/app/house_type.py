@@ -19,13 +19,6 @@ _HOUSE_CATEGORIES = (
     ("vrijstaand", "vrijstaand"),
 )
 
-# Other words funda uses in a house's soort woning: the woningsoort and a ligging outside the five
-# categories (a geschakelde woning has no category, but is a soort woning all the same).
-_OTHER_HOUSE_WORDS = (
-    "eengezinswoning", "herenhuis", "villa", "landhuis", "bungalow", "woonboerderij", "grachtenpand",
-    "woonboot", "landgoed", "geschakelde", "verspringend", "kwadrant", "patio", "split-level",
-)
-
 # Dutch UI labels.
 LABELS = {
     "appartement": "appartement",
@@ -34,14 +27,6 @@ LABELS = {
     "twee_onder_een_kap": "twee-onder-een-kapwoning",
     "vrijstaand": "vrijstaande woning",
 }
-
-
-def recognised(house_type: str) -> bool:
-    """Whether the text reads as one of funda's soorten woning (an apartment, a house category or
-    another woningsoort), so a Correction cannot name something the Case cannot place."""
-    text = house_type.casefold()
-    words = (*_APARTMENT_WORDS, *(word for word, _ in _HOUSE_CATEGORIES), *_OTHER_HOUSE_WORDS)
-    return any(word in text for word in words)
 
 
 def kind(object_type: str | None, house_type: str | None) -> str | None:

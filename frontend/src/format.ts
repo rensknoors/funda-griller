@@ -8,12 +8,6 @@ export const euro = new Intl.NumberFormat("nl-NL", {
   maximumFractionDigits: 0,
 });
 
-/** Where the energielabel a Woning is shown with comes from: "uit het register", "gecorrigeerd". */
-export function energyLabelOrigin(label: { official: boolean; corrected: boolean }): string {
-  if (label.corrected) return "gecorrigeerd";
-  return label.official ? "uit het register" : "volgens de advertentie";
-}
-
 export const decimal = new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 2 });
 
 /** A change in percent with its sign and at most one decimal: "+51,8", "-6,8", "0". */
